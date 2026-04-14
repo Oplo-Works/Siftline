@@ -1,0 +1,143 @@
+name: Build & Release
+
+# ── 트리거 ────────────────────────────────────────────────────────────────────
+on:
+  push:
+    tags:
+      - 'v*'          # v1.0.0 처럼 태그를 push 할 때 자동 실행
+  workflow_dispatch:   # GitHub 웹에서 수동 실행 버튼 제공
+
+# ── 권한 ──────────────────────────────────────────────────────────────────────
+permissions:
+  contents: write     # GitHub Release 생성 + 파일 업로드에 필요
+
+jobs:
+  # ════════════════════════════════════════════════════════════════
+  #  Job 1: Mac DMG 빌드  (macos-latest 러너)
+  # ════════════════════════════════════════════════════════════════
+  build-mac:
+    name: 🍎 Build macOS DMG
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Convert .ico → .icns (macOS icon)
+        run: |
+          ICONSET="ai-council.iconset"
+          mkdir -p "$ICONSET"
+          for SIZE in 16 32 64 128 256 512; do
+            sips -z $SIZE $SIZE ai-council.ico --out "$ICONSET/icon_${SIZE}x${SIZE}.png" &>/dev/null
+            DOUBLE=$((SIZE * 2))
+            sips -z $DOUBLE $DOUBLE ai-council.ico --out "$ICONSET/icon_${SIZE}x${SIZE}@2x.png" &>/dev/null
+          done
+          iconutil -c icns "$ICONSET" -o ai-council.icns
+          rm -rf "$ICONSET"
+          echo "✔ ai-council.icns generated"
+
+      - name: Build (Vite)
+        run: npm run build
+
+      - name: Package DMG (x64 + arm64)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false   # 코드사이닝 스킵
+        run: npx electron-builder --mac dmg --x64 --arm64
+
+      - name: Upload DMG artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-dmg
+          path: release/*.dmg
+          retention-days: 7
+
+  # ════════════════════════════════════════════════════════════════
+  #  Job 2: Windows NSIS 인스톨러 빌드  (windows-latest 러너)
+  # ════════════════════════════════════════════════════════════════
+  build-windows:
+    name: 🪟 Build Windows Installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download rcedit-x64.exe
+        shell: pwsh
+        run: |
+          $dest = "$env:LOCALAPPDATA\electron-builder\Cache\winCodeSign\winCodeSign-2.6.0\rcedit-x64.exe"
+          New-Item -ItemType Directory -Force -Path (Split-Path $dest) | Out-Null
+          Invoke-WebRequest -Uri "https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe" `
+            -OutFile $dest -UseBasicParsing
+          Write-Host "✔ rcedit-x64.exe ready"
+
+      - name: Build (Vite)
+        run: npm run build
+
+      - name: Package Windows Installer (NSIS)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npx electron-builder --win nsis
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: release/*.exe
+          retention-days: 7
+
+  # ════════════════════════════════════════════════════════════════
+  #  Job 3: GitHub Release 생성 + 파일 첨부
+  #  (두 빌드 Job이 모두 성공했을 때만 실행)
+  # ════════════════════════════════════════════════════════════════
+  release:
+    name: 🚀 Create GitHub Release
+    needs: [build-mac, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')   # 태그 push 시에만 Release 생성
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-all
+
+      - name: List files
+        run: find dist-all -type f
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "AI Council ${{ github.ref_name }}"
+          draft: false
+          prerelease: false
+          files: |
+            dist-all/mac-dmg/*.dmg
+            dist-all/windows-installer/*.exe
+          body: |
+            ## AI Council ${{ github.ref_name }}
+
+            ### 📥 설치 방법
+            | 플랫폼 | 파일 | 설명 |
+            |--------|------|------|
+            | 🍎 Mac (Intel) | `*-x64.dmg` | DMG 열고 Applications 폴더로 드래그 |
+            | 🍎 Mac (Apple Silicon M1/M2/M3) | `*-arm64.dmg` | 동일 |
+            | 🪟 Windows | `AI-Council-Setup.exe` | 더블클릭으로 설치 |

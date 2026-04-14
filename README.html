@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Council — Autonomous Cross-Verification Workflow</title>
+  <meta name="description" content="Autonomous cross-verification workflow among 4 major LLMs using Electron BrowserViews and UI automation." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-base:       #0a0c14;
+      --bg-panel:      rgba(255,255,255,0.04);
+      --bg-card:       rgba(255,255,255,0.06);
+      --border:        rgba(255,255,255,0.08);
+      --border-accent: rgba(99,179,237,0.35);
+      --text-primary:  #e2e8f0;
+      --text-muted:    #8892a4;
+      --text-faint:    #4a5568;
+      --accent-blue:   #63b3ed;
+      --accent-purple: #b794f4;
+      --accent-teal:   #4fd1c5;
+      --accent-orange: #f6ad55;
+      --accent-green:  #68d391;
+      --glow-blue:     rgba(99,179,237,0.15);
+      --glow-purple:   rgba(183,148,244,0.12);
+      --radius:        12px;
+      --radius-sm:     8px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      line-height: 1.7;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 10% 20%, rgba(99,179,237,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 90% 80%, rgba(183,148,244,0.06) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 60px 24px 100px;
+    }
+
+    /* ── Header ── */
+    .hero {
+      text-align: center;
+      margin-bottom: 64px;
+      animation: fadeUp .7s ease both;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-accent);
+      border-radius: 999px;
+      padding: 6px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--accent-blue);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+
+    .hero-badge::before {
+      content: '';
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--accent-blue);
+      box-shadow: 0 0 8px var(--accent-blue);
+      animation: pulse 2s ease infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: .6; transform: scale(1.3); }
+    }
+
+    .hero h1 {
+      font-size: clamp(2.4rem, 6vw, 3.8rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #e2e8f0 0%, var(--accent-blue) 50%, var(--accent-purple) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 16px;
+    }
+
+    .hero-tagline {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      max-width: 560px;
+      margin: 0 auto;
+    }
+
+    /* ── Section ── */
+    section {
+      margin-bottom: 56px;
+      animation: fadeUp .6s ease both;
+    }
+
+    section:nth-child(2)  { animation-delay: .10s; }
+    section:nth-child(3)  { animation-delay: .15s; }
+    section:nth-child(4)  { animation-delay: .20s; }
+    section:nth-child(5)  { animation-delay: .25s; }
+    section:nth-child(6)  { animation-delay: .30s; }
+    section:nth-child(7)  { animation-delay: .35s; }
+    section:nth-child(8)  { animation-delay: .40s; }
+    section:nth-child(9)  { animation-delay: .45s; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(22px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .section-label {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: .7rem;
+      font-weight: 600;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      margin-bottom: 20px;
+    }
+
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    h2 {
+      font-size: 1.55rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 20px;
+      letter-spacing: -0.02em;
+    }
+
+    /* ── Panel / Card ── */
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      backdrop-filter: blur(12px);
+      transition: border-color .25s, box-shadow .25s;
+    }
+
+    .panel:hover {
+      border-color: var(--border-accent);
+      box-shadow: 0 0 24px var(--glow-blue);
+    }
+
+    /* ── Code blocks ── */
+    pre {
+      background: rgba(0,0,0,0.4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 20px 24px;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .82rem;
+      line-height: 1.65;
+      color: #a0aec0;
+    }
+
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .85em;
+      background: rgba(255,255,255,0.07);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--accent-teal);
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+    }
+
+    /* ── Step cards ── */
+    .steps-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .step-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 18px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 18px 22px;
+      transition: transform .2s, border-color .2s, box-shadow .2s;
+      cursor: default;
+    }
+
+    .step-card:hover {
+      transform: translateX(6px);
+      border-color: var(--border-accent);
+      box-shadow: -4px 0 16px var(--glow-blue);
+    }
+
+    .step-num {
+      min-width: 36px; height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      display: flex; align-items: center; justify-content: center;
+      font-size: .8rem; font-weight: 700;
+      color: #0a0c14;
+      box-shadow: 0 0 12px var(--glow-blue);
+      flex-shrink: 0;
+    }
+
+    .step-text { font-size: .93rem; color: var(--text-primary); line-height: 1.5; padding-top: 6px; }
+
+    /* ── Quick-start steps ── */
+    .qs-step {
+      margin-bottom: 28px;
+    }
+
+    .qs-step-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .qs-badge { font-size: 1.1rem; }
+
+    .qs-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .qs-note {
+      background: rgba(246,173,85,0.08);
+      border: 1px solid rgba(246,173,85,0.2);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      font-size: .85rem;
+      color: var(--accent-orange);
+      margin-bottom: 12px;
+      line-height: 1.6;
+    }
+
+    .qs-note strong { color: var(--accent-orange); }
+
+    .qs-desc {
+      font-size: .9rem;
+      color: var(--text-muted);
+      margin-top: 10px;
+    }
+
+    /* ── Tables ── */
+    .table-wrap { overflow-x: auto; border-radius: var(--radius-sm); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .9rem;
+    }
+
+    thead tr { background: rgba(99,179,237,0.08); }
+
+    th {
+      text-align: left;
+      padding: 12px 18px;
+      font-weight: 600;
+      font-size: .8rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--accent-blue);
+      border-bottom: 1px solid var(--border-accent);
+    }
+
+    td {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-primary);
+      vertical-align: top;
+    }
+
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: rgba(255,255,255,0.025); }
+
+    /* ── Prompt blocks ── */
+    .prompt-block { margin-bottom: 20px; }
+
+    .prompt-label {
+      font-size: .78rem;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--accent-purple);
+      margin-bottom: 8px;
+    }
+
+    /* ── Info / note boxes ── */
+    .info-box {
+      background: rgba(99,179,237,0.06);
+      border: 1px solid rgba(99,179,237,0.18);
+      border-radius: var(--radius-sm);
+      padding: 16px 20px;
+      font-size: .9rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .info-box strong { color: var(--accent-blue); }
+
+    .green-box {
+      background: rgba(104,211,145,0.06);
+      border: 1px solid rgba(104,211,145,0.2);
+      border-radius: var(--radius-sm);
+      padding: 16px 20px;
+      font-size: .9rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-top: 16px;
+    }
+
+    .green-box strong { color: var(--accent-green); }
+
+    /* ── Feature chips ── */
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(79,209,197,0.08);
+      border: 1px solid rgba(79,209,197,0.2);
+      border-radius: 999px;
+      padding: 5px 14px;
+      font-size: .8rem;
+      font-weight: 500;
+      color: var(--accent-teal);
+    }
+
+    /* ── Req tag ── */
+    .req-tag {
+      display: inline-block;
+      background: rgba(79,209,197,0.1);
+      border: 1px solid rgba(79,209,197,0.25);
+      border-radius: 999px;
+      padding: 4px 14px;
+      font-size: .8rem;
+      font-weight: 500;
+      color: var(--accent-teal);
+      margin-top: 12px;
+    }
+
+    /* ── Divider ── */
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0;
+    }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 40px 0 0;
+      color: var(--text-faint);
+      font-size: .78rem;
+    }
+
+    footer a { color: var(--accent-blue); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ── HERO ── -->
+  <header class="hero">
+    <div class="hero-badge">Electron · React · TypeScript</div>
+    <h1>AI Council</h1>
+    <p class="hero-tagline">
+      Autonomous cross-verification workflow among 4 major LLMs using Electron BrowserViews and UI automation.
+    </p>
+  </header>
+
+  <!-- ── ARCHITECTURE ── -->
+  <section>
+    <div class="section-label">Project Layout</div>
+    <h2>Architecture</h2>
+    <div class="panel">
+      <pre><code>ai-council/
+├── electron/
+│   ├── main.ts                  # Main process: BrowserViews, IPC, full workflow engine
+│   ├── preload.ts               # Context-isolated API bridge (contextBridge)
+│   ├── preload-chrome-spoof.js  # Chrome identity spoof for OAuth popups
+│   └── selectors.json           # External DOM selector config (updatable without rebuild)
+├── src/
+│   ├── App.tsx                  # Root component: state, IPC subscriptions, orchestration
+│   ├── types.ts                 # Shared types, constants, global window declarations
+│   ├── index.css                # Dark glassmorphism design system
+│   └── components/
+│       ├── TitleBar.tsx         # Frameless window bar with drag region
+│       ├── Toolbar.tsx          # Primary AI selector + query input + file attach + Start
+│       ├── StatusBar.tsx        # Live status text with animated progress bar
+│       ├── PanelGrid.tsx        # 4-panel headers (above embedded BrowserViews)
+│       ├── FinalResultPanel.tsx # Collapsible final answer panel + per-file download
+│       ├── LogDrawer.tsx        # Real-time execution logs side drawer
+│       └── HistoryDrawer.tsx    # Persistent chat history side drawer
+├── google-login.mjs             # Standalone Google account login helper
+├── Google 로그인.bat             # Launcher for google-login.mjs
+├── claude-login.mjs             # Standalone Claude (claude.ai) login helper
+└── Claude 로그인.bat             # Launcher for claude-login.mjs</code></pre>
+    </div>
+  </section>
+
+  <!-- ── QUICK START ── -->
+  <section>
+    <div class="section-label">Setup &amp; Run</div>
+    <h2>Quick Start</h2>
+    <div class="panel">
+
+      <div class="qs-step">
+        <div class="qs-step-header">
+          <span class="qs-badge">1️⃣</span>
+          <span class="qs-title">처음 설치 (새 PC로 옮겼을 때)</span>
+        </div>
+        <div class="qs-note">
+          <strong>주의:</strong> <code>node_modules</code>는 OS·CPU 환경에 종속된 바이너리를 포함합니다.<br/>
+          다른 PC로 옮긴 경우 반드시 삭제 후 재설치하세요.
+        </div>
+        <pre><code># node_modules 삭제 (PowerShell)
+Remove-Item -Recurse -Force node_modules
+
+# 의존성 재설치
+npm install</code></pre>
+        <p class="qs-desc">같은 PC에서 소스 파일만 교체했다면 <code>npm install</code> 없이 바로 실행 가능합니다.<br/>
+        단, <code>package.json</code>에 새 패키지가 추가되었다면 <code>npm install</code>을 한 번 실행하세요.</p>
+      </div>
+
+      <div class="qs-step">
+        <div class="qs-step-header">
+          <span class="qs-badge">2️⃣</span>
+          <span class="qs-title">AI 서비스 로그인 (최초 1회)</span>
+        </div>
+        <p class="qs-desc" style="margin-bottom:10px">앱 실행 전에 각 서비스에 미리 로그인해두면 세션이 유지됩니다.<br/>
+        Google 계정으로 로그인하는 서비스(Gemini, Claude 등)는 아래 helper를 사용하세요.</p>
+        <pre><code># Google 계정 로그인 (Gemini 등 Google 계정 사용 서비스)
+Google 로그인.bat
+
+# Claude.ai 로그인 (Google OAuth 팝업 포함)
+Claude 로그인.bat</code></pre>
+        <p class="qs-desc">로그인 완료 후 창을 닫으면 세션 쿠키가 <code>persist:</code> 파티션에 저장됩니다.</p>
+      </div>
+
+      <div class="qs-step">
+        <div class="qs-step-header">
+          <span class="qs-badge">3️⃣</span>
+          <span class="qs-title">개발 모드 실행 (코드 수정 + 핫리로드)</span>
+        </div>
+        <pre><code>npm start</code></pre>
+        <p class="qs-desc">Electron 창이 자동으로 열립니다. 각 AI 서비스 패널에 로그인하세요.</p>
+      </div>
+
+      <div class="qs-step">
+        <div class="qs-step-header">
+          <span class="qs-badge">4️⃣</span>
+          <span class="qs-title">빌드 후 실행 (프로덕션 모드)</span>
+        </div>
+        <pre><code>npm run build
+npx electron .</code></pre>
+        <p class="qs-desc"><code>dist/</code> 및 <code>dist-electron/</code> 폴더가 생성된 뒤 앱이 실행됩니다.</p>
+      </div>
+
+      <div class="qs-step">
+        <div class="qs-step-header">
+          <span class="qs-badge">5️⃣</span>
+          <span class="qs-title">포터블 EXE 패키징 (배포용)</span>
+        </div>
+        <pre><code>npm run package</code></pre>
+        <p class="qs-desc">빌드 완료 후 <code>release/AI-Council-Portable.exe</code>가 생성됩니다. 설치 없이 바로 실행 가능한 단일 실행 파일입니다.</p>
+      </div>
+
+      <div class="qs-step" style="margin-bottom:0">
+        <div class="qs-step-header">
+          <span class="qs-badge">6️⃣</span>
+          <span class="qs-title">인스톨러 EXE 생성 (설치 프로그램)</span>
+        </div>
+        <pre><code>npm run package:installer</code></pre>
+        <p class="qs-desc"><code>release/</code> 폴더에 NSIS 기반 설치 마법사 EXE가 생성됩니다.</p>
+      </div>
+
+      <div style="margin-top:24px">
+        <span class="req-tag">⚙️ Node.js v18+ &nbsp;·&nbsp; npm v9+</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FILE ATTACHMENT ── -->
+  <section>
+    <div class="section-label">Feature</div>
+    <h2>파일 첨부 (File Attachment)</h2>
+    <div class="panel">
+      <p style="color:var(--text-muted); font-size:.93rem; margin-bottom:20px;">
+        질문과 함께 파일을 첨부하면 모든 AI가 파일 내용을 분석하고,
+        최종 수정본을 파일별로 분리해 다운로드할 수 있습니다.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>지원 형식</th><th>추출 방식</th><th>수정본 저장</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>.pdf</code></td><td>pdf-parse (텍스트 추출)</td><td><code>.txt</code></td></tr>
+            <tr><td><code>.docx</code></td><td>mammoth (본문 추출)</td><td><code>.docx</code> (재생성)</td></tr>
+            <tr><td><code>.xlsx</code></td><td>xlsx (시트 → CSV)</td><td><code>.xlsx</code> (재생성)</td></tr>
+            <tr><td><code>.txt</code> / <code>.md</code> / <code>.csv</code></td><td>UTF-8 직접 읽기</td><td>원본 확장자 유지</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="green-box">
+        <strong>동작 방식:</strong> Primary AI에는 파일 내용이 프롬프트에 텍스트로 포함됩니다.
+        Reviewer AI들도 동일한 파일 컨텍스트를 수신합니다.
+        최종 답변은 <code>&lt;&lt;&lt;FILE:파일명&gt;&gt;&gt; … &lt;&lt;&lt;END_FILE&gt;&gt;&gt;</code> 구분자로
+        파일별 수정 내용을 출력하며, 패널에서 파일별 저장 버튼이 표시됩니다.
+      </div>
+
+      <div class="chip-row">
+        <span class="chip">📎 다중 파일 동시 첨부</span>
+        <span class="chip">⬇ 파일별 개별 다운로드</span>
+        <span class="chip">80,000자 컨텍스트 제한</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── WORKFLOW ── -->
+  <section>
+    <div class="section-label">Execution Flow</div>
+    <h2>Workflow</h2>
+    <div class="steps-grid">
+      <div class="step-card"><div class="step-num">1</div><div class="step-text">App loads all 4 AI websites in BrowserViews — user logs in manually once per session (or via login helper scripts)</div></div>
+      <div class="step-card"><div class="step-num">2</div><div class="step-text">User selects Primary AI, types query, optionally attaches files (PDF / DOCX / XLSX / TXT / MD / CSV), clicks <strong>Start</strong></div></div>
+      <div class="step-card"><div class="step-num">3</div><div class="step-text">File content extracted on main process; combined prompt (query + file context) pasted into Primary AI with human-like typing</div></div>
+      <div class="step-card"><div class="step-num">4</div><div class="step-text">MutationObserver-based stability detection waits for Primary AI's draft response</div></div>
+      <div class="step-card"><div class="step-num">5</div><div class="step-text">Review prompt (draft + file context) injected simultaneously into all 3 Reviewer AIs</div></div>
+      <div class="step-card"><div class="step-num">6</div><div class="step-text">Wait for all reviewer feedback responses (parallel, with per-AI stability detection)</div></div>
+      <div class="step-card"><div class="step-num">7</div><div class="step-text">Combined feedback + final revision prompt injected back into Primary AI; instructs per-file structured output when files are attached</div></div>
+      <div class="step-card"><div class="step-num">8</div><div class="step-text">Final revised answer extracted, parsed into per-file blocks, displayed in collapsible Final Result Panel with individual download buttons</div></div>
+    </div>
+  </section>
+
+  <!-- ── FINAL RESULT PANEL ── -->
+  <section>
+    <div class="section-label">UI Component</div>
+    <h2>최종 결과 패널</h2>
+    <div class="panel">
+      <p style="color:var(--text-muted); font-size:.93rem; margin-bottom:18px;">
+        화면 하단에 고정된 접이식 패널입니다. 헤더 클릭 또는 ▲/▼ 버튼으로 토글합니다.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>상태</th><th>높이</th><th>표시 내용</th></tr></thead>
+          <tbody>
+            <tr><td>접힘 (collapsed)</td><td>36 px</td><td>제목 · Primary AI 이름 · 완료/생성 중 뱃지</td></tr>
+            <tr><td>펼침 (expanded)</td><td>260 px</td><td>미리보기(Markdown 렌더링) / Raw 탭 · 복사 버튼 · 파일별 저장 버튼</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="green-box">
+        <strong>미리보기 / Markdown 탭:</strong> 렌더링된 HTML과 원본 Markdown 텍스트를 전환해서 볼 수 있습니다.<br/>
+        <strong>파일별 저장:</strong> 첨부 파일이 있을 경우 AI가 수정한 각 파일을 개별 버튼으로 저장합니다.
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SELECTOR MAINTENANCE ── -->
+  <section>
+    <div class="section-label">Maintenance</div>
+    <h2>Selector Maintenance</h2>
+    <div class="info-box">
+      DOM selectors are defined in <code>electron/selectors.json</code> and inlined at build time.<br />
+      To override without rebuilding, place a custom <code>selectors.json</code> in the app's userData directory:<br /><br />
+      <strong>Windows:</strong> <code>%APPDATA%\ai-council\selectors.json</code>
+    </div>
+  </section>
+
+  <!-- ── PROMPT TEMPLATES ── -->
+  <section>
+    <div class="section-label">Korean Prompts</div>
+    <h2>Prompt Templates</h2>
+    <div class="panel">
+      <div class="prompt-block">
+        <div class="prompt-label">Primary Prompt (파일 첨부 시)</div>
+        <pre><code>다음 질문에 답변해주세요.
+질문: {query}
+
+[첨부 파일 내용]
+--- {파일명} ---
+{파일 내용}
+---</code></pre>
+      </div>
+
+      <div class="prompt-block">
+        <div class="prompt-label">Reviewer Prompt</div>
+        <pre><code>아래는 [{Primary AI}]가 다음 질문에 대해 답변한 내용입니다.
+질문: {query}
+[첨부 파일 내용]: {fileContext}   ← 파일 첨부 시에만 포함
+[{Primary AI}]의 답변: {draft}
+위 답변을 리뷰해주세요: 1. 정확성 2. 완전성 3. 명확성 4. 개선 제안</code></pre>
+      </div>
+
+      <div class="prompt-block" style="margin-bottom:0">
+        <div class="prompt-label">Final Revision Prompt (파일 첨부 시)</div>
+        <pre><code>당신이 이전에 준 답변에 대해 다른 AI들이 피드백을 주었습니다.
+[각 AI의 피드백] ...
+피드백을 반영하여 각 파일의 수정본을 아래 형식으로 출력하세요:
+
+&lt;&lt;&lt;FILE:파일명.확장자&gt;&gt;&gt;
+(수정된 전체 내용)
+&lt;&lt;&lt;END_FILE&gt;&gt;&gt;</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── TECH STACK ── -->
+  <section>
+    <div class="section-label">Dependencies</div>
+    <h2>Tech Stack</h2>
+    <div class="panel">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Layer</th><th>Technology</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Shell</td><td>Electron 41</td></tr>
+            <tr><td>UI</td><td>React 18 + TypeScript</td></tr>
+            <tr><td>Build</td><td>Vite 5 + vite-plugin-electron</td></tr>
+            <tr><td>Markdown</td><td>marked 18 (GFM + breaks)</td></tr>
+            <tr><td>Storage</td><td>electron-store</td></tr>
+            <tr><td>Styling</td><td>Vanilla CSS (dark glassmorphism)</td></tr>
+            <tr><td>Browser embeds</td><td><code>BrowserView</code> (not headless, persistent sessions)</td></tr>
+            <tr><td>DOM automation</td><td><code>executeJavaScript</code> + CDP <code>DOM.setFileInputFiles</code></td></tr>
+            <tr><td>File parsing</td><td>pdf-parse · mammoth · xlsx</td></tr>
+            <tr><td>File generation</td><td>docx · xlsx</td></tr>
+            <tr><td>OAuth compatibility</td><td>preload-chrome-spoof.js (Chrome identity masking)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>AI Council &mdash; README &nbsp;·&nbsp; Last updated 2026-04-13</p>
+  </footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Council — 기획서</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+      background: #f0f2f8;
+      color: #212121;
+      padding: 40px 20px;
+    }
+
+    .page {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(57,73,171,0.12);
+      overflow: hidden;
+    }
+
+    /* ── 헤더 ── */
+    .header {
+      background: linear-gradient(135deg, #1a237e 0%, #3949ab 60%, #5c6bc0 100%);
+      color: white;
+      text-align: center;
+      padding: 56px 40px 48px;
+    }
+    .header h1 {
+      font-size: 42px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+    }
+    .header .subtitle {
+      font-size: 16px;
+      opacity: 0.85;
+      margin-bottom: 18px;
+    }
+    .header .date {
+      font-size: 13px;
+      opacity: 0.6;
+    }
+    .header-divider {
+      width: 80px;
+      height: 3px;
+      background: rgba(255,255,255,0.5);
+      margin: 16px auto;
+      border-radius: 2px;
+    }
+
+    /* ── 콘텐츠 ── */
+    .content {
+      padding: 40px 48px 56px;
+    }
+
+    /* ── 섹션 ── */
+    .section {
+      margin-bottom: 40px;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1a237e;
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 2.5px solid #3949ab;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-title .num {
+      background: #3949ab;
+      color: white;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .sub-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #283593;
+      margin: 18px 0 8px;
+    }
+
+    p {
+      font-size: 14px;
+      line-height: 1.8;
+      color: #424242;
+      margin-bottom: 10px;
+    }
+
+    /* ── 테이블 ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+      margin-bottom: 12px;
+    }
+    thead tr {
+      background: #3949ab;
+      color: white;
+    }
+    thead th {
+      padding: 10px 14px;
+      text-align: left;
+      font-weight: 700;
+    }
+    tbody tr:nth-child(even) { background: #e8eaf6; }
+    tbody tr:nth-child(odd)  { background: #fff; }
+    tbody td {
+      padding: 9px 14px;
+      border-bottom: 1px solid #c5cae9;
+      line-height: 1.6;
+      vertical-align: top;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .badge-ok  { background: #e8f5e9; color: #2e7d32; }
+    .badge-no  { background: #ffebee; color: #c62828; }
+
+    /* ── 코드 블록 ── */
+    .code-block {
+      background: #f5f5f5;
+      border-left: 4px solid #3949ab;
+      border-radius: 6px;
+      padding: 16px 18px;
+      font-family: 'Courier New', Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      white-space: pre;
+      overflow-x: auto;
+      color: #263238;
+      margin-bottom: 12px;
+    }
+
+    /* ── 흐름도 ── */
+    .flow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      margin: 8px 0 16px;
+    }
+    .flow-step {
+      background: #e8eaf6;
+      border: 2px solid #9fa8da;
+      border-radius: 8px;
+      padding: 10px 28px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #1a237e;
+      text-align: center;
+      min-width: 320px;
+    }
+    .flow-arrow {
+      font-size: 20px;
+      color: #7986cb;
+      line-height: 1.2;
+      margin: 2px 0;
+    }
+    .flow-step.primary {
+      background: #3949ab;
+      color: white;
+      border-color: #1a237e;
+    }
+
+    /* ── UI 레이아웃 미리보기 ── */
+    .ui-preview {
+      border: 2px solid #9fa8da;
+      border-radius: 8px;
+      overflow: hidden;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+    .ui-titlebar {
+      background: #3949ab;
+      color: white;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+    }
+    .ui-toolbar {
+      background: #e8eaf6;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #c5cae9;
+      font-size: 13px;
+    }
+    .ui-toolbar select, .ui-toolbar input {
+      border: 1px solid #9fa8da;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-family: inherit;
+      font-size: 12px;
+    }
+    .ui-toolbar input { flex: 1; }
+    .ui-toolbar button {
+      background: #3949ab;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 5px 14px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .ui-status {
+      background: #fff8e1;
+      padding: 5px 14px;
+      font-size: 12px;
+      color: #e65100;
+      border-bottom: 1px solid #ffe082;
+    }
+    .ui-panels {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+    }
+    .ui-panel {
+      border-right: 1px solid #c5cae9;
+      min-height: 100px;
+    }
+    .ui-panel:last-child { border-right: none; }
+    .ui-panel-header {
+      background: #5c6bc0;
+      color: white;
+      text-align: center;
+      padding: 6px 4px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .ui-panel-header.primary-panel { background: #1a237e; }
+    .ui-panel-badge {
+      text-align: center;
+      font-size: 10px;
+      color: #7986cb;
+      padding: 2px 0;
+      background: #e8eaf6;
+      border-bottom: 1px solid #c5cae9;
+    }
+    .ui-panel-content {
+      padding: 6px 8px;
+      font-size: 11px;
+      color: #9e9e9e;
+      text-align: center;
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ui-result {
+      background: #e8eaf6;
+      border-top: 2px solid #3949ab;
+      padding: 8px 14px;
+      font-size: 12px;
+      color: #283593;
+    }
+
+    /* ── 경고 박스 ── */
+    .note-box {
+      background: #fff3e0;
+      border-left: 4px solid #ff9800;
+      border-radius: 6px;
+      padding: 14px 18px;
+      font-size: 13.5px;
+      color: #bf360c;
+      line-height: 1.7;
+      margin-bottom: 12px;
+    }
+
+    /* ── 푸터 ── */
+    .footer {
+      background: #e8eaf6;
+      text-align: center;
+      padding: 16px;
+      font-size: 12px;
+      color: #9fa8da;
+      border-top: 1px solid #c5cae9;
+    }
+
+    @media print {
+      body { background: white; padding: 0; }
+      .page { box-shadow: none; border-radius: 0; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- 헤더 -->
+  <div class="header">
+    <h1>AI Council</h1>
+    <div class="header-divider"></div>
+    <div class="subtitle">기획서 — 브라우저 자동화 방식 (API 미사용)</div>
+    <div class="date">작성일: 2026년 04월 12일</div>
+  </div>
+
+  <div class="content">
+
+    <!-- 1. 프로젝트 개요 -->
+    <div class="section">
+      <div class="section-title"><span class="num">1</span> 프로젝트 개요</div>
+      <table>
+        <thead><tr><th>항목</th><th>내용</th></tr></thead>
+        <tbody>
+          <tr><td>프로젝트명</td><td><strong>AI Council</strong></td></tr>
+          <tr><td>방식</td><td>실제 AI 웹사이트를 자동으로 조작 (API 미사용)</td></tr>
+          <tr><td>플랫폼</td><td>Windows / macOS 데스크탑</td></tr>
+          <tr><td>핵심 기술</td><td>Electron + BrowserView (실제 웹사이트 임베드)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 2. 기술 방식 결정 -->
+    <div class="section">
+      <div class="section-title"><span class="num">2</span> 기술 방식 결정</div>
+      <div class="sub-title">왜 Electron + BrowserView인가?</div>
+      <table>
+        <thead><tr><th>방식</th><th>설명</th><th>적합성</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Playwright / Puppeteer (헤드리스)</td>
+            <td>백그라운드에서 브라우저 조작, 화면 안 보임</td>
+            <td><span class="badge badge-no">❌ 불적합</span><br><small>사용자가 대화창 못 봄</small></td>
+          </tr>
+          <tr>
+            <td><strong>Electron + BrowserView</strong></td>
+            <td>실제 웹사이트를 앱 창 안에 임베드, 사용자도 보임</td>
+            <td><span class="badge badge-ok">✅ 최적</span></td>
+          </tr>
+          <tr>
+            <td>iframe</td>
+            <td>대부분의 AI 사이트가 iframe 차단 (X-Frame-Options)</td>
+            <td><span class="badge badge-no">❌ 불가</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <p><strong>BrowserView</strong>란 Electron이 제공하는 기능으로, 실제 크롬 브라우저 창을 앱 안에 붙여넣는 방식입니다. 사용자는 실제 Gemini/Claude/ChatGPT 화면을 보면서, 앱이 뒤에서 자동으로 텍스트를 입력하고 추출합니다.</p>
+    </div>
+
+    <!-- 3. 핵심 작동 원리 -->
+    <div class="section">
+      <div class="section-title"><span class="num">3</span> 핵심 작동 원리</div>
+      <div class="flow">
+        <div class="flow-step">앱 실행</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">5개 BrowserView 생성 — 각 AI 사이트 로드</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">사용자: 각 AI에 수동 로그인 (최초 1회)</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step primary">사용자: Primary AI 선택 + 질문 입력</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">앱이 Primary AI 입력창에 자동 타이핑 + 전송</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">Primary AI 답변 완료 감지 → 텍스트 추출</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">나머지 4개 AI 입력창에 "답변 + 리뷰 요청" 자동 입력</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">4개 AI 답변 완료 감지 → Feedback 텍스트 추출</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">Primary AI에게 "Feedback 종합 + 수정 요청" 자동 입력</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step primary">최종 수정 답변 완료 → 사용자에게 표시</div>
+      </div>
+    </div>
+
+    <!-- 4. 화면 구성 -->
+    <div class="section">
+      <div class="section-title"><span class="num">4</span> 화면 구성 (UI Layout)</div>
+      <div class="ui-preview">
+        <div class="ui-titlebar">
+          <span>AI Council</span>
+          <span>⚙ 설정 &nbsp; — &nbsp; □ &nbsp; ✕</span>
+        </div>
+        <div class="ui-toolbar">
+          <span>Primary AI:</span>
+          <select><option>Gemini ▼</option></select>
+          <input type="text" placeholder="질문을 입력하세요...">
+          <button>시작</button>
+        </div>
+        <div class="ui-status">● Gemini 답변 중...</div>
+        <div class="ui-panels">
+          <div class="ui-panel">
+            <div class="ui-panel-header primary-panel">Gemini</div>
+            <div class="ui-panel-badge">★ Primary</div>
+            <div class="ui-panel-content">실제 웹사이트<br><small style="color:#4caf50">● 답변완료</small></div>
+          </div>
+          <div class="ui-panel">
+            <div class="ui-panel-header">Claude</div>
+            <div class="ui-panel-badge">Reviewer</div>
+            <div class="ui-panel-content">실제 웹사이트<br><small>⟳ 대기중</small></div>
+          </div>
+          <div class="ui-panel">
+            <div class="ui-panel-header">ChatGPT</div>
+            <div class="ui-panel-badge">Reviewer</div>
+            <div class="ui-panel-content">실제 웹사이트<br><small>⟳ 대기중</small></div>
+          </div>
+          <div class="ui-panel">
+            <div class="ui-panel-header">Perplexity</div>
+            <div class="ui-panel-badge">Reviewer</div>
+            <div class="ui-panel-content">실제 웹사이트<br><small>⟳ 대기중</small></div>
+          </div>
+        </div>
+        <div class="ui-result">[ 최종 결과 패널 ] &nbsp; Primary AI 최종 수정 답변이 여기에 표시됩니다</div>
+      </div>
+    </div>
+
+    <!-- 5. 각 AI 사이트별 자동화 방법 -->
+    <div class="section">
+      <div class="section-title"><span class="num">5</span> 각 AI 사이트별 자동화 방법</div>
+      <p>앱이 각 사이트에 JavaScript를 주입해서 입력/추출을 수행합니다.</p>
+      <table>
+        <thead><tr><th>AI</th><th>사이트</th><th>자동화 방식</th></tr></thead>
+        <tbody>
+          <tr><td>Gemini</td><td>gemini.google.com</td><td>JS로 입력창 찾기 → 텍스트 삽입 → Enter</td></tr>
+          <tr><td>Claude</td><td>claude.ai</td><td>JS로 입력창 찾기 → 텍스트 삽입 → Enter</td></tr>
+          <tr><td>ChatGPT</td><td>chatgpt.com</td><td>JS로 입력창 찾기 → 텍스트 삽입 → Enter</td></tr>
+          <tr><td>Perplexity</td><td>perplexity.ai</td><td>JS로 입력창 찾기 → 텍스트 삽입 → Enter</td></tr>
+        </tbody>
+      </table>
+      <div class="sub-title">자동화 핵심 동작 예시 (JavaScript)</div>
+<div class="code-block">// 입력창에 텍스트 입력 (각 사이트마다 selector 다름)
+document.querySelector('div[contenteditable]').innerText = "질문내용";
+
+// 전송 버튼 클릭
+document.querySelector('button[data-testid="send-button"]').click();
+
+// 답변 완료 감지: 일정 시간 동안 새 텍스트가 추가되지 않으면 완료로 판단
+// → MutationObserver로 DOM 변화 감시
+
+// 최신 답변 텍스트 추출
+document.querySelectorAll('.message')[last].innerText;</div>
+    </div>
+
+    <!-- 6. 기술적 도전과 해결책 -->
+    <div class="section">
+      <div class="section-title"><span class="num">6</span> 기술적 도전과 해결책</div>
+      <table>
+        <thead><tr><th>도전</th><th>해결책</th></tr></thead>
+        <tbody>
+          <tr><td>각 AI 사이트 DOM 구조가 다름</td><td>사이트별 selector 설정 파일로 분리 관리</td></tr>
+          <tr><td>사이트 UI 업데이트 시 셀렉터 깨짐</td><td>셀렉터를 앱 외부 JSON 파일로 분리해 수정 용이하게</td></tr>
+          <tr><td>답변 완료 시점 감지</td><td>MutationObserver + 텍스트 변화 감지 타이머 + 로딩 스피너 소멸 감지</td></tr>
+          <tr><td>로그인 필요</td><td>사용자가 최초 1회 수동 로그인, 이후 세션 유지</td></tr>
+          <tr><td>일부 사이트 봇 탐지</td><td>실제 사람처럼 타이핑 딜레이 적용</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 7. 프롬프트 템플릿 -->
+    <div class="section">
+      <div class="section-title"><span class="num">7</span> 앱 내 프롬프트 템플릿 (자동 생성)</div>
+      <div class="sub-title">Reviewer AI에게 보내는 메시지</div>
+<div class="code-block">아래는 [Gemini]가 다음 질문에 대해 답변한 내용입니다.
+
+질문: {사용자 질문}
+
+[Gemini]의 답변:
+{Primary AI 답변}
+
+위 답변을 리뷰해주세요:
+1. 정확성 (사실 오류가 있는가?)
+2. 완전성 (중요한 내용이 빠졌는가?)
+3. 명확성 (이해하기 어려운 부분이 있는가?)
+4. 개선 제안</div>
+
+      <div class="sub-title">Primary AI에게 보내는 최종 수정 요청</div>
+<div class="code-block">당신이 이전에 준 답변에 대해 다른 AI들이 피드백을 주었습니다.
+
+[Claude의 피드백]: {feedback1}
+[ChatGPT의 피드백]: {feedback2}
+[Perplexity의 피드백]: {feedback3}
+
+각 피드백에 대해:
+- 수용할 것: (이유 포함)
+- 거부할 것: (이유 포함)
+
+을 명시한 후, 최종 수정된 답변을 작성해주세요.</div>
+    </div>
+
+    <!-- 8. 기술 스택 -->
+    <div class="section">
+      <div class="section-title"><span class="num">8</span> 기술 스택</div>
+      <table>
+        <thead><tr><th>역할</th><th>기술</th></tr></thead>
+        <tbody>
+          <tr><td>데스크탑 앱 프레임워크</td><td>Electron</td></tr>
+          <tr><td>UI</td><td>React + TypeScript</td></tr>
+          <tr><td>브라우저 자동화</td><td>Electron BrowserView + executeJavaScript</td></tr>
+          <tr><td>답변 완료 감지</td><td>MutationObserver (DOM 변화 감시)</td></tr>
+          <tr><td>데이터 저장</td><td>electron-store (대화 히스토리)</td></tr>
+          <tr><td>패키징</td><td>electron-builder</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 9. 개발 단계 -->
+    <div class="section">
+      <div class="section-title"><span class="num">9</span> 개발 단계 (Roadmap)</div>
+      <table>
+        <thead><tr><th>단계</th><th>내용</th></tr></thead>
+        <tbody>
+          <tr><td>1단계</td><td>Electron 프로젝트 세팅 + 5분할 BrowserView 레이아웃</td></tr>
+          <tr><td>2단계</td><td>각 AI 사이트 셀렉터 분석 + 텍스트 입력 / 추출 스크립트</td></tr>
+          <tr><td>3단계</td><td>답변 완료 감지 로직 (MutationObserver + 타이머)</td></tr>
+          <tr><td>4단계</td><td>리뷰 루프 오케스트레이션 (자동화 흐름 전체)</td></tr>
+          <tr><td>5단계</td><td>UI 상태 표시 (진행중 / 완료 / 오류 등)</td></tr>
+          <tr><td>6단계</td><td>설정 화면, 히스토리 저장, 패키징 (installer)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 10. 주의사항 -->
+    <div class="section">
+      <div class="section-title"><span class="num">10</span> 주의사항</div>
+      <div class="note-box">
+        ⚠️ 이 방식은 기술적으로 구현 가능하지만, 각 AI 서비스의 <strong>이용약관(ToS)</strong>상 자동화 스크립트 사용을 제한할 수 있습니다. <strong>개인적 / 실험적 용도</strong>로 사용하는 것을 권장합니다.
+      </div>
+    </div>
+
+  </div><!-- /content -->
+
+  <div class="footer">AI Council 기획서 &nbsp;|&nbsp; 2026.04.12 &nbsp;|&nbsp; 브라우저 자동화 방식</div>
+</div>
+</body>
+</html>

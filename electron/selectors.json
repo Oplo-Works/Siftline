@@ -1,0 +1,103 @@
+{
+  "gemini": {
+    "url": "https://gemini.google.com/app",
+    "inputSelector": "rich-textarea .ql-editor[contenteditable='true'], div[contenteditable='true'][data-placeholder]",
+    "inputSelectors": [
+      "rich-textarea .ql-editor[contenteditable='true']",
+      "div[contenteditable='true'][data-placeholder]",
+      "div[contenteditable='true']",
+      "textarea[placeholder]"
+    ],
+    "sendButtonSelectors": [
+      "button[data-test-id='send-button']",
+      "button[aria-label='Send message']",
+      "button.send-button",
+      "button[jsaction*='send']",
+      "[data-mat-icon-name='send']"
+    ],
+    "responseContainerSelectors": [
+      "model-response .response-content",
+      ".response-container-content",
+      "message-content .markdown",
+      ".model-response-text"
+    ],
+    "loadedIndicatorSelectors": [
+      "rich-textarea",
+      "div[contenteditable]"
+    ]
+  },
+  "claude": {
+    "url": "https://claude.ai",
+    "inputSelectors": [
+      "div[contenteditable='true'][data-placeholder]",
+      ".ProseMirror[contenteditable='true']",
+      "div[contenteditable='true']",
+      "textarea[placeholder]"
+    ],
+    "sendButtonSelectors": [
+      "button[aria-label='Send Message']",
+      "button[aria-label='Send message']",
+      "button[data-testid='send-button']",
+      "button[type='submit']"
+    ],
+    "responseContainerSelectors": [
+      ".claude-message",
+      "[data-is-streaming='false'] .message-content",
+      ".font-claude-message",
+      ".prose"
+    ],
+    "loadedIndicatorSelectors": [
+      "div[contenteditable]",
+      ".ProseMirror"
+    ]
+  },
+  "chatgpt": {
+    "url": "https://chatgpt.com",
+    "inputSelectors": [
+      "#prompt-textarea",
+      "textarea[data-id='prompt-textarea']",
+      "div[contenteditable='true'][id='prompt-textarea']",
+      "div[contenteditable='true']"
+    ],
+    "sendButtonSelectors": [
+      "button[data-testid='send-button']",
+      "button[aria-label='Send prompt']",
+      "button[aria-label='Send message']"
+    ],
+    "responseContainerSelectors": [
+      "div[data-message-author-role='assistant'] .markdown",
+      "[data-message-author-role='assistant'] .prose",
+      ".agent-turn .prose",
+      "div.markdown.prose"
+    ],
+    "loadedIndicatorSelectors": [
+      "#prompt-textarea",
+      "div[contenteditable]"
+    ]
+  },
+  "perplexity": {
+    "url": "https://www.perplexity.ai",
+    "inputSelectors": [
+      "textarea[placeholder*='Ask']",
+      "textarea[placeholder*='search']",
+      "div[contenteditable='true']",
+      "textarea"
+    ],
+    "sendButtonSelectors": [
+      "button[aria-label='Submit']",
+      "button[aria-label='Send']",
+      "button[type='submit']",
+      "svg[data-icon='arrow-right']"
+    ],
+    "responseContainerSelectors": [
+      ".prose",
+      "[data-testid='answer']",
+      ".answer-content",
+      ".markdown-content"
+    ],
+    "loadedIndicatorSelectors": [
+      "textarea",
+      "div[contenteditable]"
+    ]
+  }
+}

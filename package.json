@@ -1,0 +1,119 @@
+{
+  "name": "ai-council",
+  "version": "1.0.0",
+  "description": "AI Council - Autonomous Cross-Verification Workflow among 5 LLMs",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "package": "npm run build && electron-builder --win portable",
+    "package:installer": "npm run build && electron-builder --win nsis",
+    "package:mac": "npm run build && electron-builder --mac dmg",
+    "package:mac:zip": "npm run build && electron-builder --mac zip"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "build": {
+    "appId": "com.aicouncil.app",
+    "productName": "AI Council",
+    "copyright": "AI Council",
+    "forceCodeSigning": false,
+    "publish": null,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "node_modules/**/*",
+      "!node_modules/.bin/**/*",
+      "!node_modules/.cache/**/*",
+      "!node_modules/**/test/**/*",
+      "!node_modules/**/tests/**/*",
+      "!node_modules/**/*.md",
+      "!node_modules/**/.travis.yml"
+    ],
+    "extraResources": [
+      {
+        "from": "ai-council.ico",
+        "to": "ai-council.ico"
+      }
+    ],
+    "win": {
+      "icon": "ai-council.ico",
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "AI-Council-Portable.exe"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "installerIcon": "ai-council.ico",
+      "uninstallerIcon": "ai-council.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AI Council",
+      "artifactName": "AI-Council-Setup.exe"
+    },
+    "mac": {
+      "icon": "ai-council.icns",
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ]
+    },
+    "dmg": {
+      "artifactName": "AI-Council-${version}-${arch}.dmg",
+      "title": "AI Council Installer",
+      "icon": "ai-council.icns",
+      "contents": [
+        { "x": 130, "y": 220 },
+        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+      ]
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^41.2.0",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.4.5",
+    "vite": "^5.3.1",
+    "vite-plugin-electron": "^0.28.7",
+    "vite-plugin-electron-renderer": "^0.14.5",
+    "wait-on": "^7.2.0"
+  },
+  "dependencies": {
+    "@types/marked": "^5.0.2",
+    "@types/pdf-parse": "^1.1.5",
+    "docx": "^9.6.1",
+    "electron-store": "^8.2.0",
+    "mammoth": "^1.12.0",
+    "marked": "^18.0.0",
+    "pdf-parse": "^2.4.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "xlsx": "^0.18.5"
+  }
+}

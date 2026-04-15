@@ -16,6 +16,51 @@
 
 ---
 
+## 📥 Download & Install
+
+No build required. Download the latest installer from [GitHub Releases](https://github.com/MinkyuTheBuilder/ai-council/releases/latest).
+
+| Platform | File | Target |
+|----------|------|--------|
+| 🍎 macOS (Intel) | `AI-Council-*-x64.dmg` | Intel Mac (pre-2020 models) |
+| 🍎 macOS (Apple Silicon) | `AI-Council-*-arm64.dmg` | M1 / M2 / M3 / M4 Mac |
+| 🪟 Windows | `AI-Council-Setup.exe` | Windows 10 / 11 (x64) |
+
+### 🍎 macOS — Install from DMG
+
+```text
+1. Check your Mac chip:  Apple menu → About This Mac → Chip
+     "Apple M..."      → download the arm64 build
+     "Intel Core..."   → download the x64 build
+
+2. Double-click the downloaded .dmg file to mount it.
+
+3. Drag the AI Council icon into the Applications folder.
+
+4. Launch AI Council from Launchpad or Finder → Applications.
+```
+
+> **⚠️ macOS Gatekeeper warning ("cannot verify the developer")**  
+> The app is not code-signed, so macOS may block it on first launch. Use either method below:
+>
+> **Method 1 (GUI):** System Settings → Privacy & Security → scroll down → click *"Open Anyway"*  
+> **Method 2 (Terminal):**
+> ```bash
+> xattr -cr "/Applications/AI Council.app"
+> ```
+
+### 🪟 Windows — Install from EXE
+
+```text
+1. Download AI-Council-Setup.exe.
+2. Double-click to run the setup wizard.
+3. Launch AI Council from the desktop shortcut or Start Menu.
+```
+
+> If Windows Defender SmartScreen appears, click *"More info"* → *"Run anyway"*.
+
+---
+
 ## Architecture
 
 ```text
@@ -138,13 +183,24 @@ Creates `release/AI-Council-Portable.exe` — a single executable that runs with
 
 ---
 
-### 7️⃣ Create installer EXE (setup program)
+### 7️⃣ Create installer EXE — 🪟 Windows (setup program)
 
 ```bash
 npm run package:installer
 ```
 
 An NSIS-based installer wizard EXE is created in `release/`.
+
+---
+
+### 8️⃣ Build DMG — 🍎 macOS (distribution)
+
+```bash
+# Builds both Intel (x64) and Apple Silicon (arm64) at once
+npx electron-builder --mac dmg --x64 --arm64
+```
+
+Two files are created in `release/`: `*-x64.dmg` for Intel Macs and `*-arm64.dmg` for Apple Silicon Macs.
 
 ---
 
@@ -221,8 +277,9 @@ A collapsible panel pinned to the bottom of the screen. Toggle it by clicking th
 
 > DOM selectors are defined in `electron/selectors.json` and inlined at build time.  
 > To override without rebuilding, place a custom `selectors.json` in the app's userData directory:
-> 
-> **Windows:** `%APPDATA%\ai-council\selectors.json`
+>
+> **🪟 Windows:** `%APPDATA%\ai-council\selectors.json`  
+> **🍎 macOS:** `~/Library/Application Support/ai-council/selectors.json`
 
 ---
 

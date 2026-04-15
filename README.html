@@ -528,6 +528,66 @@
     </div>
   </header>
 
+  <!-- ── DOWNLOAD & INSTALL ── -->
+  <section>
+    <div class="section-label">Download &amp; Install</div>
+    <h2>📥 Download &amp; Install</h2>
+    <div class="panel">
+      <p style="color:var(--text-muted); font-size:.93rem; margin-bottom:20px;">
+        No build required. Download the latest installer from
+        <a href="https://github.com/MinkyuTheBuilder/ai-council/releases/latest" style="color:var(--accent-blue);">GitHub Releases</a>.
+      </p>
+
+      <div class="table-wrap" style="margin-bottom:28px;">
+        <table>
+          <thead>
+            <tr><th>Platform</th><th>File</th><th>Target</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>🍎 macOS (Intel)</td><td><code>AI-Council-*-x64.dmg</code></td><td>Intel Mac (pre-2020 models)</td></tr>
+            <tr><td>🍎 macOS (Apple Silicon)</td><td><code>AI-Council-*-arm64.dmg</code></td><td>M1 / M2 / M3 / M4 Mac</td></tr>
+            <tr><td>🪟 Windows</td><td><code>AI-Council-Setup.exe</code></td><td>Windows 10 / 11 (x64)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="qs-step">
+        <div class="qs-step-header">
+          <span class="qs-badge">🍎</span>
+          <span class="qs-title">macOS — Install from DMG</span>
+        </div>
+        <pre><code>1. Check your Mac chip:  Apple menu → About This Mac → Chip
+     "Apple M..."      → download the arm64 build
+     "Intel Core..."   → download the x64 build
+
+2. Double-click the downloaded .dmg file to mount it.
+
+3. Drag the AI Council icon into the Applications folder.
+
+4. Launch AI Council from Launchpad or Finder → Applications.</code></pre>
+
+        <div class="qs-note" style="margin-top:14px;">
+          <strong>⚠️ macOS Gatekeeper warning ("cannot verify the developer")</strong><br/>
+          The app is not code-signed, so macOS may block it on first launch. Use either method below:<br/><br/>
+          <strong>Method 1 (GUI):</strong> System Settings → Privacy &amp; Security → scroll down → click <em>"Open Anyway"</em><br/>
+          <strong>Method 2 (Terminal):</strong>
+          <pre style="margin-top:8px;"><code>xattr -cr "/Applications/AI Council.app"</code></pre>
+        </div>
+      </div>
+
+      <div class="qs-step" style="margin-bottom:0">
+        <div class="qs-step-header">
+          <span class="qs-badge">🪟</span>
+          <span class="qs-title">Windows — Install from EXE</span>
+        </div>
+        <pre><code>1. Download AI-Council-Setup.exe.
+2. Double-click to run the setup wizard.
+3. Launch AI Council from the desktop shortcut or Start Menu.</code></pre>
+        <p class="qs-desc">If Windows Defender SmartScreen appears, click <em>"More info"</em> → <em>"Run anyway"</em>.</p>
+      </div>
+    </div>
+  </section>
+
   <!-- ── ARCHITECTURE ── -->
   <section>
     <div class="section-label">Project Layout</div>
@@ -656,13 +716,23 @@ npx electron .</code></pre>
         <p class="qs-desc">After the build, <code>release/AI-Council-Portable.exe</code> is created. It's a single executable that runs without installation.</p>
       </div>
 
-      <div class="qs-step" style="margin-bottom:0">
+      <div class="qs-step">
         <div class="qs-step-header">
           <span class="qs-badge">7️⃣</span>
-          <span class="qs-title">Create installer EXE (setup program)</span>
+          <span class="qs-title">Create installer EXE — 🪟 Windows (setup program)</span>
         </div>
         <pre><code>npm run package:installer</code></pre>
         <p class="qs-desc">An NSIS-based installer wizard EXE is created in <code>release/</code>.</p>
+      </div>
+
+      <div class="qs-step" style="margin-bottom:0">
+        <div class="qs-step-header">
+          <span class="qs-badge">8️⃣</span>
+          <span class="qs-title">Build DMG — 🍎 macOS (distribution)</span>
+        </div>
+        <pre><code># Builds both Intel (x64) and Apple Silicon (arm64) at once
+npx electron-builder --mac dmg --x64 --arm64</code></pre>
+        <p class="qs-desc">Two files are created in <code>release/</code>: <code>*-x64.dmg</code> for Intel Macs and <code>*-arm64.dmg</code> for Apple Silicon Macs.</p>
       </div>
 
       <div style="margin-top:24px">
@@ -803,7 +873,8 @@ npx electron .</code></pre>
     <div class="info-box">
       DOM selectors are defined in <code>electron/selectors.json</code> and inlined at build time.<br />
       To override without rebuilding, place a custom <code>selectors.json</code> in the app's userData directory:<br /><br />
-      <strong>Windows:</strong> <code>%APPDATA%\ai-council\selectors.json</code>
+      <strong>🪟 Windows:</strong> <code>%APPDATA%\ai-council\selectors.json</code><br />
+      <strong>🍎 macOS:</strong> <code>~/Library/Application Support/ai-council/selectors.json</code>
     </div>
   </section>
 

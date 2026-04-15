@@ -99,5 +99,32 @@
       "textarea",
       "div[contenteditable]"
     ]
+  },
+  "grok": {
+    "url": "https://grok.com",
+    "inputSelectors": [
+      "textarea[placeholder*='Ask']",
+      "textarea[placeholder*='Grok']",
+      "textarea[placeholder*='Message']",
+      "div[contenteditable='true'][aria-label]",
+      "div[contenteditable='true']",
+      "textarea"
+    ],
+    "sendButtonSelectors": [
+      "button[aria-label='Send message']",
+      "button[aria-label='Send']",
+      "button[type='submit']",
+      "button[data-testid='send-button']"
+    ],
+    "responseContainerSelectors": [
+      ".message-bubble",
+      "[data-testid='message-content']",
+      ".prose",
+      ".markdown"
+    ],
+    "loadedIndicatorSelectors": [
+      "textarea",
+      "div[contenteditable]"
+    ]
   }
 }

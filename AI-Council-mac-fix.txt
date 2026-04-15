@@ -1,0 +1,45 @@
+================================================================
+  AI Council - Mac Launch Error Fix Guide
+  (For "AI Council is damaged and can't be opened" error)
+================================================================
+
+[ Step 1 ] Install the DMG first
+---------------------------------------------------------------
+Open the .dmg file and drag the AI Council icon
+into the Applications folder to complete installation.
+
+
+[ Step 2 ] Open Terminal
+---------------------------------------------------------------
+1. Press Command (⌘) + Space on your keyboard
+2. Type "Terminal" in Spotlight search
+3. Click Terminal to open it
+
+
+[ Step 3 ] Run the fix command
+---------------------------------------------------------------
+Copy and paste the command below into the Terminal window,
+then press Enter:
+
+xattr -cr "/Applications/AI Council.app"
+
+Note: Paste shortcut is Command (⌘) + V
+
+
+[ Step 4 ] Enter password (if prompted)
+---------------------------------------------------------------
+If asked for a password, enter your Mac login password and press Enter.
+WARNING: Nothing will appear on screen while typing - this is normal!
+
+
+[ Step 5 ] Launch the app
+---------------------------------------------------------------
+Double-click AI Council in the Applications folder - it should now open correctly. ✅
+
+
+================================================================
+  Still not opening?
+================================================================
+Right-click the app -> [Open] -> Click [Open] button.
+
+================================================================

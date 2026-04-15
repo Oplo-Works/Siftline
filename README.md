@@ -26,111 +26,111 @@ ai-council/
 │       ├── LogDrawer.tsx        # Real-time execution logs side drawer
 │       └── HistoryDrawer.tsx    # Persistent chat history side drawer
 ├── google-login.mjs             # Standalone Google account login helper
-├── Google 로그인.bat             # Launcher for google-login.mjs
+├── Google Login.bat             # Launcher for google-login.mjs
 ├── claude-login.mjs             # Standalone Claude (claude.ai) login helper
-└── Claude 로그인.bat             # Launcher for claude-login.mjs
+└── Claude Login.bat             # Launcher for claude-login.mjs
 ```
 
 ---
 
 ## Quick Start
 
-### 1️⃣ 처음 설치 (새 PC로 옮겼을 때)
+### 1️⃣ First-time install (when moving to a new PC)
 
-> **주의:** `node_modules`는 OS·CPU 환경에 종속된 바이너리를 포함합니다.  
-> 다른 PC로 옮긴 경우 반드시 삭제 후 재설치하세요.
+> **Note:** `node_modules` includes binaries that depend on your OS/CPU environment.  
+> If you moved the project to a different PC, delete it and reinstall.
 
 ```bash
-# node_modules 삭제 (PowerShell)
+# Delete node_modules (PowerShell)
 Remove-Item -Recurse -Force node_modules
 
-# 의존성 재설치
+# Reinstall dependencies
 npm install
 ```
 
-같은 PC에서 소스 파일만 교체했다면 `npm install` 없이 바로 실행 가능합니다.  
-단, `package.json`에 새 패키지가 추가되었다면 `npm install`을 한 번 실행하세요.
+If you only replaced source files on the same PC, you can run it right away without `npm install`.  
+However, if new packages were added to `package.json`, run `npm install` once.
 
 ---
 
-### 2️⃣ AI 서비스 로그인 (최초 1회)
+### 2️⃣ AI service login (first time only)
 
-앱 실행 전에 각 서비스에 미리 로그인해두면 세션이 유지됩니다.  
-Google 계정으로 로그인하는 서비스(Gemini, Claude 등)는 아래 helper를 사용하세요.
+If you log in to each service once before running the app, your session will persist.  
+For services that use Google account login (Gemini, Claude, etc.), use the helpers below.
 
 ```bash
-# Google 계정 로그인 (Gemini 등 Google 계정 사용 서비스)
-Google 로그인.bat
+# Google account login (services that use Google accounts, e.g. Gemini)
+Google Login.bat
 
-# Claude.ai 로그인 (Google OAuth 팝업 포함)
-Claude 로그인.bat
+# Claude.ai login (includes Google OAuth popup)
+Claude Login.bat
 ```
 
-로그인 완료 후 창을 닫으면 세션 쿠키가 `persist:` 파티션에 저장됩니다.
+After logging in, close the window and the session cookies will be saved to the `persist:` partition.
 
 ---
 
-### 3️⃣ 개발 모드 실행 (코드 수정 + 핫리로드)
+### 3️⃣ Run in dev mode (code changes + hot reload)
 
 ```bash
 npm start
 ```
 
-Electron 창이 자동으로 열립니다. 각 AI 서비스 패널에 로그인하세요.
+The Electron window opens automatically. Log in to each AI service panel.
 
 ---
 
-### 4️⃣ 빌드 후 실행 (프로덕션 모드)
+### 4️⃣ Build and run (production mode)
 
 ```bash
 npm run build
 npx electron .
 ```
 
-`dist/` 및 `dist-electron/` 폴더가 생성된 뒤 앱이 실행됩니다.
+The app runs after `dist/` and `dist-electron/` are created.
 
 ---
 
-### 5️⃣ 포터블 EXE 패키징 (배포용)
+### 5️⃣ Package portable EXE (distribution)
 
 ```bash
 npm run package
 ```
 
-빌드 완료 후 `release/AI-Council-Portable.exe`가 생성됩니다. 설치 없이 바로 실행 가능한 단일 실행 파일입니다.
+After the build, `release/AI-Council-Portable.exe` is created. It’s a single executable that runs without installation.
 
 ---
 
-### 6️⃣ 인스톨러 EXE 생성 (설치 프로그램)
+### 6️⃣ Create installer EXE (setup program)
 
 ```bash
 npm run package:installer
 ```
 
-`release/` 폴더에 NSIS 기반 설치 마법사 EXE가 생성됩니다.
+An NSIS-based installer wizard EXE is created in `release/`.
 
 ---
 
-> **필요 환경:** Node.js v18 이상, npm v9 이상
+> **Requirements:** Node.js v18+, npm v9+
 
 ---
 
-## 파일 첨부 (File Attachment)
+## File Attachment
 
-질문과 함께 파일을 첨부하면 모든 AI가 파일 내용을 분석하고, 최종 수정본을 파일별로 분리해 다운로드할 수 있습니다.
+If you attach files with your question, all AIs analyze the file contents and you can download the final revised version separated per file.
 
-| 지원 형식 | 추출 방식 | 수정본 저장 |
+| Supported formats | Extraction method | Saved as |
 |-----------|-----------|-------------|
-| `.pdf` | pdf-parse (텍스트 추출) | `.txt` |
-| `.docx` | mammoth (본문 추출) | `.docx` (재생성) |
-| `.xlsx` | xlsx (시트 → CSV) | `.xlsx` (재생성) |
-| `.txt` / `.md` / `.csv` | UTF-8 직접 읽기 | 원본 확장자 유지 |
+| `.pdf` | pdf-parse (text extraction) | `.txt` |
+| `.docx` | mammoth (body extraction) | `.docx` (regenerated) |
+| `.xlsx` | xlsx (sheets → CSV) | `.xlsx` (regenerated) |
+| `.txt` / `.md` / `.csv` | Read UTF-8 directly | Keep original extension |
 
-> **동작 방식:** Primary AI에는 파일 내용이 프롬프트에 텍스트로 포함됩니다. Reviewer AI들도 동일한 파일 컨텍스트를 수신합니다. 최종 답변은 `<<<FILE:파일명>>> … <<<END_FILE>>>` 구분자로 파일별 수정 내용을 출력하며, 패널에서 파일별 저장 버튼이 표시됩니다.
+> **How it works:** File content is included as text in the Primary AI prompt. Reviewer AIs receive the same file context. The final answer outputs per-file revisions using `<<<FILE:filename>>> … <<<END_FILE>>>` delimiters, and the panel shows a per-file save button.
 
-- 📎 다중 파일 동시 첨부
-- ⬇ 파일별 개별 다운로드
-- 80,000자 컨텍스트 제한
+- 📎 Attach multiple files at once
+- ⬇ Download each file separately
+- 80,000-character context limit
 
 ---
 
@@ -147,17 +147,17 @@ npm run package:installer
 
 ---
 
-## 최종 결과 패널
+## Final Result Panel
 
-화면 하단에 고정된 접이식 패널입니다. 헤더 클릭 또는 ▲/▼ 버튼으로 토글합니다.
+This is a collapsible panel pinned to the bottom of the screen. Toggle it by clicking the header or the ▲/▼ button.
 
-| 상태 | 높이 | 표시 내용 |
+| State | Height | Displayed |
 |------|------|-----------|
-| 접힘 (collapsed) | 36 px | 제목 · Primary AI 이름 · 완료/생성 중 뱃지 |
-| 펼침 (expanded) | 260 px | 미리보기(Markdown 렌더링) / Raw 탭 · 복사 버튼 · 파일별 저장 버튼 |
+| Collapsed | 36 px | Title · Primary AI name · complete/in-progress badge |
+| Expanded | 260 px | Preview (Markdown render) / Raw tab · Copy button · Per-file save buttons |
 
-> **미리보기 / Markdown 탭:** 렌더링된 HTML과 원본 Markdown 텍스트를 전환해서 볼 수 있습니다.  
-> **파일별 저장:** 첨부 파일이 있을 경우 AI가 수정한 각 파일을 개별 버튼으로 저장합니다.
+> **Preview / Markdown tab:** Toggle between rendered HTML and the raw Markdown text.  
+> **Per-file save:** When attachments exist, each revised file can be saved via an individual button.
 
 ---
 
@@ -172,34 +172,34 @@ npm run package:installer
 
 ## Prompt Templates
 
-**Primary Prompt (파일 첨부 시):**
+**Primary Prompt (when files are attached):**
 ```text
-다음 질문에 답변해주세요.
-질문: {query}
+Please answer the following question.
+Question: {query}
 
-[첨부 파일 내용]
---- {파일명} ---
-{파일 내용}
+[Attached file content]
+--- {filename} ---
+{file content}
 ---
 ```
 
 **Reviewer Prompt:**
 ```text
-아래는 [{Primary AI}]가 다음 질문에 대해 답변한 내용입니다.
-질문: {query}
-[첨부 파일 내용]: {fileContext}   ← 파일 첨부 시에만 포함
-[{Primary AI}]의 답변: {draft}
-위 답변을 리뷰해주세요: 1. 정확성 2. 완전성 3. 명확성 4. 개선 제안
+Below is what [{Primary AI}] answered to the following question.
+Question: {query}
+[Attached file content]: {fileContext}   ← include only when files are attached
+[{Primary AI}]'s answer: {draft}
+Review the answer above: 1) accuracy 2) completeness 3) clarity 4) improvement suggestions
 ```
 
-**Final Revision Prompt (파일 첨부 시):**
+**Final Revision Prompt (when files are attached):**
 ```text
-당신이 이전에 준 답변에 대해 다른 AI들이 피드백을 주었습니다.
-[각 AI의 피드백] ...
-피드백을 반영하여 각 파일의 수정본을 아래 형식으로 출력하세요:
+Other AIs provided feedback on your previous answer.
+[Feedback from each AI] ...
+Incorporate the feedback and output the revised version of each file in the following format:
 
-<<<FILE:파일명.확장자>>>
-(수정된 전체 내용)
+<<<FILE:filename.ext>>>
+(full revised content)
 <<<END_FILE>>>
 ```
 

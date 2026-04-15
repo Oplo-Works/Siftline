@@ -27,7 +27,7 @@
   --radius-md:       10px;
   --radius-lg:       16px;
   --titlebar-h:      40px;
-  --toolbar-h:       62px;
+  --toolbar-h:       120px;
   --statusbar-h:     36px;
   --panel-header-h:  36px;
   --final-panel-h:   36px;
@@ -144,6 +144,11 @@ html, body, #root {
   background: rgba(255,255,255,0.06);
 }
 
+.titlebar-action-btn.active {
+  color: var(--accent);
+  background: rgba(108,99,255,0.12);
+}
+
 .badge {
   position: absolute;
   top: 0;
@@ -195,12 +200,32 @@ html, body, #root {
   backdrop-filter: blur(12px);
 }
 
+/* Toolbar is now two rows inside toolbar-container */
 .toolbar {
-  height: var(--toolbar-h);
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   padding: 0 16px;
+}
+
+.toolbar-row-selectors {
+  height: 44px;
+  border-bottom: 1px solid var(--border);
+}
+
+.toolbar-row-input {
+  height: 76px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+/* Vertical divider between Primary AI and Active sections */
+.toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  flex-shrink: 0;
+  margin: 0 4px;
 }
 
 /* Attachment bar */
@@ -411,24 +436,76 @@ html, body, #root {
 
 .query-input {
   width: 100%;
-  height: 36px;
-  padding: 0 14px;
+  height: 64px;
+  padding: 8px 14px;
   background: rgba(255,255,255,0.05);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   color: var(--text-primary);
   font-size: 13px;
   font-family: inherit;
+  line-height: 1.5;
+  resize: none;
   outline: none;
   transition: border-color 0.2s, background 0.2s;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
-.query-input::placeholder { color: var(--text-muted); }
+.query-input::placeholder { color: var(--text-muted); white-space: pre-line; }
 .query-input:focus {
   border-color: var(--query-color, var(--accent));
   background: rgba(255,255,255,0.07);
 }
 .query-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Active AI toggle chips */
+.ai-toggle-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: rgba(255,255,255,0.03);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-family: inherit;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.ai-toggle-chip.active {
+  background: rgba(255,255,255,0.06);
+  color: var(--chip-color, var(--accent));
+}
+
+.ai-toggle-chip.inactive {
+  opacity: 0.45;
+}
+
+.ai-toggle-chip.inactive:hover:not(:disabled) {
+  opacity: 0.75;
+  border-color: var(--border-hover);
+  color: var(--text-secondary);
+}
+
+.ai-toggle-chip.locked {
+  opacity: 1;
+  cursor: default;
+}
+
+.ai-toggle-chip:disabled {
+  cursor: not-allowed;
+}
+
+.ai-toggle-check {
+  font-size: 10px;
+  font-weight: 700;
+  width: 10px;
+  text-align: center;
+}
 
 /* Start button */
 .start-btn {
@@ -466,6 +543,26 @@ html, body, #root {
   color: var(--text-secondary);
 }
 
+/* Pause-point states: button pulses to draw attention */
+@keyframes btn-pulse-amber {
+  0%, 100% { box-shadow: 0 0 16px rgba(245,158,11,0.4); }
+  50%       { box-shadow: 0 0 28px rgba(245,158,11,0.8), 0 0 8px rgba(245,158,11,0.6); }
+}
+@keyframes btn-pulse-green {
+  0%, 100% { box-shadow: 0 0 16px rgba(16,185,129,0.4); }
+  50%       { box-shadow: 0 0 28px rgba(16,185,129,0.8), 0 0 8px rgba(16,185,129,0.6); }
+}
+
+.start-btn.waiting-next {
+  animation: btn-pulse-amber 1.4s ease-in-out infinite;
+  letter-spacing: 0.03em;
+}
+
+.start-btn.waiting-continue {
+  animation: btn-pulse-green 1.4s ease-in-out infinite;
+  letter-spacing: 0.03em;
+}
+
 /* Spinner */
 .spinner {
   width: 14px;
@@ -478,6 +575,181 @@ html, body, #root {
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Accounts Panel ───────────────────────────────────────── */
+.accounts-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(2px);
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+}
+
+.accounts-panel {
+  margin-top: var(--titlebar-h);
+  margin-right: 8px;
+  width: 380px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(108,99,255,0.1);
+  overflow: hidden;
+  animation: panel-slide-in 0.15s ease-out;
+}
+
+@keyframes panel-slide-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+.accounts-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.accounts-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+
+.accounts-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  font-family: inherit;
+  transition: color 0.15s;
+}
+.accounts-close-btn:hover { color: var(--text-primary); }
+
+.accounts-body {
+  padding: 8px 0;
+}
+
+.accounts-loading {
+  padding: 20px 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  transition: background 0.15s;
+}
+.account-row:hover { background: rgba(255,255,255,0.03); }
+
+.account-ai-icon {
+  font-size: 15px;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.account-ai-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  width: 76px;
+  flex-shrink: 0;
+}
+
+.account-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.account-status-dot.ok  { background: var(--success); box-shadow: 0 0 6px var(--success); }
+.account-status-dot.off { background: var(--text-muted); }
+
+.account-status-label {
+  font-size: 11px;
+  flex: 1;
+  min-width: 0;
+}
+.account-status-label.ok  { color: var(--success); }
+.account-status-label.off { color: var(--text-muted); }
+
+.account-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.account-btn {
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.login-btn {
+  background: rgba(108,99,255,0.12);
+  color: var(--accent);
+  border-color: rgba(108,99,255,0.3);
+}
+.login-btn:hover:not(:disabled) {
+  background: rgba(108,99,255,0.22);
+  border-color: var(--accent);
+}
+
+.logout-btn {
+  background: rgba(239,68,68,0.08);
+  color: var(--error);
+  border-color: rgba(239,68,68,0.2);
+}
+.logout-btn:hover:not(:disabled) {
+  background: rgba(239,68,68,0.18);
+  border-color: var(--error);
+}
+.logout-btn.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.account-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.accounts-footer {
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.logout-all-btn {
+  width: 100%;
+  padding: 7px 0;
+  background: rgba(239,68,68,0.08);
+  color: var(--error);
+  border-color: rgba(239,68,68,0.2);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+}
+.logout-all-btn:hover:not(:disabled) {
+  background: rgba(239,68,68,0.16);
+  border-color: var(--error);
+}
 
 /* ── Status Bar ───────────────────────────────────────────── */
 .status-bar {

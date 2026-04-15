@@ -25,3 +25,4 @@ npm-debug.log*
 
 # Temp icon assets (generated at build time)
 ai-council.iconset/
+.claude/

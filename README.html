@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -442,9 +442,9 @@
 │       ├── LogDrawer.tsx        # Real-time execution logs side drawer
 │       └── HistoryDrawer.tsx    # Persistent chat history side drawer
 ├── google-login.mjs             # Standalone Google account login helper
-├── Google 로그인.bat             # Launcher for google-login.mjs
+├── Google Login.bat             # Launcher for google-login.mjs
 ├── claude-login.mjs             # Standalone Claude (claude.ai) login helper
-└── Claude 로그인.bat             # Launcher for claude-login.mjs</code></pre>
+└── Claude Login.bat             # Launcher for claude-login.mjs</code></pre>
     </div>
   </section>
 
@@ -457,71 +457,71 @@
       <div class="qs-step">
         <div class="qs-step-header">
           <span class="qs-badge">1️⃣</span>
-          <span class="qs-title">처음 설치 (새 PC로 옮겼을 때)</span>
+          <span class="qs-title">First-time install (when moving to a new PC)</span>
         </div>
         <div class="qs-note">
-          <strong>주의:</strong> <code>node_modules</code>는 OS·CPU 환경에 종속된 바이너리를 포함합니다.<br/>
-          다른 PC로 옮긴 경우 반드시 삭제 후 재설치하세요.
+          <strong>Note:</strong> <code>node_modules</code> includes binaries that depend on your OS/CPU environment.<br/>
+          If you moved the project to a different PC, delete it and reinstall.
         </div>
-        <pre><code># node_modules 삭제 (PowerShell)
+        <pre><code># Delete node_modules (PowerShell)
 Remove-Item -Recurse -Force node_modules
 
-# 의존성 재설치
+# Reinstall dependencies
 npm install</code></pre>
-        <p class="qs-desc">같은 PC에서 소스 파일만 교체했다면 <code>npm install</code> 없이 바로 실행 가능합니다.<br/>
-        단, <code>package.json</code>에 새 패키지가 추가되었다면 <code>npm install</code>을 한 번 실행하세요.</p>
+        <p class="qs-desc">If you only replaced source files on the same PC, you can run it right away without <code>npm install</code>.<br/>
+        However, if new packages were added to <code>package.json</code>, run <code>npm install</code> once.</p>
       </div>
 
       <div class="qs-step">
         <div class="qs-step-header">
           <span class="qs-badge">2️⃣</span>
-          <span class="qs-title">AI 서비스 로그인 (최초 1회)</span>
+          <span class="qs-title">AI service login (first time only)</span>
         </div>
-        <p class="qs-desc" style="margin-bottom:10px">앱 실행 전에 각 서비스에 미리 로그인해두면 세션이 유지됩니다.<br/>
-        Google 계정으로 로그인하는 서비스(Gemini, Claude 등)는 아래 helper를 사용하세요.</p>
-        <pre><code># Google 계정 로그인 (Gemini 등 Google 계정 사용 서비스)
-Google 로그인.bat
+        <p class="qs-desc" style="margin-bottom:10px">If you log in to each service once before running the app, your session will persist.<br/>
+        For services that use Google account login (Gemini, Claude, etc.), use the helpers below.</p>
+        <pre><code># Google account login (services that use Google accounts, e.g. Gemini)
+Google Login.bat
 
-# Claude.ai 로그인 (Google OAuth 팝업 포함)
-Claude 로그인.bat</code></pre>
-        <p class="qs-desc">로그인 완료 후 창을 닫으면 세션 쿠키가 <code>persist:</code> 파티션에 저장됩니다.</p>
+# Claude.ai login (includes Google OAuth popup)
+Claude Login.bat</code></pre>
+        <p class="qs-desc">After logging in, close the window and the session cookies will be saved to the <code>persist:</code> partition.</p>
       </div>
 
       <div class="qs-step">
         <div class="qs-step-header">
           <span class="qs-badge">3️⃣</span>
-          <span class="qs-title">개발 모드 실행 (코드 수정 + 핫리로드)</span>
+          <span class="qs-title">Run in dev mode (code changes + hot reload)</span>
         </div>
         <pre><code>npm start</code></pre>
-        <p class="qs-desc">Electron 창이 자동으로 열립니다. 각 AI 서비스 패널에 로그인하세요.</p>
+        <p class="qs-desc">The Electron window opens automatically. Log in to each AI service panel.</p>
       </div>
 
       <div class="qs-step">
         <div class="qs-step-header">
           <span class="qs-badge">4️⃣</span>
-          <span class="qs-title">빌드 후 실행 (프로덕션 모드)</span>
+          <span class="qs-title">Build and run (production mode)</span>
         </div>
         <pre><code>npm run build
 npx electron .</code></pre>
-        <p class="qs-desc"><code>dist/</code> 및 <code>dist-electron/</code> 폴더가 생성된 뒤 앱이 실행됩니다.</p>
+        <p class="qs-desc">The app runs after <code>dist/</code> and <code>dist-electron/</code> are created.</p>
       </div>
 
       <div class="qs-step">
         <div class="qs-step-header">
           <span class="qs-badge">5️⃣</span>
-          <span class="qs-title">포터블 EXE 패키징 (배포용)</span>
+          <span class="qs-title">Package portable EXE (distribution)</span>
         </div>
         <pre><code>npm run package</code></pre>
-        <p class="qs-desc">빌드 완료 후 <code>release/AI-Council-Portable.exe</code>가 생성됩니다. 설치 없이 바로 실행 가능한 단일 실행 파일입니다.</p>
+        <p class="qs-desc">After the build, <code>release/AI-Council-Portable.exe</code> is created. It’s a single executable that runs without installation.</p>
       </div>
 
       <div class="qs-step" style="margin-bottom:0">
         <div class="qs-step-header">
           <span class="qs-badge">6️⃣</span>
-          <span class="qs-title">인스톨러 EXE 생성 (설치 프로그램)</span>
+          <span class="qs-title">Create installer EXE (setup program)</span>
         </div>
         <pre><code>npm run package:installer</code></pre>
-        <p class="qs-desc"><code>release/</code> 폴더에 NSIS 기반 설치 마법사 EXE가 생성됩니다.</p>
+        <p class="qs-desc">An NSIS-based installer wizard EXE is created in <code>release/</code>.</p>
       </div>
 
       <div style="margin-top:24px">
@@ -533,38 +533,38 @@ npx electron .</code></pre>
   <!-- ── FILE ATTACHMENT ── -->
   <section>
     <div class="section-label">Feature</div>
-    <h2>파일 첨부 (File Attachment)</h2>
+    <h2>File Attachment</h2>
     <div class="panel">
       <p style="color:var(--text-muted); font-size:.93rem; margin-bottom:20px;">
-        질문과 함께 파일을 첨부하면 모든 AI가 파일 내용을 분석하고,
-        최종 수정본을 파일별로 분리해 다운로드할 수 있습니다.
+        If you attach files with your question, all AIs analyze the file contents,
+        and you can download the final revised version separated per file.
       </p>
 
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>지원 형식</th><th>추출 방식</th><th>수정본 저장</th></tr>
+            <tr><th>Supported formats</th><th>Extraction method</th><th>Saved as</th></tr>
           </thead>
           <tbody>
-            <tr><td><code>.pdf</code></td><td>pdf-parse (텍스트 추출)</td><td><code>.txt</code></td></tr>
-            <tr><td><code>.docx</code></td><td>mammoth (본문 추출)</td><td><code>.docx</code> (재생성)</td></tr>
-            <tr><td><code>.xlsx</code></td><td>xlsx (시트 → CSV)</td><td><code>.xlsx</code> (재생성)</td></tr>
-            <tr><td><code>.txt</code> / <code>.md</code> / <code>.csv</code></td><td>UTF-8 직접 읽기</td><td>원본 확장자 유지</td></tr>
+            <tr><td><code>.pdf</code></td><td>pdf-parse (text extraction)</td><td><code>.txt</code></td></tr>
+            <tr><td><code>.docx</code></td><td>mammoth (body extraction)</td><td><code>.docx</code> (regenerated)</td></tr>
+            <tr><td><code>.xlsx</code></td><td>xlsx (sheets → CSV)</td><td><code>.xlsx</code> (regenerated)</td></tr>
+            <tr><td><code>.txt</code> / <code>.md</code> / <code>.csv</code></td><td>Read UTF-8 directly</td><td>Keep original extension</td></tr>
           </tbody>
         </table>
       </div>
 
       <div class="green-box">
-        <strong>동작 방식:</strong> Primary AI에는 파일 내용이 프롬프트에 텍스트로 포함됩니다.
-        Reviewer AI들도 동일한 파일 컨텍스트를 수신합니다.
-        최종 답변은 <code>&lt;&lt;&lt;FILE:파일명&gt;&gt;&gt; … &lt;&lt;&lt;END_FILE&gt;&gt;&gt;</code> 구분자로
-        파일별 수정 내용을 출력하며, 패널에서 파일별 저장 버튼이 표시됩니다.
+        <strong>How it works:</strong> File content is included as text in the Primary AI prompt.
+        Reviewer AIs receive the same file context.
+        The final answer outputs per-file revisions using <code>&lt;&lt;&lt;FILE:filename&gt;&gt;&gt; … &lt;&lt;&lt;END_FILE&gt;&gt;&gt;</code> delimiters
+        and the panel shows a per-file save button.
       </div>
 
       <div class="chip-row">
-        <span class="chip">📎 다중 파일 동시 첨부</span>
-        <span class="chip">⬇ 파일별 개별 다운로드</span>
-        <span class="chip">80,000자 컨텍스트 제한</span>
+        <span class="chip">📎 Attach multiple files at once</span>
+        <span class="chip">⬇ Download each file separately</span>
+        <span class="chip">80,000-character context limit</span>
       </div>
     </div>
   </section>
@@ -588,23 +588,23 @@ npx electron .</code></pre>
   <!-- ── FINAL RESULT PANEL ── -->
   <section>
     <div class="section-label">UI Component</div>
-    <h2>최종 결과 패널</h2>
+    <h2>Final Result Panel</h2>
     <div class="panel">
       <p style="color:var(--text-muted); font-size:.93rem; margin-bottom:18px;">
-        화면 하단에 고정된 접이식 패널입니다. 헤더 클릭 또는 ▲/▼ 버튼으로 토글합니다.
+        This is a collapsible panel pinned to the bottom of the screen. Toggle it by clicking the header or the ▲/▼ button.
       </p>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>상태</th><th>높이</th><th>표시 내용</th></tr></thead>
+          <thead><tr><th>State</th><th>Height</th><th>Displayed</th></tr></thead>
           <tbody>
-            <tr><td>접힘 (collapsed)</td><td>36 px</td><td>제목 · Primary AI 이름 · 완료/생성 중 뱃지</td></tr>
-            <tr><td>펼침 (expanded)</td><td>260 px</td><td>미리보기(Markdown 렌더링) / Raw 탭 · 복사 버튼 · 파일별 저장 버튼</td></tr>
+            <tr><td>Collapsed</td><td>36 px</td><td>Title · Primary AI name · complete/in-progress badge</td></tr>
+            <tr><td>Expanded</td><td>260 px</td><td>Preview (Markdown render) / Raw tab · Copy button · Per-file save buttons</td></tr>
           </tbody>
         </table>
       </div>
       <div class="green-box">
-        <strong>미리보기 / Markdown 탭:</strong> 렌더링된 HTML과 원본 Markdown 텍스트를 전환해서 볼 수 있습니다.<br/>
-        <strong>파일별 저장:</strong> 첨부 파일이 있을 경우 AI가 수정한 각 파일을 개별 버튼으로 저장합니다.
+        <strong>Preview / Markdown tab:</strong> Toggle between rendered HTML and the raw Markdown text.<br/>
+        <strong>Per-file save:</strong> When attachments exist, each revised file can be saved via an individual button.
       </div>
     </div>
   </section>
@@ -622,37 +622,37 @@ npx electron .</code></pre>
 
   <!-- ── PROMPT TEMPLATES ── -->
   <section>
-    <div class="section-label">Korean Prompts</div>
+    <div class="section-label">Prompt Templates</div>
     <h2>Prompt Templates</h2>
     <div class="panel">
       <div class="prompt-block">
-        <div class="prompt-label">Primary Prompt (파일 첨부 시)</div>
-        <pre><code>다음 질문에 답변해주세요.
-질문: {query}
+        <div class="prompt-label">Primary Prompt (when files are attached)</div>
+        <pre><code>Please answer the following question.
+Question: {query}
 
-[첨부 파일 내용]
---- {파일명} ---
-{파일 내용}
+[Attached file content]
+--- {filename} ---
+{file content}
 ---</code></pre>
       </div>
 
       <div class="prompt-block">
         <div class="prompt-label">Reviewer Prompt</div>
-        <pre><code>아래는 [{Primary AI}]가 다음 질문에 대해 답변한 내용입니다.
-질문: {query}
-[첨부 파일 내용]: {fileContext}   ← 파일 첨부 시에만 포함
-[{Primary AI}]의 답변: {draft}
-위 답변을 리뷰해주세요: 1. 정확성 2. 완전성 3. 명확성 4. 개선 제안</code></pre>
+        <pre><code>Below is what [{Primary AI}] answered to the following question.
+Question: {query}
+[Attached file content]: {fileContext}   ← include only when files are attached
+[{Primary AI}]'s answer: {draft}
+Review the answer above: 1) accuracy 2) completeness 3) clarity 4) improvement suggestions</code></pre>
       </div>
 
       <div class="prompt-block" style="margin-bottom:0">
-        <div class="prompt-label">Final Revision Prompt (파일 첨부 시)</div>
-        <pre><code>당신이 이전에 준 답변에 대해 다른 AI들이 피드백을 주었습니다.
-[각 AI의 피드백] ...
-피드백을 반영하여 각 파일의 수정본을 아래 형식으로 출력하세요:
+        <div class="prompt-label">Final Revision Prompt (when files are attached)</div>
+        <pre><code>Other AIs provided feedback on your previous answer.
+[Feedback from each AI] ...
+Incorporate the feedback and output the revised version of each file in the following format:
 
-&lt;&lt;&lt;FILE:파일명.확장자&gt;&gt;&gt;
-(수정된 전체 내용)
+&lt;&lt;&lt;FILE:filename.ext&gt;&gt;&gt;
+(full revised content)
 &lt;&lt;&lt;END_FILE&gt;&gt;&gt;</code></pre>
       </div>
     </div>

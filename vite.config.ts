@@ -39,8 +39,8 @@ export default defineConfig({
         },
       },
       {
-        // Chrome 위장 preload — Google 로그인 & AI BrowserView 전용
-        // contextIsolation: false 창에서 MAIN world에 직접 주입됩니다.
+        // Chrome identity spoofing preload — specifically for Google login & AI BrowserView
+        // Injected directly into the MAIN world for windows with contextIsolation: false.
         entry: 'electron/preload-chrome-spoof.js',
         onstart(options) {
           options.reload()

@@ -1,5 +1,4 @@
 @echo off
-chcp 65001 > nul
 title AI Council - Claude Login
 
 set "APPDIR=%~dp0"

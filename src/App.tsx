@@ -6,6 +6,7 @@ import {
   ParsedFileContent,
   LogEntry,
   HistoryItem,
+  WorkflowStage,
   AI_DISPLAY_NAMES,
   AI_COLORS,
   AI_ICONS,
@@ -17,8 +18,9 @@ import PanelGrid from './components/PanelGrid'
 import FinalResultPanel from './components/FinalResultPanel'
 import LogDrawer from './components/LogDrawer'
 import HistoryDrawer from './components/HistoryDrawer'
+import AccountsPanel from './components/AccountsPanel'
 
-const AI_NAMES: AiName[] = ['gemini', 'claude', 'chatgpt', 'perplexity']
+const AI_NAMES: AiName[] = ['gemini', 'claude', 'chatgpt', 'perplexity', 'grok']
 const LOG_MAX_ITEMS = 200
 
 function initPanels(): AiPanelState[] {
@@ -33,9 +35,11 @@ function initPanels(): AiPanelState[] {
 
 export default function App() {
   const [primaryAi, setPrimaryAi] = useState<AiName>('gemini')
+  const [enabledAis, setEnabledAis] = useState<AiName[]>([...AI_NAMES])
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('Loading AI websites... Please log in to each service.')
   const [isRunning, setIsRunning] = useState(false)
+  const [workflowStage, setWorkflowStage] = useState<WorkflowStage>('idle')
   const [panels, setPanels] = useState<AiPanelState[]>(initPanels)
   const [draftAnswer, setDraftAnswer] = useState('')
   const [finalAnswer, setFinalAnswer] = useState('')
@@ -46,6 +50,7 @@ export default function App() {
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [showLogs, setShowLogs] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
+  const [showAccounts, setShowAccounts] = useState(false)
   const isRunningRef = useRef(false)
 
   const addLog = useCallback((entry: LogEntry) => {
@@ -100,11 +105,26 @@ export default function App() {
       })
     )
 
+    cleanups.push(
+      window.electronAPI.onWaitingForUser(({ stage }) => {
+        if (stage === 'after-draft') setWorkflowStage('waiting-next')
+        else if (stage === 'after-reviews') setWorkflowStage('waiting-continue')
+      })
+    )
+
     // Load history
     window.electronAPI.getHistory().then(setHistory)
 
     return () => cleanups.forEach((fn) => fn())
   }, [addLog])
+
+  // ── Notify main process when enabled AIs change ──────────────────────────
+  const handleEnabledAisChange = useCallback((ais: AiName[]) => {
+    // Primary AI must always be in the enabled list
+    const next = ais.includes(primaryAi) ? ais : [primaryAi, ...ais]
+    setEnabledAis(next)
+    window.electronAPI.setEnabledAis(next)
+  }, [primaryAi])
 
   // ── Notify main process when attachment bar visibility changes ────────────
   useEffect(() => {
@@ -123,6 +143,13 @@ export default function App() {
           : 'idle',
       }))
     )
+    // Ensure primary AI is always in the enabled list
+    setEnabledAis((prev) => {
+      if (prev.includes(primaryAi)) return prev
+      const next = [primaryAi, ...prev]
+      window.electronAPI.setEnabledAis(next)
+      return next
+    })
   }, [primaryAi])
 
   // ── File attachment handlers ─────────────────────────────────────────────
@@ -151,6 +178,7 @@ export default function App() {
 
     setIsRunning(true)
     isRunningRef.current = true
+    setWorkflowStage('running')
     setDraftAnswer('')
     setFinalAnswer('')
     setFileContents([])
@@ -185,6 +213,7 @@ export default function App() {
     } finally {
       setIsRunning(false)
       isRunningRef.current = false
+      setWorkflowStage('idle')
       setPanels((prev) => prev.map((p) => ({ ...p, role: 'idle' })))
     }
   }, [query, primaryAi, isRunning, attachedFiles])
@@ -194,6 +223,12 @@ export default function App() {
     setPanels((prev) =>
       prev.map((p) => (p.name === ai ? { ...p, loaded: false, error: false } : p))
     )
+  }, [])
+
+  // ── Proceed past a workflow pause point (Next / Continue) ────────────────
+  const handleProceed = useCallback(() => {
+    setWorkflowStage('running')
+    window.electronAPI.workflowProceed()
   }, [])
 
   const handleDevTools = useCallback((ai: AiName) => {
@@ -220,6 +255,13 @@ export default function App() {
         onMinimize={() => window.electronAPI.minimize()}
         onMaximize={() => window.electronAPI.maximize()}
         onClose={() => window.electronAPI.close()}
+        onToggleAccounts={() => {
+          const next = !showAccounts
+          setShowAccounts(next)
+          // BrowserViews always render on top of HTML — hide them so the panel
+          // is not covered (same approach used for Logs / History drawers)
+          window.electronAPI.setViewsVisible(!next)
+        }}
         onToggleLogs={() => {
           const next = !showLogs
           setShowLogs(next)
@@ -234,27 +276,32 @@ export default function App() {
         }}
         logCount={logs.length}
         historyCount={history.length}
+        showAccounts={showAccounts}
       />
 
       {/* Toolbar: primary AI selector + query input + attach + start */}
       <Toolbar
         primaryAi={primaryAi}
+        enabledAis={enabledAis}
         query={query}
         isRunning={isRunning}
+        workflowStage={workflowStage}
         attachedFiles={attachedFiles}
         onPrimaryAiChange={setPrimaryAi}
+        onEnabledAisChange={handleEnabledAisChange}
         onQueryChange={setQuery}
         onAttach={handleAttach}
         onRemoveFile={handleRemoveFile}
         onStart={handleStart}
+        onProceed={handleProceed}
       />
 
       {/* Status bar */}
       <StatusBar status={status} isRunning={isRunning} />
 
-      {/* 4-panel BrowserView grid overlay */}
+      {/* Panel headers — only show enabled AIs */}
       <PanelGrid
-        panels={panels}
+        panels={panels.filter((p) => enabledAis.includes(p.name))}
         primaryAi={primaryAi}
         onReload={handleReloadAi}
         onDevTools={handleDevTools}
@@ -274,6 +321,14 @@ export default function App() {
         expanded={finalPanelExpanded}
         onToggleExpand={handleToggleFinalPanel}
       />
+
+      {/* Accounts panel */}
+      {showAccounts && (
+        <AccountsPanel onClose={() => {
+          setShowAccounts(false)
+          window.electronAPI.setViewsVisible(true)
+        }} />
+      )}
 
       {/* Log drawer */}
       {showLogs && (

@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
-export type AiName = 'gemini' | 'claude' | 'chatgpt' | 'perplexity'
+export type AiName = 'gemini' | 'claude' | 'chatgpt' | 'perplexity' | 'grok'
 
 export interface WorkflowResult {
   success: boolean
@@ -30,10 +30,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
     attachedFiles?: Array<{ name: string; path: string; ext: string }>
   }): Promise<WorkflowResult> => ipcRenderer.invoke('start-workflow', params),
 
+  // Proceed past a workflow pause point (Next / Continue buttons)
+  workflowProceed: (): Promise<void> => ipcRenderer.invoke('workflow-proceed'),
+
   // File attachment
   openFileDialog: () => ipcRenderer.invoke('open-file-dialog'),
   saveFile: (params: { content: string; defaultName: string; ext: string }) =>
     ipcRenderer.invoke('save-file', params),
+  // Accounts
+  getLoginStatus: (): Promise<Record<AiName, boolean>> =>
+    ipcRenderer.invoke('get-login-status'),
+  openLoginWindow: (ai: AiName) =>
+    ipcRenderer.invoke('open-login-window', ai),
+  logoutAi: (ai: AiName) =>
+    ipcRenderer.invoke('logout-ai', ai),
+  logoutAll: () =>
+    ipcRenderer.invoke('logout-all'),
+  onLoginStatusChanged: (cb: () => void) => {
+    const handler = () => cb()
+    ipcRenderer.on('login-status-changed', handler)
+    return () => ipcRenderer.removeListener('login-status-changed', handler)
+  },
+
+  setEnabledAis: (ais: AiName[]) =>
+    ipcRenderer.invoke('set-enabled-ais', ais),
   setAttachmentBarVisible: (visible: boolean) =>
     ipcRenderer.invoke('set-attachment-bar-visible', visible),
   setFinalPanelExpanded: (expanded: boolean) =>
@@ -75,5 +95,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const handler = (_: unknown, data: { ai: AiName; feedback: string }) => cb(data)
     ipcRenderer.on('feedback-ready', handler)
     return () => ipcRenderer.removeListener('feedback-ready', handler)
+  },
+
+  // Fired when the workflow pauses and waits for the user to click Next/Continue
+  // stage: 'after-draft'   → Primary AI answered; waiting for Next
+  //        'after-reviews' → Reviewers done; waiting for Continue
+  onWaitingForUser: (cb: (data: { stage: 'after-draft' | 'after-reviews' }) => void) => {
+    const handler = (_: unknown, data: { stage: 'after-draft' | 'after-reviews' }) => cb(data)
+    ipcRenderer.on('workflow-waiting', handler)
+    return () => ipcRenderer.removeListener('workflow-waiting', handler)
   },
 })

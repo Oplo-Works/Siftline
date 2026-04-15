@@ -1,4 +1,4 @@
-export type AiName = 'gemini' | 'claude' | 'chatgpt' | 'perplexity'
+export type AiName = 'gemini' | 'claude' | 'chatgpt' | 'perplexity' | 'grok'
 
 export interface AttachedFile {
   name: string
@@ -19,6 +19,15 @@ export interface WorkflowResult {
   fileContents?: ParsedFileContent[]
   error?: string
 }
+
+/**
+ * Tracks which manual gate the UI is currently at.
+ * - 'idle'           : workflow not running
+ * - 'running'        : workflow running automatically (no user action needed)
+ * - 'waiting-next'   : Primary AI answered; button should show "Next"
+ * - 'waiting-continue': Reviewers done; button should show "Continue"
+ */
+export type WorkflowStage = 'idle' | 'running' | 'waiting-next' | 'waiting-continue'
 
 export interface LogEntry {
   level: 'info' | 'warn' | 'error'
@@ -59,6 +68,7 @@ export const AI_DISPLAY_NAMES: Record<AiName, string> = {
   claude: 'Claude',
   chatgpt: 'ChatGPT',
   perplexity: 'Perplexity',
+  grok: 'Grok',
 }
 
 export const AI_COLORS: Record<AiName, { primary: string; glow: string; badge: string }> = {
@@ -66,6 +76,7 @@ export const AI_COLORS: Record<AiName, { primary: string; glow: string; badge: s
   claude: { primary: '#cc785c', glow: 'rgba(204,120,92,0.35)', badge: '#cc785c' },
   chatgpt: { primary: '#10a37f', glow: 'rgba(16,163,127,0.35)', badge: '#10a37f' },
   perplexity: { primary: '#20b2aa', glow: 'rgba(32,178,170,0.35)', badge: '#20b2aa' },
+  grok: { primary: '#7c3aed', glow: 'rgba(124,58,237,0.35)', badge: '#7c3aed' },
 }
 
 export const AI_ICONS: Record<AiName, string> = {
@@ -73,6 +84,7 @@ export const AI_ICONS: Record<AiName, string> = {
   claude: '◎',
   chatgpt: '⊕',
   perplexity: '◈',
+  grok: '⚡',
 }
 
 /** UI status messages — centralised for easy editing/i18n */
@@ -105,12 +117,19 @@ declare global {
         query: string
         attachedFiles?: AttachedFile[]
       }) => Promise<WorkflowResult>
+      workflowProceed: () => Promise<void>
       openFileDialog: () => Promise<AttachedFile[]>
       saveFile: (params: {
         content: string
         defaultName: string
         ext: string
       }) => Promise<{ saved: boolean; filePath?: string }>
+      getLoginStatus: () => Promise<Record<AiName, boolean>>
+      openLoginWindow: (ai: AiName) => Promise<boolean>
+      logoutAi: (ai: AiName) => Promise<boolean>
+      logoutAll: () => Promise<boolean>
+      onLoginStatusChanged: (cb: () => void) => () => void
+      setEnabledAis: (ais: AiName[]) => Promise<boolean>
       setAttachmentBarVisible: (visible: boolean) => Promise<void>
       setFinalPanelExpanded: (expanded: boolean) => Promise<void>
       minimize: () => Promise<void>
@@ -123,6 +142,7 @@ declare global {
       onViewLoadError: (cb: (data: { ai: AiName; errCode: number; errDesc: string }) => void) => () => void
       onDraftReady: (cb: (data: { ai: AiName; draft: string }) => void) => () => void
       onFeedbackReady: (cb: (data: { ai: AiName; feedback: string }) => void) => () => void
+      onWaitingForUser: (cb: (data: { stage: 'after-draft' | 'after-reviews' }) => void) => () => void
     }
   }
 }

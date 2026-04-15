@@ -4,8 +4,10 @@ interface TitleBarProps {
   onClose: () => void
   onToggleLogs: () => void
   onToggleHistory: () => void
+  onToggleAccounts: () => void
   logCount: number
   historyCount: number
+  showAccounts: boolean
 }
 
 export default function TitleBar({
@@ -14,8 +16,10 @@ export default function TitleBar({
   onClose,
   onToggleLogs,
   onToggleHistory,
+  onToggleAccounts,
   logCount,
   historyCount,
+  showAccounts,
 }: TitleBarProps) {
   return (
     <div className="titlebar" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
@@ -26,6 +30,14 @@ export default function TitleBar({
       </div>
 
       <div className="titlebar-actions" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <button
+          className={`titlebar-action-btn ${showAccounts ? 'active' : ''}`}
+          onClick={onToggleAccounts}
+          title="Accounts — login / logout"
+          id="btn-toggle-accounts"
+        >
+          <span>🔑</span>
+        </button>
         <button
           className="titlebar-action-btn"
           onClick={onToggleHistory}

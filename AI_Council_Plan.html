@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Council — Project Plan</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: #f0f2f8;
+      color: #212121;
+      padding: 40px 20px;
+    }
+
+    .page {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(57,73,171,0.12);
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #1a237e 0%, #3949ab 60%, #5c6bc0 100%);
+      color: white;
+      text-align: center;
+      padding: 56px 40px 48px;
+    }
+    .header h1 {
+      font-size: 42px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+    }
+    .header .subtitle {
+      font-size: 16px;
+      opacity: 0.85;
+      margin-bottom: 18px;
+    }
+    .header .date {
+      font-size: 13px;
+      opacity: 0.6;
+    }
+    .header-divider {
+      width: 80px;
+      height: 3px;
+      background: rgba(255,255,255,0.5);
+      margin: 16px auto;
+      border-radius: 2px;
+    }
+
+    /* ── Content ── */
+    .content {
+      padding: 40px 48px 56px;
+    }
+
+    /* ── Section ── */
+    .section {
+      margin-bottom: 40px;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1a237e;
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 2.5px solid #3949ab;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-title .num {
+      background: #3949ab;
+      color: white;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .sub-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #283593;
+      margin: 18px 0 8px;
+    }
+
+    p {
+      font-size: 14px;
+      line-height: 1.8;
+      color: #424242;
+      margin-bottom: 10px;
+    }
+
+    /* ── Table ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+      margin-bottom: 12px;
+    }
+    thead tr {
+      background: #3949ab;
+      color: white;
+    }
+    thead th {
+      padding: 10px 14px;
+      text-align: left;
+      font-weight: 700;
+    }
+    tbody tr:nth-child(even) { background: #e8eaf6; }
+    tbody tr:nth-child(odd)  { background: #fff; }
+    tbody td {
+      padding: 9px 14px;
+      border-bottom: 1px solid #c5cae9;
+      line-height: 1.6;
+      vertical-align: top;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .badge-ok  { background: #e8f5e9; color: #2e7d32; }
+    .badge-no  { background: #ffebee; color: #c62828; }
+
+    /* ── Code Block ── */
+    .code-block {
+      background: #f5f5f5;
+      border-left: 4px solid #3949ab;
+      border-radius: 6px;
+      padding: 16px 18px;
+      font-family: 'Courier New', Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      white-space: pre;
+      overflow-x: auto;
+      color: #263238;
+      margin-bottom: 12px;
+    }
+
+    /* ── Flowchart ── */
+    .flow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      margin: 8px 0 16px;
+    }
+    .flow-step {
+      background: #e8eaf6;
+      border: 2px solid #9fa8da;
+      border-radius: 8px;
+      padding: 10px 28px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #1a237e;
+      text-align: center;
+      min-width: 320px;
+    }
+    .flow-arrow {
+      font-size: 20px;
+      color: #7986cb;
+      line-height: 1.2;
+      margin: 2px 0;
+    }
+    .flow-step.primary {
+      background: #3949ab;
+      color: white;
+      border-color: #1a237e;
+    }
+
+    /* ── UI Layout Preview ── */
+    .ui-preview {
+      border: 2px solid #9fa8da;
+      border-radius: 8px;
+      overflow: hidden;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+    .ui-titlebar {
+      background: #3949ab;
+      color: white;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+    }
+    .ui-toolbar {
+      background: #e8eaf6;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #c5cae9;
+      font-size: 13px;
+    }
+    .ui-toolbar select, .ui-toolbar input {
+      border: 1px solid #9fa8da;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-family: inherit;
+      font-size: 12px;
+    }
+    .ui-toolbar input { flex: 1; }
+    .ui-toolbar button {
+      background: #3949ab;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 5px 14px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .ui-status {
+      background: #fff8e1;
+      padding: 5px 14px;
+      font-size: 12px;
+      color: #e65100;
+      border-bottom: 1px solid #ffe082;
+    }
+    .ui-panels {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+    }
+    .ui-panel {
+      border-right: 1px solid #c5cae9;
+      min-height: 100px;
+    }
+    .ui-panel:last-child { border-right: none; }
+    .ui-panel-header {
+      background: #5c6bc0;
+      color: white;
+      text-align: center;
+      padding: 6px 4px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .ui-panel-header.primary-panel { background: #1a237e; }
+    .ui-panel-badge {
+      text-align: center;
+      font-size: 10px;
+      color: #7986cb;
+      padding: 2px 0;
+      background: #e8eaf6;
+      border-bottom: 1px solid #c5cae9;
+    }
+    .ui-panel-content {
+      padding: 6px 8px;
+      font-size: 11px;
+      color: #9e9e9e;
+      text-align: center;
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ui-result {
+      background: #e8eaf6;
+      border-top: 2px solid #3949ab;
+      padding: 8px 14px;
+      font-size: 12px;
+      color: #283593;
+    }
+
+    /* ── Warning Box ── */
+    .note-box {
+      background: #fff3e0;
+      border-left: 4px solid #ff9800;
+      border-radius: 6px;
+      padding: 14px 18px;
+      font-size: 13.5px;
+      color: #bf360c;
+      line-height: 1.7;
+      margin-bottom: 12px;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      background: #e8eaf6;
+      text-align: center;
+      padding: 16px;
+      font-size: 12px;
+      color: #9fa8da;
+      border-top: 1px solid #c5cae9;
+    }
+
+    @media print {
+      body { background: white; padding: 0; }
+      .page { box-shadow: none; border-radius: 0; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>AI Council</h1>
+    <div class="header-divider"></div>
+    <div class="subtitle">Project Plan — Browser Automation Approach (No API required)</div>
+    <div class="date">Date: April 12, 2026</div>
+  </div>
+
+  <div class="content">
+
+    <!-- 1. Project Overview -->
+    <div class="section">
+      <div class="section-title"><span class="num">1</span> Project Overview</div>
+      <table>
+        <thead><tr><th>Item</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>Project Name</td><td><strong>AI Council</strong></td></tr>
+          <tr><td>Approach</td><td>Automated interaction with actual AI websites (No API used)</td></tr>
+          <tr><td>Platform</td><td>Windows / macOS Desktop</td></tr>
+          <tr><td>Core Tech</td><td>Electron + BrowserView (Embedding actual websites)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 2. Technical Approach Decision -->
+    <div class="section">
+      <div class="section-title"><span class="num">2</span> Technical Approach Decision</div>
+      <div class="sub-title">Why Electron + BrowserView?</div>
+      <table>
+        <thead><tr><th>Method</th><th>Description</th><th>Suitability</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Playwright / Puppeteer (Headless)</td>
+            <td>Browser interaction in background, no visible screen</td>
+            <td><span class="badge badge-no">❌ Unsuitable</span><br><small>User cannot see chat windows</small></td>
+          </tr>
+          <tr>
+            <td><strong>Electron + BrowserView</strong></td>
+            <td>Embeds actual websites inside app windows, visible to user</td>
+            <td><span class="badge badge-ok">✅ Optimized</span></td>
+          </tr>
+          <tr>
+            <td>iframe</td>
+            <td>Most AI sites block iframe embedding (X-Frame-Options)</td>
+            <td><span class="badge badge-no">❌ Incompatible</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <p><strong>BrowserView</strong> is a feature provided by Electron that allows an actual Chrome-based browser window to be embedded inside the app. The user can see the actual Gemini/Claude/ChatGPT screens while the app automatically types and extracts text behind the scenes.</p>
+    </div>
+
+    <!-- 3. Core Working Principle -->
+    <div class="section">
+      <div class="section-title"><span class="num">3</span> Core Working Principle</div>
+      <div class="flow">
+        <div class="flow-step">Launch App</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">Create 5 BrowserViews — Load each AI site</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">User: Manual login per AI (One-time only)</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step primary">User: Select Primary AI + Enter Query</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">App automatically types + sends to Primary AI</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">Detect response completion → Extract text</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">Automatically enter "Response + Review Request" in 4 other AIs</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">Detect response completion → Extract Feedback text</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">Automatically enter "Collect Feedback + Revision Request" in Primary AI</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step primary">Final revised response complete → Display to user</div>
+      </div>
+    </div>
+
+    <!-- 4. UI Layout -->
+    <div class="section">
+      <div class="section-title"><span class="num">4</span> UI Layout</div>
+      <div class="ui-preview">
+        <div class="ui-titlebar">
+          <span>AI Council</span>
+          <span>⚙ Settings &nbsp; — &nbsp; □ &nbsp; ✕</span>
+        </div>
+        <div class="ui-toolbar">
+          <span>Primary AI:</span>
+          <select><option>Gemini ▼</option></select>
+          <input type="text" placeholder="Enter your query...">
+          <button>Start</button>
+        </div>
+        <div class="ui-status">● Gemini responding...</div>
+        <div class="ui-panels">
+          <div class="ui-panel">
+            <div class="ui-panel-header primary-panel">Gemini</div>
+            <div class="ui-panel-badge">★ Primary</div>
+            <div class="ui-panel-content">Actual Website<br><small style="color:#4caf50">● Complete</small></div>
+          </div>
+          <div class="ui-panel">
+            <div class="ui-panel-header">Claude</div>
+            <div class="ui-panel-badge">Reviewer</div>
+            <div class="ui-panel-content">Actual Website<br><small>⟳ Waiting</small></div>
+          </div>
+          <div class="ui-panel">
+            <div class="ui-panel-header">ChatGPT</div>
+            <div class="ui-panel-badge">Reviewer</div>
+            <div class="ui-panel-content">Actual Website<br><small>⟳ Waiting</small></div>
+          </div>
+          <div class="ui-panel">
+            <div class="ui-panel-header">Perplexity</div>
+            <div class="ui-panel-badge">Reviewer</div>
+            <div class="ui-panel-content">Actual Website<br><small>⟳ Waiting</small></div>
+          </div>
+        </div>
+        <div class="ui-result">[ Final Result Panel ] &nbsp; Primary AI's final revised response will be displayed here</div>
+      </div>
+    </div>
+
+    <!-- 5. Automation Method per AI Site -->
+    <div class="section">
+      <div class="section-title"><span class="num">5</span> Automation Method per AI Site</div>
+      <p>The app injects JavaScript into each site to perform input and extraction.</p>
+      <table>
+        <thead><tr><th>AI</th><th>Site</th><th>Automation Method</th></tr></thead>
+        <tbody>
+          <tr><td>Gemini</td><td>gemini.google.com</td><td>Find input via JS → Insert text → Enter</td></tr>
+          <tr><td>Claude</td><td>claude.ai</td><td>Find input via JS → Insert text → Enter</td></tr>
+          <tr><td>ChatGPT</td><td>chatgpt.com</td><td>Find input via JS → Insert text → Enter</td></tr>
+          <tr><td>Perplexity</td><td>perplexity.ai</td><td>Find input via JS → Insert text → Enter</td></tr>
+        </tbody>
+      </table>
+      <div class="sub-title">Core Automation Example (JavaScript)</div>
+<div class="code-block">// Enter text in input field (selectors differ per site)
+document.querySelector('div[contenteditable]').innerText = "Query text";
+
+// Click send button
+document.querySelector('button[data-testid="send-button"]').click();
+
+// Detect completion: marked complete when no new text is added for a set time
+// → Monitor DOM changes with MutationObserver
+
+// Extract latest response text
+document.querySelectorAll('.message')[last].innerText;</div>
+    </div>
+
+    <!-- 6. Technical Challenges and Solutions -->
+    <div class="section">
+      <div class="section-title"><span class="num">6</span> Technical Challenges and Solutions</div>
+      <table>
+        <thead><tr><th>Challenge</th><th>Solution</th></tr></thead>
+        <tbody>
+          <tr><td>Varying DOM structures per AI</td><td>Separately managed selector config files per site</td></tr>
+          <tr><td>Selectors breaking on UI updates</td><td>Externalized selectors in JSON for easy maintenance without rebuilds</td></tr>
+          <tr><td>Detecting response completion</td><td>MutationObserver + stability timer + monitoring loading spinner disappearance</td></tr>
+          <tr><td>Login requirements</td><td>User performs manual one-time login; sessions are persisted afterwards</td></tr>
+          <tr><td>Bot detection mitigation</td><td>Applied human-like typing delays and Chrome-masked identity headers</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 7. Prompt Templates -->
+    <div class="section">
+      <div class="section-title"><span class="num">7</span> Prompt Templates (Auto-generated)</div>
+      <div class="sub-title">Message sent to Reviewer AIs</div>
+<div class="code-block">Below is the response from [Gemini] regarding the following query.
+
+Query: {user query}
+
+[Gemini]'s Response:
+{Primary AI response}
+
+Please review the response above:
+1. Accuracy (Are there any factual errors?)
+2. Completeness (Is important information missing?)
+3. Clarity (Are any parts difficult to understand?)
+4. Improvement suggestions</div>
+
+      <div class="sub-title">Final revision request sent to Primary AI</div>
+<div class="code-block">Other AIs have provided feedback on your previous response.
+
+[Claude's Feedback]: {feedback1}
+[ChatGPT's Feedback]: {feedback2}
+[Perplexity's Feedback]: {feedback3}
+
+For each feedback:
+- To accept: (include reason)
+- To reject: (include reason)
+
+After specifying the above, please provide the final revised response.</div>
+    </div>
+
+    <!-- 8. Tech Stack -->
+    <div class="section">
+      <div class="section-title"><span class="num">8</span> Tech Stack</div>
+      <table>
+        <thead><tr><th>Role</th><th>Technology</th></tr></thead>
+        <tbody>
+          <tr><td>Desktop Framework</td><td>Electron</td></tr>
+          <tr><td>UI</td><td>React + TypeScript</td></tr>
+          <tr><td>Automation</td><td>Electron BrowserView + executeJavaScript</td></tr>
+          <tr><td>Completion Detection</td><td>MutationObserver (DOM monitoring)</td></tr>
+          <tr><td>Storage</td><td>electron-store (History persistence)</td></tr>
+          <tr><td>Packaging</td><td>electron-builder</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 9. Roadmap -->
+    <div class="section">
+      <div class="section-title"><span class="num">9</span> Roadmap</div>
+      <table>
+        <thead><tr><th>Phase</th><th>Content</th></tr></thead>
+        <tbody>
+          <tr><td>Phase 1</td><td>Electron setup + 5-panel BrowserView layout</td></tr>
+          <tr><td>Phase 2</td><td>AI selector analysis + input/extraction scripts</td></tr>
+          <tr><td>Phase 3</td><td>Stability detection logic (MutationObserver + timer)</td></tr>
+          <tr><td>Phase 4</td><td>Review loop orchestration (Full automation flow)</td></tr>
+          <tr><td>Phase 5</td><td>UI status indicators (Progress / Completion / Errors)</td></tr>
+          <tr><td>Phase 6</td><td>Settings screen, history storage, packaging (installer)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 10. Precautions -->
+    <div class="section">
+      <div class="section-title"><span class="num">10</span> Precautions</div>
+      <div class="note-box">
+        ⚠️ While technically feasible, some AI services may restrict automated scripts via their <strong>Terms of Service (ToS)</strong>. Use for <strong>personal / experimental purposes</strong> is recommended.
+      </div>
+    </div>
+
+  </div><!-- /content -->
+
+  <div class="footer">AI Council Project Plan &nbsp;|&nbsp; 2026.04.12 &nbsp;|&nbsp; Browser Automation Model</div>
+</div>
+</body>
+</html>

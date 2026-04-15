@@ -1,18 +1,18 @@
 /**
- * Google 로그인 창 전용 preload
+ * Preload specifically for Google login window
  *
- * contextIsolation: false 로 실행되어 페이지의 window에 직접 접근합니다.
- * Google이 embedded browser를 감지하는 데 사용하는 API들을 Chrome처럼 위장합니다:
- *   - window.chrome (Chrome extensions API 골격)
- *   - navigator.userAgentData (sec-ch-ua 클라이언트 힌트)
- *   - navigator.plugins (빈 목록이면 embedded로 감지됨)
+ * Runs with contextIsolation: false and interacts directly with the page window.
+ * Spoofs APIs Google uses to detect embedded browsers as Chrome:
+ *   - window.chrome (Chrome extensions API skeleton)
+ *   - navigator.userAgentData (sec-ch-ua client hints)
+ *   - navigator.plugins (detection fails if list is empty)
  */
 ;(function () {
   const CHROME_MAJOR = process.versions.chrome.split('.')[0]
   const CHROME_FULL  = process.versions.chrome
 
   // ── 1. window.chrome ──────────────────────────────────────────────────────
-  // Google은 window.chrome 존재 여부와 내부 구조로 브라우저를 검증합니다.
+  // Google validates browsers by checking for window.chrome presence and internal structure.
   if (!window.chrome) {
     Object.defineProperty(window, 'chrome', {
       writable: true,
@@ -59,7 +59,7 @@
             MIPS64: 'mips64', X86_32: 'x86-32', X86_64: 'x86-64',
           },
         },
-        // Chrome의 페이지 로딩 타이밍 API
+        // Chrome's page loading timing API
         loadTimes: function () {
           const now = Date.now() / 1000
           return {
@@ -78,7 +78,7 @@
             wasNpnNegotiated: true,
           }
         },
-        // Chrome 성능 지표 API
+        // Chrome performance metrics API
         csi: function () {
           return {
             onloadT: Date.now(),
@@ -92,7 +92,7 @@
   }
 
   // ── 2. navigator.userAgentData ────────────────────────────────────────────
-  // Electron은 이 값에 "Google Chrome" 대신 "Chromium"만 넣거나 잘못된 값을 반환합니다.
+  // Electron often returns "Chromium" alone or invalid values instead of "Google Chrome".
   try {
     const brands = [
       { brand: 'Chromium',      version: CHROME_MAJOR },
@@ -129,7 +129,7 @@
     })
   } catch (_) {}
 
-  // ── 3. navigator.plugins — 플러그인이 0이면 embedded로 간주됨 ──────────────
+  // ── 3. navigator.plugins — Google detects embedded browsers if plugins.length is 0 ──
   try {
     if (navigator.plugins.length === 0) {
       const fakePlugins = ['PDF Viewer', 'Chrome PDF Viewer', 'Chromium PDF Viewer',
@@ -154,7 +154,7 @@
     }
   } catch (_) {}
 
-  // ── 4. webdriver 플래그 제거 ─────────────────────────────────────────────
+  // ── 4. Remove webdriver flag ─────────────────────────────────────────────
   try {
     Object.defineProperty(navigator, 'webdriver', {
       get: () => false,

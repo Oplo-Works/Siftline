@@ -1,9 +1,9 @@
 /**
- * Claude AI 로그인 세션 준비 스크립트
+ * Claude AI login session preparation script
  *
- * - persist:claude 파티션에 Anthropic 계정 로그인 후 쿠키를 저장합니다.
- * - 저장된 쿠키는 메인 앱(AI Council) 실행 시 Claude 패널이 정상 로드되도록 합니다.
- * - 로그인 완료 후 창을 닫으면 자동 종료됩니다.
+ * - Log in to your Anthropic account in the persist:claude partition to save cookies.
+ * - Saved cookies allow the Claude panel to load normally when the main app (AI Council) runs.
+ * - Automatically closes when the window is closed after login.
  */
 
 import { app, BrowserWindow, session } from 'electron'
@@ -12,11 +12,11 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// 메인 앱과 동일한 UA/파티션 사용
+// Use same UA/partition as main app
 const CHROME_FULL  = process.versions.chrome
 const CHROME_MAJOR = CHROME_FULL.split('.')[0]
 const DESKTOP_UA   = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_MAJOR}.0.0.0 Safari/537.36`
-const PARTITION    = 'persist:claude'   // 메인 앱과 동일한 파티션
+const PARTITION    = 'persist:claude'   // Same partition as main app
 
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled')
 
@@ -24,7 +24,7 @@ app.whenReady().then(async () => {
   const ses = session.fromPartition(PARTITION)
   ses.setUserAgent(DESKTOP_UA)
 
-  // ── UA 헤더 스푸핑 (메인 앱과 동일) ─────────────────────────────────────
+  // ── UA header spoofing (Same as main app) ─────────────────────────────────────
   ses.webRequest.onBeforeSendHeaders({ urls: ['*://*/*'] }, (details, callback) => {
     const headers = {}
     const SKIP = new Set([
@@ -42,12 +42,12 @@ app.whenReady().then(async () => {
     callback({ requestHeaders: headers })
   })
 
-  // ── 로그인 창 ────────────────────────────────────────────────────────────
+  // ── Login Window ────────────────────────────────────────────────────────────
   const SPOOF_PRELOAD = path.join(__dirname, 'electron', 'preload-chrome-spoof.js')
   const win = new BrowserWindow({
     width:  520,
     height: 720,
-    title:  'Claude 로그인 — AI Council 세션 준비',
+    title:  'Claude Login — AI Council Session Preparation',
     webPreferences: {
       partition:        PARTITION,
       preload:          SPOOF_PRELOAD,
@@ -59,9 +59,9 @@ app.whenReady().then(async () => {
   win.setMenuBarVisibility(false)
   win.webContents.setUserAgent(DESKTOP_UA)
 
-  // ── Google OAuth 팝업 처리 ────────────────────────────────────────────────
-  // claude.ai에서 "Continue with Google" 클릭 시 Google OAuth 팝업이 열림.
-  // 팝업에도 동일한 preload + partition + UA를 적용해야 Google이 Electron을 감지하지 못함.
+  // ── Google OAuth popup handling ────────────────────────────────────────────────
+  // Google OAuth popup opens when clicking "Continue with Google" on claude.ai.
+  // Must apply same preload + partition + UA to popups so Google doesn't detect Electron.
   const OAUTH_ALLOWED = [
     'accounts.google.com',
     'oauth2.googleapis.com',
@@ -92,27 +92,27 @@ app.whenReady().then(async () => {
     }
   })
 
-  // 팝업 창에도 UA 설정 + 세션 쿠키 완료 감지 적용
+  // Apply UA + session cookie detection logic to popup windows
   win.webContents.on('did-create-window', (popup) => {
     popup.setMenuBarVisibility(false)
     popup.webContents.setUserAgent(DESKTOP_UA)
 
     popup.webContents.on('did-navigate', async (_e, url) => {
-      // Google OAuth 완료 후 claude.ai로 돌아오면 로그인 완료
+      // Login complete when returning to claude.ai after Google OAuth
       if (!url.startsWith('https://claude.ai')) return
       const cookies = await ses.cookies.get({ domain: 'claude.ai' })
       const hasSession = cookies.length > 0
       if (hasSession) {
-        console.log(`✅ Claude 로그인 완료 (OAuth) — 쿠키 ${cookies.length}개 저장됨`)
+        console.log(`✅ Claude login complete (OAuth) — ${cookies.length} cookies saved`)
         await ses.cookies.flushStore()
-        win.setTitle('✅ 로그인 완료 — 3초 후 창이 닫힙니다')
+        win.setTitle('✅ Login Complete — Closing window in 3 seconds')
         win.webContents.executeJavaScript(`
           document.body.innerHTML =
             '<div style="font-family:sans-serif;text-align:center;padding:60px 30px;background:#fdf4ff">' +
             '<div style="font-size:64px">✅</div>' +
-            '<h2 style="color:#6b21a8;margin:16px 0">Claude 로그인 완료!</h2>' +
-            '<p style="color:#7e22ce">AI Council을 실행하면 Claude 패널이 정상 로드됩니다.</p>' +
-            '<p style="color:#6b7280;font-size:13px;margin-top:24px">3초 후 자동으로 닫힙니다...</p>' +
+            '<h2 style="color:#6b21a8;margin:16px 0">Claude Login Complete!</h2>' +
+            '<p style="color:#7e22ce">Claude panel will now load correctly in the AI Council app.</p>' +
+            '<p style="color:#6b7280;font-size:13px;margin-top:24px">Window will close automatically in 3 seconds...</p>' +
             '</div>'
         `).catch(() => {})
         setTimeout(() => app.quit(), 3000)
@@ -120,14 +120,14 @@ app.whenReady().then(async () => {
     })
   })
 
-  // 로그인 완료 감지: claude.ai 메인 페이지로 이동하면 완료 처리
+  // Login completion detection: marked as complete when navigating to claude.ai main page
   win.webContents.on('did-navigate', async (_e, url) => {
-    // 로그인 후 claude.ai 도메인에 도달했는지 확인
+    // Check if reached claude.ai domain after login
     const isOnClaude = url.startsWith('https://claude.ai') && !url.includes('/login') && !url.includes('/oauth')
 
     if (!isOnClaude) return
 
-    // 쿠키 확인 (Anthropic 세션 쿠키)
+    // Check cookies (Anthropic session cookies)
     const cookies = await ses.cookies.get({ domain: 'claude.ai' })
     const hasSession = cookies.some(c =>
       c.name === 'sessionKey' ||
@@ -137,28 +137,28 @@ app.whenReady().then(async () => {
     )
 
     if (hasSession || cookies.length > 0) {
-      console.log(`✅ Claude 로그인 완료 — 쿠키 ${cookies.length}개 저장됨`)
-      await ses.cookies.flushStore()   // 디스크에 즉시 저장
+      console.log(`✅ Claude login complete — ${cookies.length} cookies saved`)
+      await ses.cookies.flushStore()   // Save to disk immediately
 
-      // 완료 안내 후 3초 뒤 자동 종료
-      win.setTitle('✅ 로그인 완료 — 3초 후 창이 닫힙니다')
+      // Show completion notice and exit after 3s
+      win.setTitle('✅ Login Complete — Closing window in 3 seconds')
       win.webContents.executeJavaScript(`
         document.body.innerHTML =
           '<div style="font-family:sans-serif;text-align:center;padding:60px 30px;background:#fdf4ff">' +
           '<div style="font-size:64px">✅</div>' +
-          '<h2 style="color:#6b21a8;margin:16px 0">Claude 로그인 완료!</h2>' +
-          '<p style="color:#7e22ce">AI Council을 실행하면 Claude 패널이 정상 로드됩니다.</p>' +
-          '<p style="color:#6b7280;font-size:13px;margin-top:24px">3초 후 자동으로 닫힙니다...</p>' +
+          '<h2 style="color:#6b21a8;margin:16px 0">Claude Login Complete!</h2>' +
+          '<p style="color:#7e22ce">Claude panel will now load correctly in the AI Council app.</p>' +
+          '<p style="color:#6b7280;font-size:13px;margin-top:24px">Window will close automatically in 3 seconds...</p>' +
           '</div>'
       `).catch(() => {})
       setTimeout(() => app.quit(), 3000)
     }
   })
 
-  // Claude 로그인 페이지로 시작
+  // Start with Claude login page
   win.loadURL('https://claude.ai/login', { userAgent: DESKTOP_UA })
 
-  // 창 닫히면 종료
+  // Exit on window close
   win.on('closed', () => app.quit())
 })
 

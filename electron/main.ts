@@ -29,7 +29,7 @@ app.commandLine.appendSwitch('disable-quic')
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled')
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-export type AiName = 'gemini' | 'claude' | 'chatgpt' | 'perplexity'
+export type AiName = 'gemini' | 'claude' | 'chatgpt' | 'perplexity' | 'grok'
 
 interface AiConfig {
   url: string
@@ -166,6 +166,36 @@ const DEFAULT_SELECTORS: Record<AiName, AiConfig> = {
     ],
     loadedIndicatorSelectors: ['textarea', 'div[contenteditable]', '[contenteditable]'],
   },
+  grok: {
+    url: 'https://grok.com',
+    newChatUrl: 'https://grok.com',
+    inputSelectors: [
+      // Main chat textarea (Grok 2025 UI)
+      'textarea[placeholder*="Ask"]',
+      'textarea[placeholder*="Grok"]',
+      'textarea[placeholder*="Message"]',
+      // Contenteditable variant
+      'div[contenteditable="true"][aria-label]',
+      'div[contenteditable="true"]',
+      // Final fallback
+      'textarea',
+    ],
+    sendButtonSelectors: [
+      'button[aria-label="Send message"]',
+      'button[aria-label="Send"]',
+      'button[type="submit"]',
+      'button[data-testid="send-button"]',
+    ],
+    responseContainerSelectors: [
+      // Grok wraps responses in message-bubble containers
+      '.message-bubble',
+      '[data-testid="message-content"]',
+      // Markdown / prose fallbacks
+      '.prose',
+      '.markdown',
+    ],
+    loadedIndicatorSelectors: ['textarea', 'div[contenteditable]'],
+  },
 }
 
 /** Load selectors: use userData override if present, else use bundled defaults */
@@ -192,12 +222,19 @@ const store = new Store<StoreSchema>({
 
 let mainWindow: BrowserWindow | null = null
 const views: Map<AiName, BrowserView> = new Map()
-const AI_NAMES: AiName[] = ['gemini', 'claude', 'chatgpt', 'perplexity']
+const AI_NAMES: AiName[] = ['gemini', 'claude', 'chatgpt', 'perplexity', 'grok']
+// Which AIs are currently visible — user can toggle panels on/off
+let enabledAiNames: AiName[] = [...AI_NAMES]
 let resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
+// ─── Workflow pause-point gate ────────────────────────────────────────────────
+// When non-null, the workflow is paused and waiting for the user to click
+// Next or Continue. Resolved by the 'workflow-proceed' IPC handler.
+let workflowProceedResolver: (() => void) | null = null
 
 // ─── UI Layout Constants ──────────────────────────────────────────────────────
 const TITLEBAR_HEIGHT = 40
-const TOOLBAR_HEIGHT = 62
+const TOOLBAR_HEIGHT = 120
 const ATTACHMENT_BAR_HEIGHT = 34   // shown when files are attached
 const STATUS_BAR_HEIGHT = 36
 const FINAL_PANEL_HEADER_H = 36   // collapsed: header only
@@ -225,6 +262,9 @@ const DESKTOP_USER_AGENT =
 // Chrome spoof preload path — needed both inside createWindow() and in the
 // global web-contents-created handler for OAuth popup windows.
 const CHROME_SPOOF_PRELOAD = path.join(__dirname, 'preload-chrome-spoof.js')
+// Minimal preload that only overrides navigator.language → en-US.
+// Safe for any AI site — does NOT patch Error/chrome globals like the spoof preload does.
+const EN_LOCALE_PRELOAD = path.join(__dirname, 'preload-en-locale.js')
 
 // Client-hint headers derived from the actual bundled Chromium version
 const CHROME_CLIENT_HINTS: Record<string, string> = {
@@ -274,6 +314,11 @@ const STREAMING_INDICATOR_SELECTORS: Partial<Record<AiName, string[]>> = {
   ],
   perplexity: [
     'button[aria-label="Stop"]',
+  ],
+  grok: [
+    'button[aria-label="Stop"]',
+    'button[aria-label="Stop generating"]',
+    '[data-testid="stop-button"]',
   ],
 }
 
@@ -339,6 +384,77 @@ function sanitizeResponseText(text: string): string {
     .trim()
 }
 
+/**
+ * Strip Claude-specific UI chrome from captured innerText.
+ *
+ * Claude's DOM (sidebar + conversation + footer) is read as one big
+ * innerText blob, so we need to cut away three sections:
+ *
+ * 1. TOP CHROME — Claude sidebar lines before the actual response:
+ *    "New chat / Search / Customize / Chats / Projects / Artifacts /
+ *     Your chats will show up here / <username> / Free plan / Untitled / Get Pro"
+ *    plus the echoed reviewer prompt the user sent.
+ *
+ * 2. PROMPT ECHO — Claude repeats the prompt we injected:
+ *    "Here is an analysis result … Please review the above analysis …"
+ *    followed by "Show more" button text.
+ *    We detect the boundary by looking for "Please review" + the numbered
+ *    criteria list and cut everything up to (and incl.) the last criterion.
+ *
+ * 3. FOOTER — Lines after the actual response:
+ *    "Show more / HH:MM AM|PM / <model name> /
+ *     Claude is AI and can make mistakes. Please double-check responses."
+ */
+function sanitizeClaudeFeedback(text: string): string {
+  if (!text) return ''
+
+  let result = text
+
+  // ── 1. Strip top chrome: sidebar UI lines ──────────────────────────────
+  // The sidebar always ends with "Get Pro" before the conversation starts.
+  const GET_PRO = 'Get Pro'
+  const getProIdx = result.indexOf(GET_PRO)
+  if (getProIdx !== -1) {
+    result = result.slice(getProIdx + GET_PRO.length).trimStart()
+  }
+
+  // ── 2. Strip the echoed prompt block ──────────────────────────────────
+  // Our reviewer prompt always contains this closing instruction line:
+  //   "4. Suggestions for improvement"
+  // Everything up to and including that line (plus a trailing "Show more")
+  // is the prompt echo — the real feedback starts after it.
+  const PROMPT_BOUNDARY_PATTERNS = [
+    /4\.\s+Suggestions for improvement\s*/i,
+    /Please review the above analysis based on the following criteria[\s\S]*?4\.\s+Suggestions for improvement\s*/i,
+  ]
+  for (const pattern of PROMPT_BOUNDARY_PATTERNS) {
+    const match = result.match(pattern)
+    if (match && match.index !== undefined) {
+      const afterBoundary = result.slice(match.index + match[0].length)
+      // Skip any stray "Show more" button text right after the prompt
+      result = afterBoundary.replace(/^Show more\s*/i, '').trimStart()
+      break
+    }
+  }
+
+  // ── 3. Strip footer: timestamp + model name + disclaimer ──────────────
+  // Footer patterns (appear in this order at the very end):
+  //   "Show more"          – may appear before footer too, handled above
+  //   "HH:MM AM" or "HH:MM PM"
+  //   "<Model name>" line
+  //   "Claude is AI and can make mistakes…"
+  const FOOTER_PATTERNS = [
+    /\nShow more\s*\n?\d{1,2}:\d{2}\s*(AM|PM)[\s\S]*$/i,
+    /\n\d{1,2}:\d{2}\s*(AM|PM)[\s\S]*$/i,
+    /\nClaude is AI and can make mistakes[\s\S]*$/i,
+  ]
+  for (const pattern of FOOTER_PATTERNS) {
+    result = result.replace(pattern, '')
+  }
+
+  return result.trim()
+}
+
 /** Returns true if the text is a real AI answer (not a disclaimer / too short). */
 function isQualityResponse(text: string): boolean {
   if (text.length < 50) return false
@@ -370,6 +486,19 @@ function sendStatus(msg: string) {
 
 function sendLog(level: 'info' | 'warn' | 'error', msg: string) {
   mainWindow?.webContents.send('log', { level, msg })
+}
+
+/**
+ * Pause the workflow at a named stage and wait for the user to click
+ * Next or Continue.
+ * Sends 'workflow-waiting' to the renderer so the button label updates,
+ * then blocks until the renderer calls 'workflow-proceed'.
+ */
+function waitForUserProceed(stage: 'after-draft' | 'after-reviews'): Promise<void> {
+  return new Promise<void>((resolve) => {
+    workflowProceedResolver = resolve
+    mainWindow?.webContents.send('workflow-waiting', { stage })
+  })
 }
 
 /** Execute JS with a hard timeout to prevent indefinite hangs */
@@ -797,14 +926,14 @@ async function clickSend(view: BrowserView, selectors: string[]): Promise<boolea
 }
 
 // ─── BrowserView Layout ───────────────────────────────────────────────────────
-function computeViewBounds(index: number, winWidth: number, winHeight: number): Rectangle {
+function computeViewBounds(indexInEnabled: number, totalEnabled: number, winWidth: number, winHeight: number): Rectangle {
   const attachH = attachmentBarVisible ? ATTACHMENT_BAR_HEIGHT : 0
   const finalH = finalPanelExpanded ? FINAL_PANEL_FULL_H : FINAL_PANEL_HEADER_H
   const gridTop = TITLEBAR_HEIGHT + TOOLBAR_HEIGHT + attachH + STATUS_BAR_HEIGHT + PANEL_HEADER_HEIGHT
   const gridHeight = winHeight - gridTop - finalH
-  const panelWidth = Math.floor(winWidth / AI_NAMES.length)
+  const panelWidth = Math.floor(winWidth / Math.max(totalEnabled, 1))
   return {
-    x: index * panelWidth,
+    x: indexInEnabled * panelWidth,
     y: gridTop,
     width: panelWidth,
     height: Math.max(gridHeight, 200),
@@ -814,14 +943,20 @@ function computeViewBounds(index: number, winWidth: number, winHeight: number): 
 function updateViewBounds() {
   if (!mainWindow) return
   const [winWidth, winHeight] = mainWindow.getSize()
-  AI_NAMES.forEach((name, i) => {
+  let enabledIndex = 0
+  AI_NAMES.forEach((name) => {
     const view = views.get(name)
-    if (view) {
-      try {
-        view.setBounds(computeViewBounds(i, winWidth, winHeight))
-      } catch {
-        // view might be detached
+    if (!view) return
+    try {
+      if (enabledAiNames.includes(name)) {
+        view.setBounds(computeViewBounds(enabledIndex, enabledAiNames.length, winWidth, winHeight))
+        enabledIndex++
+      } else {
+        // Move disabled view off-screen (keeps it loaded for fast re-enable)
+        view.setBounds({ x: -10000, y: 0, width: 100, height: 100 })
       }
+    } catch {
+      // view might be detached
     }
   })
 }
@@ -898,10 +1033,22 @@ async function createWindow() {
     const ses = session.fromPartition(`persist:${name}`)
     ses.setUserAgent(DESKTOP_USER_AGENT)
 
+    // Gemini/Google 계열만 Chrome 스푸핑 preload 필요.
+    // Claude/ChatGPT/Perplexity에 적용하면 window.Error 패치 등이
+    // 내부 React/WebSocket 코드를 깨트려 "network error" 가 발생함.
+    const needsChromeSpoof = name === 'gemini'
+    // Grok reads navigator.language to set its UI locale.
+    // We inject a minimal preload that overrides it to en-US (contextIsolation: false
+    // is required so the override lands in the page's own V8 context).
+    const needsLocaleSpoof = name === 'grok'
     const view = new BrowserView({
       webPreferences: {
-        preload: CHROME_SPOOF_PRELOAD, // Chrome API 주입 (Google 감지 우회)
-        contextIsolation: false,               // MAIN world 접근을 위해 반드시 false
+        preload: needsChromeSpoof ? CHROME_SPOOF_PRELOAD
+               : needsLocaleSpoof ? EN_LOCALE_PRELOAD
+               : undefined,
+        // contextIsolation: false is required for MAIN world access —
+        // apply only to views that use a preload that needs it.
+        contextIsolation: !(needsChromeSpoof || needsLocaleSpoof),
         nodeIntegration: false,
         partition: `persist:${name}`,           // separate sessions for login persistence
       },
@@ -911,31 +1058,50 @@ async function createWindow() {
     view.webContents.setUserAgent(DESKTOP_USER_AGENT)
 
     // ── Strip/replace sec-ch-ua client hints that expose Electron identity ────
-    // Gemini checks these headers server-side even when UA looks like Chrome.
-    // IMPORTANT: we must case-insensitively remove the originals — Object.assign
-    // only matches exact keys, so if Electron sends 'Sec-Ch-Ua' (capitalized)
-    // alongside our lowercase 'sec-ch-ua', Gemini receives BOTH and detects us.
-    view.webContents.session.webRequest.onBeforeSendHeaders(
-      { urls: ['*://*/*'] },
-      (details, callback) => {
-        const headers: Record<string, string> = {}
-        // Keys to replace — skip originals, we set our own values below
-        const SKIP_KEYS = new Set([
-          'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform',
-          'sec-ch-ua-full-version-list',
-          'user-agent', 'x-client-data',
-        ])
-        for (const [key, value] of Object.entries(details.requestHeaders)) {
-          if (!SKIP_KEYS.has(key.toLowerCase())) {
-            headers[key] = value as string
+    // Only applied to Gemini: Google checks these headers server-side even when
+    // UA looks like Chrome. Other services (Claude, ChatGPT, Perplexity) do NOT
+    // need this — modifying their API request headers causes "network error"
+    // because the destination server (e.g. Anthropic) validates request integrity.
+    if (needsChromeSpoof) {
+      // IMPORTANT: we must case-insensitively remove the originals — Object.assign
+      // only matches exact keys, so if Electron sends 'Sec-Ch-Ua' (capitalized)
+      // alongside our lowercase 'sec-ch-ua', Gemini receives BOTH and detects us.
+      view.webContents.session.webRequest.onBeforeSendHeaders(
+        { urls: ['*://*/*'] },
+        (details, callback) => {
+          const headers: Record<string, string> = {}
+          // Keys to replace — skip originals, we set our own values below
+          const SKIP_KEYS = new Set([
+            'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform',
+            'sec-ch-ua-full-version-list',
+            'user-agent', 'x-client-data',
+          ])
+          for (const [key, value] of Object.entries(details.requestHeaders)) {
+            if (!SKIP_KEYS.has(key.toLowerCase())) {
+              headers[key] = value as string
+            }
           }
+          // Inject Chrome-matching headers
+          Object.assign(headers, CHROME_CLIENT_HINTS)
+          headers['user-agent'] = DESKTOP_USER_AGENT
+          callback({ requestHeaders: headers })
         }
-        // Inject Chrome-matching headers
-        Object.assign(headers, CHROME_CLIENT_HINTS)
-        headers['user-agent'] = DESKTOP_USER_AGENT
-        callback({ requestHeaders: headers })
-      }
-    )
+      )
+    }
+
+    // Force English locale for Grok — grok.com auto-detects language from the
+    // Accept-Language header and shows Korean on Korean Windows systems.
+    if (name === 'grok') {
+      view.webContents.session.webRequest.onBeforeSendHeaders(
+        { urls: ['*://grok.com/*', '*://*.grok.com/*', '*://x.com/*', '*://*.x.com/*'] },
+        (details, callback) => {
+          const headers = { ...details.requestHeaders }
+          // Override Accept-Language to English regardless of system locale
+          headers['Accept-Language'] = 'en-US,en;q=0.9'
+          callback({ requestHeaders: headers })
+        }
+      )
+    }
 
     mainWindow.addBrowserView(view)
     const bounds = computeViewBounds(i, mainWindow.getSize()[0], mainWindow.getSize()[1])
@@ -1087,6 +1253,322 @@ ipcMain.handle(
   }
 )
 
+// ─── Accounts: Login / Logout / Status ───────────────────────────────────────
+
+/**
+ * Cookie domains to copy from the temp login session → main session per AI.
+ * Using a separate "login:" partition during login prevents the Chrome header
+ * spoof from interfering with the main AI panel's API connections.
+ */
+const LOGIN_COPY_DOMAINS: Record<AiName, string[]> = {
+  gemini:     ['.google.com', 'accounts.google.com'],
+  claude:     ['claude.ai', '.claude.ai'],
+  chatgpt:    ['.chatgpt.com', '.openai.com', 'auth.openai.com'],
+  perplexity: ['.perplexity.ai'],
+  grok:       ['.grok.com', 'grok.com', '.x.com', 'x.com', '.twitter.com', 'twitter.com'],
+}
+
+const LOGIN_START_URLS: Record<AiName, string> = {
+  gemini:     'https://accounts.google.com/signin',
+  claude:     'https://claude.ai/login',
+  chatgpt:    'https://chatgpt.com/auth/login',
+  perplexity: 'https://www.perplexity.ai',
+  grok:       'https://grok.com',
+}
+
+const LOGIN_TITLES: Record<AiName, string> = {
+  gemini:     'Google Login — Gemini (AI Council)',
+  claude:     'Claude Login — AI Council',
+  chatgpt:    'ChatGPT Login — AI Council',
+  perplexity: 'Perplexity Login — AI Council',
+  grok:       'Grok Login — AI Council',
+}
+
+/** Check whether the login session already has valid session cookies.
+ *  Uses loginSes.cookies.get({}) (no domain filter) to catch cookies set on
+ *  subdomains like www.perplexity.ai that a domain-filtered query would miss. */
+async function isLoginComplete(aiName: AiName, loginSes: Electron.Session, url: string): Promise<boolean> {
+  // Get ALL cookies in the temp session — avoids subdomain / exact-domain mismatches
+  const all = await loginSes.cookies.get({})
+
+  if (aiName === 'gemini') {
+    return all.some((c) =>
+      (c.domain.includes('google.com')) &&
+      (c.name === 'SID' || c.name === '__Secure-1PSID')
+    )
+  }
+  if (aiName === 'claude') {
+    if (!url.startsWith('https://claude.ai') || url.includes('/login') || url.includes('/oauth')) return false
+    const claudeCookies = all.filter((c) => c.domain.includes('claude.ai') || c.domain.includes('anthropic.com'))
+    return claudeCookies.length > 0
+  }
+  if (aiName === 'chatgpt') {
+    const relevant = all.filter((c) => c.domain.includes('chatgpt.com') || c.domain.includes('openai.com'))
+    return relevant.length >= 3 &&
+      relevant.some((c) => c.name.includes('session') || c.name.includes('token') || c.name === '__cf_bm')
+  }
+  if (aiName === 'perplexity') {
+    const relevant = all.filter((c) => c.domain.includes('perplexity.ai'))
+    return relevant.length >= 3 &&
+      relevant.some((c) => c.name.includes('session') || c.name.includes('token') || c.name.startsWith('pplx'))
+  }
+  if (aiName === 'grok') {
+    // Grok auth is backed by X (Twitter).
+    // auth_token + ct0 = X session credentials (set on x.com during login)
+    // sso + sso-rw    = Grok SSO cookies (set on grok.com after X auth handshake)
+    // Either pair confirms a real logged-in user (not just anonymous visitor cookies).
+    const xCookies   = all.filter((c) => c.domain.includes('x.com') || c.domain.includes('twitter.com'))
+    const grokCookies = all.filter((c) => c.domain.includes('grok.com'))
+    const hasXAuth   = xCookies.some((c) => c.name === 'auth_token') &&
+                       xCookies.some((c) => c.name === 'ct0')
+    const hasGrokSSO = grokCookies.some((c) => c.name === 'sso' || c.name === 'sso-rw')
+    return hasXAuth || hasGrokSSO
+  }
+  return false
+}
+
+/** Copy ALL cookies from the temp login session into the main persist session.
+ *  Getting all cookies (no domain filter) avoids missing cookies set on
+ *  subdomains (e.g. www.perplexity.ai vs .perplexity.ai). */
+async function copyCookiesToMainSession(aiName: AiName, loginSes: Electron.Session): Promise<void> {
+  const mainSes = session.fromPartition(`persist:${aiName}`)
+  const allowedDomains = LOGIN_COPY_DOMAINS[aiName]
+
+  // Fetch every cookie in the temp session without any domain filter
+  const allCookies = await loginSes.cookies.get({})
+
+  // Keep only cookies whose domain matches the AI's relevant domains
+  const toCopy = allCookies.filter((c) =>
+    allowedDomains.some((d) => c.domain.includes(d.replace(/^\./, '')))
+  )
+
+  for (const cookie of toCopy) {
+    const protocol = cookie.secure ? 'https' : 'http'
+    const host = cookie.domain.replace(/^\./, '')
+    const url = `${protocol}://${host}${cookie.path || '/'}`
+    try {
+      await mainSes.cookies.set({
+        url,
+        name: cookie.name,
+        value: cookie.value,
+        domain: cookie.domain,
+        path: cookie.path,
+        secure: cookie.secure,
+        httpOnly: cookie.httpOnly,
+        expirationDate: cookie.expirationDate,
+        sameSite: cookie.sameSite as ('unspecified' | 'no_restriction' | 'lax' | 'strict') | undefined,
+      })
+    } catch { /* some cookies (e.g. httpOnly from other origins) may be rejected — ignore */ }
+  }
+  await mainSes.cookies.flushStore()
+  sendLog('info', `[login] Copied ${toCopy.length} cookies to persist:${aiName}`)
+}
+
+/** Open a floating login window for the given AI using an isolated temp session */
+function openLoginWindow(aiName: AiName): void {
+  const loginPartition = `login:${aiName}`   // isolated — never affects persist:${aiName}
+  const loginSes = session.fromPartition(loginPartition)
+  loginSes.setUserAgent(DESKTOP_USER_AGENT)
+
+  // Full Chrome spoof on the temp session — safe because it's isolated.
+  // For Grok: also force Accept-Language to English so the X.com login page
+  // and grok.com are displayed in English regardless of system locale.
+  loginSes.webRequest.onBeforeSendHeaders({ urls: ['*://*/*'] }, (details, callback) => {
+    const headers: Record<string, string> = {}
+    const SKIP = new Set([
+      'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform',
+      'sec-ch-ua-full-version-list', 'user-agent', 'x-client-data',
+    ])
+    for (const [k, v] of Object.entries(details.requestHeaders)) {
+      if (!SKIP.has(k.toLowerCase())) headers[k] = v as string
+    }
+    headers['user-agent']                  = DESKTOP_USER_AGENT
+    headers['sec-ch-ua']                   = `"Chromium";v="${_CHROME_MAJOR}", "Google Chrome";v="${_CHROME_MAJOR}", "Not-A.Brand";v="24"`
+    headers['sec-ch-ua-mobile']            = '?0'
+    headers['sec-ch-ua-platform']          = '"Windows"'
+    headers['sec-ch-ua-full-version-list'] = `"Chromium";v="${_CHROME_FULL}", "Google Chrome";v="${_CHROME_FULL}", "Not-A.Brand";v="24.0.0.0"`
+    // Force English locale for Grok login window (covers grok.com + x.com pages)
+    if (aiName === 'grok') {
+      headers['Accept-Language'] = 'en-US,en;q=0.9'
+    }
+    callback({ requestHeaders: headers })
+  })
+
+  // Grok login window: use the locale-only preload so both grok.com and the
+  // X.com sign-in page display in English.  Chrome-spoof preload is still
+  // safe here (isolated session) but not needed for Grok, so prefer the
+  // lighter locale preload to avoid any risk of patching X.com globals.
+  const loginPreload = aiName === 'grok' ? EN_LOCALE_PRELOAD : CHROME_SPOOF_PRELOAD
+  const loginWin = new BrowserWindow({
+    width:  520,
+    height: 720,
+    title:  LOGIN_TITLES[aiName],
+    parent: mainWindow ?? undefined,
+    webPreferences: {
+      partition:        loginPartition,
+      preload:          loginPreload,
+      contextIsolation: false,
+      nodeIntegration:  false,
+    },
+  })
+  loginWin.setMenuBarVisibility(false)
+  loginWin.webContents.setUserAgent(DESKTOP_USER_AGENT)
+
+  // Allow OAuth popups with same spoof applied
+  loginWin.webContents.setWindowOpenHandler(({ url: popupUrl }) => {
+    try {
+      const hostname = new URL(popupUrl).hostname.replace(/^www\./, '')
+      const ok = OAUTH_ALLOWED_DOMAINS.some((d) => hostname === d || hostname.endsWith('.' + d))
+      if (!ok) return { action: 'deny' }
+    } catch { return { action: 'deny' } }
+    return {
+      action: 'allow',
+      overrideBrowserWindowOptions: {
+        width: 500, height: 660,
+        title: 'Sign in',
+        webPreferences: { partition: loginPartition, preload: loginPreload, contextIsolation: false, nodeIntegration: false },
+      },
+    }
+  })
+
+  // 6-second grace period so pre-existing cookies don't trigger instant close
+  const START = Date.now()
+  const GRACE = 6_000
+  let done = false
+
+  const checkLogin = async (url: string) => {
+    if (done) return
+    if (Date.now() - START < GRACE) return
+    const ok = await isLoginComplete(aiName, loginSes, url)
+    if (!ok) return
+    done = true
+
+    // Copy cookies from temp session → main session
+    await copyCookiesToMainSession(aiName, loginSes)
+
+    // Reload the main AI panel
+    const view = views.get(aiName)
+    if (view) {
+      const aiConfig = getSelectors(aiName)
+      const reloadUrl = aiName === 'gemini' ? 'https://gemini.google.com' : aiConfig.newChatUrl
+      view.webContents.loadURL(reloadUrl, { userAgent: DESKTOP_USER_AGENT }).catch(() => {})
+    }
+
+    // Tell renderer to refresh login status display
+    mainWindow?.webContents.send('login-status-changed')
+
+    loginWin.setTitle('Login complete — closing in 3 s')
+    loginWin.webContents.executeJavaScript(
+      'document.body.style.cssText="margin:0";' +
+      'document.body.innerHTML=\'<div style="font-family:sans-serif;text-align:center;padding:60px 30px;background:#0d0d1a;color:#e8e8f0">\' +' +
+      '\'<div style="font-size:56px">&#x2705;</div>\' +' +
+      '\'<h2 style="color:#6c63ff;margin:16px 0">Login complete!</h2>\' +' +
+      '\'<p style="color:#9898b0">AI Council panel will reload automatically.</p>\' +' +
+      '\'<p style="color:#5a5a78;font-size:12px;margin-top:20px">Closing in 3 seconds...</p>\' +' +
+      '\'</div>\''
+    ).catch(() => {})
+    setTimeout(() => { if (!loginWin.isDestroyed()) loginWin.close() }, 3000)
+  }
+
+  // Listen on multiple events to catch all navigation types:
+  // did-navigate      — full page navigation
+  // did-finish-load   — page fully loaded (catches SPA post-login redirects)
+  // did-navigate-in-page — hash / pushState navigation (SPA internal routing)
+  const attachNavigationListeners = (wc: Electron.WebContents) => {
+    wc.on('did-navigate',         (_e, url) => checkLogin(url))
+    wc.on('did-finish-load',      ()        => checkLogin(wc.getURL()))
+    wc.on('did-navigate-in-page', (_e, url) => checkLogin(url))
+  }
+  attachNavigationListeners(loginWin.webContents)
+
+  loginWin.webContents.on('did-create-window', (popup) => {
+    popup.setMenuBarVisibility(false)
+    popup.webContents.setUserAgent(DESKTOP_USER_AGENT)
+    attachNavigationListeners(popup.webContents)
+  })
+
+  loginWin.loadURL(LOGIN_START_URLS[aiName], { userAgent: DESKTOP_USER_AGENT })
+  loginWin.on('closed', async () => {
+    // Clean up the temp login session
+    try { await loginSes.clearStorageData() } catch { /* ignore */ }
+  })
+}
+
+/** Return login status for all 4 AIs based on their persist session cookies.
+ *  Uses cookies.get({}) (no domain filter) to avoid missing cookies set on
+ *  subdomains like www.chatgpt.com or www.perplexity.ai. */
+async function getLoginStatus(): Promise<Record<AiName, boolean>> {
+  const [geminiAll, claudeAll, chatgptAll, perplexityAll, grokAll] = await Promise.all([
+    session.fromPartition('persist:gemini').cookies.get({}),
+    session.fromPartition('persist:claude').cookies.get({}),
+    session.fromPartition('persist:chatgpt').cookies.get({}),
+    session.fromPartition('persist:perplexity').cookies.get({}),
+    session.fromPartition('persist:grok').cookies.get({}),
+  ])
+
+  const geminiC     = geminiAll.filter((c) => c.domain.includes('google.com'))
+  const claudeC     = claudeAll.filter((c) => c.domain.includes('claude.ai') || c.domain.includes('anthropic.com'))
+  const chatgptC    = chatgptAll.filter((c) => c.domain.includes('chatgpt.com') || c.domain.includes('openai.com'))
+  const perplexityC = perplexityAll.filter((c) => c.domain.includes('perplexity.ai'))
+  const grokXC      = grokAll.filter((c) => c.domain.includes('x.com') || c.domain.includes('twitter.com'))
+  const grokSiteC   = grokAll.filter((c) => c.domain.includes('grok.com'))
+  const grokHasXAuth  = grokXC.some((c) => c.name === 'auth_token') && grokXC.some((c) => c.name === 'ct0')
+  const grokHasSSO    = grokSiteC.some((c) => c.name === 'sso' || c.name === 'sso-rw')
+
+  return {
+    gemini:     geminiC.some((c) => c.name === 'SID' || c.name === '__Secure-1PSID'),
+    claude:     claudeC.length > 0,
+    chatgpt:    chatgptC.length >= 3 && chatgptC.some((c) => c.name.includes('session') || c.name.includes('token') || c.name === '__cf_bm'),
+    perplexity: perplexityC.length >= 3 && perplexityC.some((c) => c.name.includes('session') || c.name.includes('token') || c.name.startsWith('pplx')),
+    grok:       grokHasXAuth || grokHasSSO,
+  }
+}
+
+/** Clear all session data for one AI and reload its panel */
+async function logoutAi(aiName: AiName): Promise<void> {
+  const ses = session.fromPartition(`persist:${aiName}`)
+  await ses.clearStorageData()
+  await ses.cookies.flushStore()
+
+  const view = views.get(aiName)
+  if (view) {
+    const loginUrl = aiName === 'gemini'
+      ? 'https://accounts.google.com/signin'
+      : getSelectors(aiName).url
+    view.webContents.loadURL(loginUrl, { userAgent: DESKTOP_USER_AGENT }).catch(() => {})
+  }
+  mainWindow?.webContents.send('login-status-changed')
+}
+
+// ── Accounts IPC handlers ─────────────────────────────────────────────────────
+ipcMain.handle('get-login-status', () => getLoginStatus())
+
+ipcMain.handle('open-login-window', (_e, aiName: AiName) => {
+  if (!AI_NAMES.includes(aiName)) return false
+  openLoginWindow(aiName)
+  return true
+})
+
+ipcMain.handle('logout-ai', async (_e, aiName: AiName) => {
+  if (!AI_NAMES.includes(aiName)) return false
+  await logoutAi(aiName)
+  return true
+})
+
+ipcMain.handle('logout-all', async () => {
+  for (const ai of AI_NAMES) await logoutAi(ai)
+  return true
+})
+
+// ── Enabled AI panels → update BrowserView layout ────────────────────────────
+ipcMain.handle('set-enabled-ais', (_e, ais: AiName[]) => {
+  if (!Array.isArray(ais) || ais.length === 0) return false
+  enabledAiNames = ais.filter((n) => AI_NAMES.includes(n))
+  if (enabledAiNames.length === 0) enabledAiNames = [...AI_NAMES]
+  updateViewBounds()
+  return true
+})
+
 // ── Attachment bar visibility → update BrowserView layout ────────────────────
 ipcMain.handle('set-attachment-bar-visible', (_e, visible: boolean) => {
   attachmentBarVisible = visible
@@ -1106,6 +1588,17 @@ ipcMain.handle('get-history', () => store.get('chatHistory'))
 ipcMain.handle('clear-history', () => {
   store.set('chatHistory', [])
   return true
+})
+
+// ── Workflow proceed (Next / Continue button) ─────────────────────────────────
+// Called by the renderer when the user clicks Next or Continue.
+// Resolves the pending pause-point promise inside start-workflow.
+ipcMain.handle('workflow-proceed', () => {
+  if (workflowProceedResolver) {
+    const resolve = workflowProceedResolver
+    workflowProceedResolver = null
+    resolve()
+  }
 })
 
 /** Open DevTools for a specific BrowserView — useful for inspecting DOM/selectors */
@@ -1190,7 +1683,8 @@ ipcMain.handle(
       return { success: false, error: `Invalid AI selection: ${primaryAi}` }
     }
 
-    const reviewers = AI_NAMES.filter((n) => n !== primaryAi)
+    // Use caller-supplied enabled list (falls back to all AIs for backwards compat)
+    const reviewers = enabledAiNames.filter((n) => n !== primaryAi)
     const primaryConfig = getSelectors(primaryAi)
     const hasFiles = Array.isArray(attachedFiles) && attachedFiles.length > 0
 
@@ -1255,6 +1749,12 @@ ipcMain.handle(
       }
 
       mainWindow?.webContents.send('draft-ready', { ai: primaryAi, draft: draftAnswer })
+
+      // ── PAUSE POINT 1: Wait for user to click "Next" ──────────────────────
+      sendStatus(`✅ ${primaryAi} has finished. Review the answer above, then click Next to send to reviewers.`)
+      sendLog('info', '[Pause 1] Waiting for user to click Next')
+      await waitForUserProceed('after-draft')
+      sendLog('info', '[Pause 1] User clicked Next — proceeding to reviewer step')
 
       // ── STEP 5: Inject reviewer prompt into all reviewers simultaneously ──
       sendStatus(MSG.sendingReviews())
@@ -1325,17 +1825,27 @@ ipcMain.handle(
 
         sendStatus(MSG.waitingReviewer(reviewerName))
         await sleep(INITIAL_RESPONSE_WAIT_MS)
-        const feedback = await waitForStableResponse(
+        const rawFeedback = await waitForStableResponse(
           reviewerView,
           reviewerConfig.responseContainerSelectors,
           WORKFLOW_TIMEOUT_MS,
           STABLE_RESPONSE_MS,
           reviewerName,
-          reviewerBaseline    // ← old-response bleed-through 방지
+          reviewerBaseline    // ← prevent old-response bleed-through
         ).catch((err) => {
           sendLog('warn', `${reviewerName} timeout: ${err.message}`)
           return ''
         })
+
+        // Claude's innerText includes sidebar chrome + echoed prompt + footer.
+        // Strip all of that so only the actual feedback content is used.
+        const feedback = reviewerName === 'claude'
+          ? sanitizeClaudeFeedback(rawFeedback)
+          : rawFeedback
+
+        if (reviewerName === 'claude' && rawFeedback.length !== feedback.length) {
+          sendLog('info', `[Step 5] claude: sanitized feedback ${rawFeedback.length}→${feedback.length} chars`)
+        }
 
         mainWindow?.webContents.send('feedback-ready', { ai: reviewerName, feedback })
         return { ai: reviewerName as AiName, feedback }
@@ -1345,6 +1855,12 @@ ipcMain.handle(
       sendStatus(MSG.collectingFeedbacks())
       sendLog('info', '[Step 6] Collecting reviewer feedbacks')
       const feedbackResults = await Promise.all(reviewPromises)
+
+      // ── PAUSE POINT 2: Wait for user to click "Continue" ──────────────────
+      sendStatus('✅ All reviewer feedback is ready. Review the panels above, then click Continue to generate the final answer.')
+      sendLog('info', '[Pause 2] Waiting for user to click Continue')
+      await waitForUserProceed('after-reviews')
+      sendLog('info', '[Pause 2] User clicked Continue — proceeding to final revision')
 
       // ── STEP 7: Inject final revision prompt into Primary AI ──────────────
       sendStatus(MSG.sendingRevision(primaryAi))
@@ -1461,7 +1977,7 @@ function buildFinalRevisionPrompt(
     .map((f, i) => `[Feedback ${i + 1}]:\n${f.feedback}`)
 
   const feedbackBlock = lines.length > 0
-    ? lines.join('\n\n')
+    ? lines.join('\n\n\n')   // 2 blank lines between feedbacks
     : '(No feedback collected — please review your previous analysis on your own and improve it.)'
 
   if (!hasFiles || attachedFileNames.length === 0) {
@@ -1748,18 +2264,30 @@ app.on('window-all-closed', () => {
 // These are needed for "Sign in with Google / Apple / GitHub" flows inside
 // the AI BrowserViews. Without this list those popups are denied and login fails.
 const OAUTH_ALLOWED_DOMAINS = [
-  'accounts.google.com',     // Google OAuth (Claude, Perplexity, etc.)
+  'accounts.google.com',       // Google OAuth
   'oauth2.googleapis.com',
   'accounts.youtube.com',
-  'auth0.com',               // Auth0 SSO
+  'auth0.com',                 // Auth0 SSO
   'cdn.auth0.com',
-  'twitter.com',             // X/Twitter own auth
+  'login.microsoftonline.com', // Microsoft / Azure AD SSO
+  'login.live.com',
+  'twitter.com',               // X/Twitter auth
   'api.twitter.com',
   'abs.twimg.com',
-  'login.microsoftonline.com', // Microsoft SSO
-  'appleid.apple.com',       // Apple Sign-In
-  'github.com',              // GitHub OAuth
-  'discord.com',             // Discord OAuth
+  'appleid.apple.com',         // Apple Sign-In
+  'apple.com',
+  'github.com',                // GitHub OAuth
+  'discord.com',               // Discord OAuth
+  'claude.ai',                 // Claude OAuth return
+  'chatgpt.com',               // ChatGPT OAuth return
+  'openai.com',
+  'auth.openai.com',
+  'perplexity.ai',             // Perplexity OAuth return
+  'grok.com',                  // Grok OAuth return
+  'x.com',                     // X (Twitter) SSO for Grok login
+  'api.x.com',
+  'abs.twimg.com',             // X/Twitter static assets (login UI)
+  'pbs.twimg.com',
 ]
 
 // Allow loading AI websites and OAuth popups
@@ -1787,12 +2315,12 @@ app.on('web-contents-created', (_e, contents) => {
           overrideBrowserWindowOptions: {
             width: 520,
             height: 680,
-            // Chrome 완전 위장: Google OAuth 팝업도 동일하게 처리해야
-            // accounts.google.com 이 Electron 감지를 우회할 수 있음.
+            // Full Chrome spoofing: Google OAuth popups must be treated the same 
+            // so accounts.google.com can bypass Electron detection.
             webPreferences: {
               partition,
               preload: CHROME_SPOOF_PRELOAD,
-              contextIsolation: false,   // MAIN world 주입에 필수
+              contextIsolation: false,   // Required for MAIN world injection
               nodeIntegration: false,
             },
           },
@@ -1804,8 +2332,8 @@ app.on('web-contents-created', (_e, contents) => {
     return { action: 'deny' }
   })
 
-  // OAuth 팝업이 생성된 직후 UA를 명시적으로 설정
-  // (partition의 setUserAgent가 이미 적용되지만 belt-and-suspenders 처리)
+  // Explicitly set UA immediately after OAuth popup creation
+  // (partition's setUserAgent already applies, but this is a belt-and-suspenders approach)
   contents.on('did-create-window', (popup) => {
     popup.setMenuBarVisibility(false)
     popup.webContents.setUserAgent(DESKTOP_USER_AGENT)

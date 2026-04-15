@@ -1,6 +1,18 @@
 # AI Council
 
-> Autonomous cross-verification workflow among 4 major LLMs using Electron BrowserViews and UI automation.
+> Manual cross-verification workflow among up to 5 major LLMs using Electron BrowserViews and UI automation.
+
+---
+
+## Supported AI Services
+
+| Icon | AI | URL |
+|------|-----|-----|
+| ✦ | Gemini | gemini.google.com |
+| ◎ | Claude | claude.ai |
+| ⊕ | ChatGPT | chatgpt.com |
+| ◈ | Perplexity | perplexity.ai |
+| ⚡ | Grok | grok.com |
 
 ---
 
@@ -12,23 +24,31 @@ ai-council/
 │   ├── main.ts                  # Main process: BrowserViews, IPC, full workflow engine
 │   ├── preload.ts               # Context-isolated API bridge (contextBridge)
 │   ├── preload-chrome-spoof.js  # Chrome identity spoof for OAuth popups
+│   ├── preload-google-login.js  # Google login flow helper
 │   └── selectors.json           # External DOM selector config (updatable without rebuild)
 ├── src/
 │   ├── App.tsx                  # Root component: state, IPC subscriptions, orchestration
 │   ├── types.ts                 # Shared types, constants, global window declarations
 │   ├── index.css                # Dark glassmorphism design system
 │   └── components/
-│       ├── TitleBar.tsx         # Frameless window bar with drag region
-│       ├── Toolbar.tsx          # Primary AI selector + query input + file attach + Start
+│       ├── TitleBar.tsx         # Frameless window bar with 🔑 Accounts, 📋 History, 📊 Logs
+│       ├── Toolbar.tsx          # Primary AI selector + Active panel toggles + query input + Start/Next/Continue
 │       ├── StatusBar.tsx        # Live status text with animated progress bar
-│       ├── PanelGrid.tsx        # 4-panel headers (above embedded BrowserViews)
+│       ├── PanelGrid.tsx        # Panel headers above embedded BrowserViews (only enabled AIs shown)
+│       ├── AccountsPanel.tsx    # Per-AI login / logout panel (opened via 🔑 icon)
 │       ├── FinalResultPanel.tsx # Collapsible final answer panel + per-file download
 │       ├── LogDrawer.tsx        # Real-time execution logs side drawer
 │       └── HistoryDrawer.tsx    # Persistent chat history side drawer
 ├── google-login.mjs             # Standalone Google account login helper
-├── Google Login.bat             # Launcher for google-login.mjs
+├── google-login.bat             # Launcher for google-login.mjs
 ├── claude-login.mjs             # Standalone Claude (claude.ai) login helper
-└── Claude Login.bat             # Launcher for claude-login.mjs
+├── claude-login.bat             # Launcher for claude-login.mjs
+├── chatgpt-login.mjs            # Standalone ChatGPT login helper
+├── chatgpt-login.bat            # Launcher for chatgpt-login.mjs
+├── perplexity-login.mjs         # Standalone Perplexity login helper
+├── perplexity-login.bat         # Launcher for perplexity-login.mjs
+├── grok-login.mjs               # Standalone Grok (X/Twitter) login helper
+└── grok-login.bat               # Launcher for grok-login.mjs
 ```
 
 ---
@@ -48,60 +68,77 @@ Remove-Item -Recurse -Force node_modules
 npm install
 ```
 
-If you only replaced source files on the same PC, you can run it right away without `npm install`.  
-However, if new packages were added to `package.json`, run `npm install` once.
-
 ---
 
-### 2️⃣ AI service login (first time only)
+### 2️⃣ AI service login — via 🔑 Accounts panel (recommended)
 
-If you log in to each service once before running the app, your session will persist.  
-For services that use Google account login (Gemini, Claude, etc.), use the helpers below.
+Launch the app and click the **🔑 key icon** in the top-right corner of the title bar.  
+The **Accounts** panel opens and shows login status for each of the 5 AIs:
+
+- **Login** — opens a dedicated login window for that AI; session is saved automatically
+- **Re-login** — re-authenticate an already-logged-in account
+- **Logout** — clears the session for that AI
+- **Logout All** — logs out all AIs at once
+
+Sessions are persisted in the Electron `persist:` partition and survive app restarts.
+
+#### Alternative — standalone login scripts
+
+If you prefer to log in outside the app, use the batch launchers:
 
 ```bash
-# Google account login (services that use Google accounts, e.g. Gemini)
-Google Login.bat
-
-# Claude.ai login (includes Google OAuth popup)
-Claude Login.bat
+google-login.bat      # Gemini (Google account)
+claude-login.bat      # Claude.ai (including Google OAuth popup)
+chatgpt-login.bat     # ChatGPT
+perplexity-login.bat  # Perplexity
+grok-login.bat        # Grok (X / Twitter account)
 ```
-
-After logging in, close the window and the session cookies will be saved to the `persist:` partition.
 
 ---
 
-### 3️⃣ Run in dev mode (code changes + hot reload)
+### 3️⃣ Select which AIs are active
+
+The **Toolbar** has two rows of AI chip buttons:
+
+| Row | Label | Purpose |
+|-----|-------|---------|
+| Top | **Primary AI** | Choose which AI answers first (generates the draft) |
+| Bottom | **Active** | Toggle which AI panels are visible and participate in the workflow |
+
+- Click any chip in the **Active** row to show or hide that AI's panel.
+- You can run the workflow with **2, 3, 4, or all 5** AIs simultaneously.
+- The **Primary AI** is always active (locked) — it cannot be toggled off.
+
+---
+
+### 4️⃣ Run in dev mode (with hot reload)
 
 ```bash
 npm start
 ```
 
-The Electron window opens automatically. Log in to each AI service panel.
-
 ---
 
-### 4️⃣ Build and run (production mode)
+### 5️⃣ Build and run (production mode)
 
 ```bash
 npm run build
 npx electron .
 ```
 
-The app runs after `dist/` and `dist-electron/` are created.
-
 ---
 
-### 5️⃣ Package portable EXE (distribution)
+### 6️⃣ Package portable EXE (distribution)
 
 ```bash
 npm run package
 ```
 
-After the build, `release/AI-Council-Portable.exe` is created. It’s a single executable that runs without installation.
+Creates `release/AI-Council-Portable.exe` — a single executable that runs without installation.
 
 ---
 
-### 6️⃣ Create installer EXE (setup program)
+### 7️⃣ Create installer EXE (setup program)
 
 ```bash
 npm run package:installer
@@ -115,9 +152,41 @@ An NSIS-based installer wizard EXE is created in `release/`.
 
 ---
 
+## Workflow (Manual 3-Step Control)
+
+The workflow is **manual** — you advance each stage by clicking the action button.
+
+| Stage | Button label | What happens |
+|-------|-------------|--------------|
+| Idle | **▶ Start** | Sends the query to the Primary AI |
+| After Primary answers | **▶▶ Next** | Sends the draft to all active Reviewer AIs simultaneously |
+| After all Reviewers answer | **✓ Continue** | Sends all feedback back to Primary AI for final revision |
+
+1. App loads all selected AI websites in BrowserViews
+2. Log in via the **🔑 Accounts** panel (or standalone login scripts)
+3. Select **Primary AI** and configure **Active** panels (2–5 AIs)
+4. Type your question (and optionally attach files), click **▶ Start**
+5. Wait for Primary AI's draft → click **▶▶ Next**
+6. Wait for all Reviewers to finish → click **✓ Continue**
+7. Final revised answer is extracted and displayed in the **Final Result Panel**
+
+---
+
+## Accounts Panel (🔑)
+
+Click the **🔑 key icon** in the top-right of the title bar at any time.
+
+- Shows real-time login status (● logged in / ○ not logged in) for each AI
+- **Login** button opens a mini browser window for that AI's login page
+- **Logout** clears only that AI's session cookie
+- **Logout All** clears all sessions at once
+- Status updates live via `onLoginStatusChanged` IPC event
+
+---
+
 ## File Attachment
 
-If you attach files with your question, all AIs analyze the file contents and you can download the final revised version separated per file.
+If you attach files with your question, all active AIs analyze the file contents and you can download the final revised version separated per file.
 
 | Supported formats | Extraction method | Saved as |
 |-----------|-----------|-------------|
@@ -134,25 +203,12 @@ If you attach files with your question, all AIs analyze the file contents and yo
 
 ---
 
-## Workflow
-
-1. App loads all 4 AI websites in BrowserViews — user logs in manually once per session (or via login helper scripts)
-2. User selects Primary AI, types query, optionally attaches files (PDF / DOCX / XLSX / TXT / MD / CSV), clicks **Start**
-3. File content extracted on main process; combined prompt (query + file context) pasted into Primary AI with human-like typing
-4. MutationObserver-based stability detection waits for Primary AI's draft response
-5. Review prompt (draft + file context) injected simultaneously into all 3 Reviewer AIs
-6. Wait for all reviewer feedback responses (parallel, with per-AI stability detection)
-7. Combined feedback + final revision prompt injected back into Primary AI; instructs per-file structured output when files are attached
-8. Final revised answer extracted, parsed into per-file blocks, displayed in collapsible Final Result Panel with individual download buttons
-
----
-
 ## Final Result Panel
 
-This is a collapsible panel pinned to the bottom of the screen. Toggle it by clicking the header or the ▲/▼ button.
+A collapsible panel pinned to the bottom of the screen. Toggle it by clicking the header or the ▲/▼ button.
 
 | State | Height | Displayed |
-|------|------|-----------|
+|------|------|-----------| 
 | Collapsed | 36 px | Title · Primary AI name · complete/in-progress badge |
 | Expanded | 260 px | Preview (Markdown render) / Raw tab · Copy button · Per-file save buttons |
 

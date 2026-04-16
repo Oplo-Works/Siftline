@@ -3,15 +3,6 @@
  *
  * Opens a login window in the persist:perplexity partition so that
  * the Perplexity panel in AI Council loads without authentication errors.
- *
- * Workarounds applied:
- *   - Full Chrome identity spoof (preload-chrome-spoof.js) to bypass
- *     Google's "This browser or app may not be secure" block
- *   - UA + sec-ch-ua header replacement to hide Electron identity
- *   - Same spoof applied to Google OAuth popups
- *
- * After login is detected the cookies are flushed to disk and the
- * window closes automatically after 3 seconds.
  */
 
 import { app, BrowserWindow, session } from 'electron'
@@ -27,10 +18,28 @@ const PARTITION    = 'persist:perplexity'
 
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled')
 app.commandLine.appendSwitch('disable-quic')
+// Prevent Windows Security passkey/FIDO2 dialog from appearing during Google OAuth
+app.commandLine.appendSwitch('disable-features', 'WebAuthentication,WebAuthenticationCable,WebAuthenticationConditionalUI')
+
+// Use the same userData directory as the main app so persist:* sessions are shared.
+// Without this the spawned Electron process defaults to the "Electron" app name
+// and stores cookies in a completely different directory.
+if (process.env.AI_COUNCIL_USERDATA) {
+  app.setPath('userData', process.env.AI_COUNCIL_USERDATA)
+}
 
 app.whenReady().then(async () => {
   const ses = session.fromPartition(PARTITION)
   ses.setUserAgent(DESKTOP_UA)
+
+  // Block WebAuthn permission requests at the session level as well
+  ses.setPermissionRequestHandler((_wc, permission, callback) => {
+    if (permission === 'publickey-credentials-get' || permission === 'publickey-credentials-create') {
+      callback(false)
+      return
+    }
+    callback(true)
+  })
 
   // Replace UA and sec-ch-ua headers so Google OAuth accepts the request
   ses.webRequest.onBeforeSendHeaders({ urls: ['*://*/*'] }, (details, callback) => {
@@ -67,8 +76,7 @@ app.whenReady().then(async () => {
   win.setMenuBarVisibility(false)
   win.webContents.setUserAgent(DESKTOP_UA)
 
-  // Allow Google / Apple OAuth popups and apply the same spoof so Google
-  // does not show "This browser or app may not be secure"
+  // Allow Google / Apple OAuth popups
   const OAUTH_ALLOWED = [
     'accounts.google.com',
     'oauth2.googleapis.com',
@@ -102,47 +110,43 @@ app.whenReady().then(async () => {
     }
   })
 
-  // Detect login completion in OAuth popups
-  win.webContents.on('did-create-window', (popup) => {
-    popup.setMenuBarVisibility(false)
-    popup.webContents.setUserAgent(DESKTOP_UA)
-    popup.webContents.on('did-navigate', async (_e, url) => {
-      if (url.includes('perplexity.ai')) await checkAndFinish()
-    })
-  })
+  // ── Login completion detection ─────────────────────────────────────────────
+  // Strategy: track OAuth flow state by navigation events rather than wall-clock
+  // time.  We know login is complete only after:
+  //   (A) the window (or popup) visited Google/Apple AND
+  //   (B) it subsequently navigated back to perplexity.ai AND
+  //   (C) __Secure-next-auth.session-token cookie is present
+  //
+  // This avoids both premature closes (visitor cookies on first load) and
+  // missed completions (OAuth completing faster than a fixed grace period).
 
-  // Detect login completion in the main window.
-  // Guard with a 6-second grace period so that pre-existing cookies from a
-  // previous session do not trigger an immediate exit before the user sees
-  // the login page.
-  const START_TIME = Date.now()
-  const GRACE_MS   = 6_000
+  let oauthVisited = false   // true once Google/Apple OAuth page was seen
 
-  win.webContents.on('did-navigate', async (_e, url) => {
-    if (!url.includes('perplexity.ai')) return
-    if (Date.now() - START_TIME < GRACE_MS) return   // too early — ignore
-    await checkAndFinish()
-  })
+  const isOAuthProvider = (url) =>
+    url.includes('accounts.google.com') ||
+    url.includes('appleid.apple.com') ||
+    url.includes('oauth2.googleapis.com')
 
   let finished = false
   async function checkAndFinish() {
     if (finished) return
+    if (!oauthVisited) return   // haven't gone through OAuth yet
 
     const cookies = await ses.cookies.get({ domain: '.perplexity.ai' })
 
-    const hasSession = cookies.some(c =>
-      c.name.includes('session') ||
-      c.name.includes('token')   ||
-      c.name.includes('auth')    ||
-      c.name.startsWith('pplx')  ||
+    // __Secure-next-auth.session-token is only written upon a *completed* login
+    const hasRealSession = cookies.some(c =>
       c.name === '__Secure-next-auth.session-token' ||
       c.name === 'next-auth.session-token'
     )
-
-    if (!hasSession && cookies.length < 3) return
+    if (!hasRealSession) return
 
     finished = true
-    console.log(`Login complete — ${cookies.length} cookies saved`)
+    // Transfer all cookies to the main app via stdout so the parent process
+    // can import them directly into its in-memory Chromium cookie cache.
+    const allCookies = await ses.cookies.get({})
+    process.stdout.write(JSON.stringify(allCookies) + '\n')
+    console.log(`Perplexity login complete — ${cookies.length} cookies saved`)
     await ses.cookies.flushStore()
 
     win.setTitle('Login complete — closing in 3 s')
@@ -151,12 +155,54 @@ app.whenReady().then(async () => {
         '<div style="font-family:sans-serif;text-align:center;padding:60px 30px;background:#f0f9ff">' +
         '<div style="font-size:64px">&#x2705;</div>' +
         '<h2 style="color:#0c4a6e;margin:16px 0">Perplexity login complete!</h2>' +
-        '<p style="color:#0369a1">The Perplexity panel will load correctly when you start AI Council.</p>' +
-        '<p style="color:#6b7280;font-size:13px;margin-top:24px">Closing in 3 seconds...</p>' +
+        '<p style="color:#0369a1">Closing in 3 seconds...</p>' +
         '</div>'
     `).catch(() => {})
     setTimeout(() => app.quit(), 3000)
   }
+
+  // Main window navigation tracking
+  win.webContents.on('did-navigate', async (_e, url) => {
+    if (isOAuthProvider(url)) {
+      oauthVisited = true
+      return
+    }
+    if (url.includes('perplexity.ai')) {
+      await checkAndFinish()
+    }
+  })
+
+  win.webContents.on('did-navigate-in-page', async (_e, url) => {
+    if (url.includes('perplexity.ai') && oauthVisited) {
+      await checkAndFinish()
+    }
+  })
+
+  // Popup tracking (for popup-based OAuth flow)
+  win.webContents.on('did-create-window', (popup) => {
+    popup.setMenuBarVisibility(false)
+    popup.webContents.setUserAgent(DESKTOP_UA)
+
+    // Block WebAuthn in popup too
+    popup.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => {
+      if (permission === 'publickey-credentials-get' || permission === 'publickey-credentials-create') {
+        callback(false)
+        return
+      }
+      callback(true)
+    })
+
+    popup.webContents.on('did-navigate', async (_e, url) => {
+      if (isOAuthProvider(url)) {
+        oauthVisited = true
+        return
+      }
+      if (url.includes('perplexity.ai')) {
+        // Give the server a moment to set the session cookie
+        setTimeout(() => checkAndFinish(), 500)
+      }
+    })
+  })
 
   win.loadURL('https://www.perplexity.ai', { userAgent: DESKTOP_UA })
   win.on('closed', () => app.quit())

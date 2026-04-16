@@ -27,9 +27,27 @@ const PARTITION    = 'persist:chatgpt'
 
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled')
 app.commandLine.appendSwitch('disable-quic')
+// Prevent Windows Security passkey/FIDO2 dialog from appearing during Google OAuth
+app.commandLine.appendSwitch('disable-features', 'WebAuthentication,WebAuthenticationCable,WebAuthenticationConditionalUI')
+
+// Use the same userData directory as the main app so persist:* sessions are shared.
+// Without this the spawned Electron process defaults to the "Electron" app name
+// and stores cookies in a completely different directory.
+if (process.env.AI_COUNCIL_USERDATA) {
+  app.setPath('userData', process.env.AI_COUNCIL_USERDATA)
+}
 
 app.whenReady().then(async () => {
   const ses = session.fromPartition(PARTITION)
+
+  // Block WebAuthn permission requests at the session level as well
+  ses.setPermissionRequestHandler((_wc, permission, callback) => {
+    if (permission === 'publickey-credentials-get' || permission === 'publickey-credentials-create') {
+      callback(false)
+      return
+    }
+    callback(true)
+  })
   ses.setUserAgent(DESKTOP_UA)
 
   // Replace UA and sec-ch-ua headers so Google / Microsoft OAuth accepts the request
@@ -106,25 +124,26 @@ app.whenReady().then(async () => {
     }
   })
 
-  // Detect login completion in OAuth popups
+  const START_TIME = Date.now()
+  const GRACE_MS   = 8_000
+
+  // Detect login completion in OAuth popups.
+  // The popup navigates through Google → auth.openai.com → chatgpt.com.
+  // We guard with GRACE_MS so intermediate redirects don't trigger early close.
   win.webContents.on('did-create-window', (popup) => {
     popup.setMenuBarVisibility(false)
     popup.webContents.setUserAgent(DESKTOP_UA)
     popup.webContents.on('did-navigate', async (_e, url) => {
-      if (url.includes('chatgpt.com') || url.includes('openai.com')) await checkAndFinish()
+      if (!url.includes('chatgpt.com') && !url.includes('openai.com')) return
+      if (Date.now() - START_TIME < GRACE_MS) return
+      await checkAndFinish()
     })
   })
 
   // Detect login completion in the main window.
-  // Guard with a 6-second grace period so that pre-existing cookies from a
-  // previous session do not trigger an immediate exit before the user sees
-  // the login page.
-  const START_TIME = Date.now()
-  const GRACE_MS   = 6_000
-
   win.webContents.on('did-navigate', async (_e, url) => {
     if (!url.includes('chatgpt.com') && !url.includes('openai.com')) return
-    if (Date.now() - START_TIME < GRACE_MS) return   // too early — ignore
+    if (Date.now() - START_TIME < GRACE_MS) return
     await checkAndFinish()
   })
 
@@ -132,27 +151,34 @@ app.whenReady().then(async () => {
   async function checkAndFinish() {
     if (finished) return
 
-    const [cookiesChatGPT, cookiesOpenAI] = await Promise.all([
-      ses.cookies.get({ domain: '.chatgpt.com' }),
-      ses.cookies.get({ domain: '.openai.com' }),
-    ])
-    const allCookies = [...cookiesChatGPT, ...cookiesOpenAI]
+    // URL check: must be on chatgpt.com (not auth pages)
+    const mainUrl = win.webContents.getURL()
+    if (!mainUrl.startsWith('https://chatgpt.com/') || mainUrl.includes('/auth/')) return
 
-    const hasSession = allCookies.some(c =>
-      c.name.includes('session') ||
-      c.name.includes('token')   ||
-      c.name.includes('auth')    ||
-      c.name === '__Secure-next-auth.session-token' ||
-      c.name === 'next-auth.session-token' ||
-      c.name === '__cf_bm'        ||
-      c.name === 'cf_clearance'
-    )
+    // DOM check: when NOT logged in, chatgpt.com shows <a href="/auth/login">.
+    // When logged in that link is absent.  This distinguishes the logged-out
+    // homepage from the logged-in homepage (both are at chatgpt.com/).
+    let loginDone = false
+    try {
+      loginDone = await win.webContents.executeJavaScript(`
+        (function() {
+          const loginLink = document.querySelector('a[href="/auth/login"]')
+          return !loginLink
+        })()
+      `)
+    } catch { return }
 
-    if (!hasSession && allCookies.length < 3) return
+    if (!loginDone) return
 
     finished = true
-    console.log(`Login complete — ${allCookies.length} cookies saved`)
+    // Transfer all cookies to the main app via stdout so the parent process
+    // can import them directly into its in-memory Chromium cookie cache.
+    // (Writing to SQLite alone is not enough — the parent's in-memory cache
+    //  won't pick up changes made by a separate Electron process.)
+    const allCookies = await ses.cookies.get({})
+    process.stdout.write(JSON.stringify(allCookies) + '\n')
     await ses.cookies.flushStore()
+    console.log(`Login complete — URL: ${mainUrl}`)
 
     win.setTitle('Login complete — closing in 3 s')
     win.webContents.executeJavaScript(`

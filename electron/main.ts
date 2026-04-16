@@ -12,6 +12,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { createRequire } from 'module'
 import fs from 'fs'
+import { spawn } from 'child_process'
 
 const require = createRequire(import.meta.url)
 // electron-store ships CJS
@@ -265,6 +266,10 @@ const CHROME_SPOOF_PRELOAD = path.join(__dirname, 'preload-chrome-spoof.js')
 // Minimal preload that only overrides navigator.language → en-US.
 // Safe for any AI site — does NOT patch Error/chrome globals like the spoof preload does.
 const EN_LOCALE_PRELOAD = path.join(__dirname, 'preload-en-locale.js')
+// Domain-gated preload: applies full Chrome spoofing ONLY when on Google/Microsoft/Apple
+// OAuth pages.  Completely inert on chatgpt.com / perplexity.ai, so it is safe to attach
+// to those BrowserViews without breaking their React/WebSocket code.
+const OAUTH_GOOGLE_SPOOF_PRELOAD = path.join(__dirname, 'preload-oauth-google-spoof.js')
 
 // Client-hint headers derived from the actual bundled Chromium version
 const CHROME_CLIENT_HINTS: Record<string, string> = {
@@ -1033,10 +1038,12 @@ async function createWindow() {
     const ses = session.fromPartition(`persist:${name}`)
     ses.setUserAgent(DESKTOP_USER_AGENT)
 
-    // Gemini/Google 계열만 Chrome 스푸핑 preload 필요.
-    // Claude/ChatGPT/Perplexity에 적용하면 window.Error 패치 등이
-    // 내부 React/WebSocket 코드를 깨트려 "network error" 가 발생함.
+    // Gemini/Google 계열만 전체 Chrome 스푸핑 preload 필요.
     const needsChromeSpoof = name === 'gemini'
+    // ChatGPT / Perplexity: domain-gated OAuth preload.
+    // Applies Chrome spoofing ONLY on Google/Microsoft/Apple OAuth pages so that
+    // Google login works without breaking React/WebSocket on the AI sites themselves.
+    const needsOAuthSpoof = name === 'chatgpt' || name === 'perplexity'
     // Grok reads navigator.language to set its UI locale.
     // We inject a minimal preload that overrides it to en-US (contextIsolation: false
     // is required so the override lands in the page's own V8 context).
@@ -1044,11 +1051,12 @@ async function createWindow() {
     const view = new BrowserView({
       webPreferences: {
         preload: needsChromeSpoof ? CHROME_SPOOF_PRELOAD
+               : needsOAuthSpoof  ? OAUTH_GOOGLE_SPOOF_PRELOAD
                : needsLocaleSpoof ? EN_LOCALE_PRELOAD
                : undefined,
         // contextIsolation: false is required for MAIN world access —
         // apply only to views that use a preload that needs it.
-        contextIsolation: !(needsChromeSpoof || needsLocaleSpoof),
+        contextIsolation: !(needsChromeSpoof || needsOAuthSpoof || needsLocaleSpoof),
         nodeIntegration: false,
         partition: `persist:${name}`,           // separate sessions for login persistence
       },
@@ -1089,6 +1097,34 @@ async function createWindow() {
       )
     }
 
+    // ChatGPT / Perplexity: spoof sec-ch-ua headers ONLY for Google/Microsoft/Apple
+    // OAuth domains.  Google checks these server-side and blocks Electron identity.
+    // We limit the scope to OAuth URLs so that the AI sites' own API requests are
+    // untouched (modifying those causes "network error" on ChatGPT/Perplexity).
+    if (name === 'chatgpt' || name === 'perplexity') {
+      const OAUTH_URL_PATTERNS = [
+        '*://*.google.com/*',
+        '*://*.googleapis.com/*',
+        '*://*.microsoftonline.com/*',
+        '*://*.live.com/*',
+        '*://*.appleid.apple.com/*',
+        '*://*.apple.com/*',
+      ]
+      ses.webRequest.onBeforeSendHeaders({ urls: OAUTH_URL_PATTERNS }, (details, callback) => {
+        const headers: Record<string, string> = {}
+        const SKIP_KEYS = new Set([
+          'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform',
+          'sec-ch-ua-full-version-list', 'user-agent', 'x-client-data',
+        ])
+        for (const [key, value] of Object.entries(details.requestHeaders)) {
+          if (!SKIP_KEYS.has(key.toLowerCase())) headers[key] = value as string
+        }
+        Object.assign(headers, CHROME_CLIENT_HINTS)
+        headers['user-agent'] = DESKTOP_USER_AGENT
+        callback({ requestHeaders: headers })
+      })
+    }
+
     // Force English locale for Grok — grok.com auto-detects language from the
     // Accept-Language header and shows Korean on Korean Windows systems.
     if (name === 'grok') {
@@ -1109,6 +1145,68 @@ async function createWindow() {
     view.setAutoResize({ width: false, height: false, horizontal: false, vertical: false })
 
     views.set(name, view)
+
+    // ── ChatGPT / Perplexity: intercept Google OAuth navigations ─────────────
+    // When the user clicks "Continue with Google" inside the BrowserView,
+    // Chromium navigates the view itself to accounts.google.com.  An embedded
+    // BrowserView is treated as a webview by Google's anti-bot checks even with
+    // full UA/header spoofing, so login is blocked.
+    // Fix: cancel the in-view navigation and re-open the URL in a proper
+    // BrowserWindow (with full Chrome spoof preload) so Google sees it as a
+    // normal browser window — identical to how chatgpt-login.mjs works.
+    if (name === 'chatgpt' || name === 'perplexity') {
+      const GOOGLE_OAUTH_RE = /^https?:\/\/(accounts\.google\.com|oauth2\.googleapis\.com|accounts\.youtube\.com|login\.microsoftonline\.com|login\.live\.com|appleid\.apple\.com)/
+
+      view.webContents.on('will-navigate', (event, url) => {
+        if (!GOOGLE_OAUTH_RE.test(url)) return
+        event.preventDefault()   // stop the BrowserView from navigating to Google
+
+        const popup = new BrowserWindow({
+          width:  520,
+          height: 680,
+          title:  'Sign in',
+          parent: mainWindow ?? undefined,
+          webPreferences: {
+            partition:        `persist:${name}`,
+            preload:          CHROME_SPOOF_PRELOAD,   // full spoof — Google needs this
+            contextIsolation: false,
+            nodeIntegration:  false,
+          },
+        })
+        popup.setMenuBarVisibility(false)
+        popup.webContents.setUserAgent(DESKTOP_USER_AGENT)
+        popup.loadURL(url, { userAgent: DESKTOP_USER_AGENT })
+
+        // When the OAuth flow redirects back to the AI site, close the popup
+        // and reload the BrowserView so it picks up the new session cookies.
+        const AI_RETURN_RE = name === 'chatgpt'
+          ? /^https?:\/\/(chatgpt\.com|openai\.com|auth\.openai\.com)/
+          : /^https?:\/\/(perplexity\.ai|[^/]*\.perplexity\.ai)/
+        let oauthDone = false
+        const reloadHomeView = () => {
+          if (oauthDone) return
+          oauthDone = true
+          if (!popup.isDestroyed()) popup.destroy()
+          const v = views.get(name)
+          if (v && !v.webContents.isDestroyed()) {
+            const homeUrl = getSelectors(name).url
+            v.webContents.once('did-finish-load', () =>
+              mainWindow?.webContents.send('login-status-changed'))
+            v.webContents.loadURL(homeUrl, { userAgent: DESKTOP_USER_AGENT }).catch(() =>
+              mainWindow?.webContents.send('login-status-changed'))
+          } else {
+            mainWindow?.webContents.send('login-status-changed')
+          }
+        }
+        popup.webContents.on('will-navigate', (_e2, redirectUrl) => {
+          if (AI_RETURN_RE.test(redirectUrl)) reloadHomeView()
+        })
+        popup.webContents.on('did-navigate', (_e2, redirectUrl) => {
+          if (AI_RETURN_RE.test(redirectUrl)) reloadHomeView()
+        })
+        popup.on('closed', () => mainWindow?.webContents.send('login-status-changed'))
+      })
+    }
 
     if (name === 'gemini') {
       // ── Gemini: 로그인 상태 확인 후 적절한 URL로 이동 ──────────────────────
@@ -1515,11 +1613,49 @@ async function getLoginStatus(): Promise<Record<AiName, boolean>> {
   const grokHasXAuth  = grokXC.some((c) => c.name === 'auth_token') && grokXC.some((c) => c.name === 'ct0')
   const grokHasSSO    = grokSiteC.some((c) => c.name === 'sso' || c.name === 'sso-rw')
 
+  // ── ChatGPT ──────────────────────────────────────────────────────────────
+  // Cookie-based detection is unreliable: every cookie on chatgpt.com /
+  // openai.com is present in the anonymous state too.
+  // URL-based detection also broke: ChatGPT now shows chatgpt.com/ with a
+  // "Log in" button even when the user is NOT logged in (no auth redirect).
+  //
+  // Most reliable signal: DOM check.  When NOT logged in, the page contains
+  // <a href="/auth/login">.  When logged in that link is absent.
+  // We fall back to false if the view is unavailable or still loading.
+  const chatgptView = views.get('chatgpt')
+  let chatgptLoggedIn = false
+  if (chatgptView && !chatgptView.webContents.isDestroyed()) {
+    const chatgptUrl = chatgptView.webContents.getURL()
+    if (chatgptUrl.startsWith('https://chatgpt.com/') && !chatgptUrl.includes('/auth/')) {
+      try {
+        chatgptLoggedIn = await Promise.race<boolean>([
+          chatgptView.webContents.executeJavaScript(`
+            (function() {
+              if (document.readyState !== 'complete') return false
+              // Presence of a login link means NOT logged in
+              const loginLink = document.querySelector('a[href="/auth/login"]')
+              return !loginLink
+            })()
+          `),
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000)),
+        ])
+      } catch { chatgptLoggedIn = false }
+    }
+  }
+
+  // ── Perplexity ────────────────────────────────────────────────────────────
+  // Cookie dump confirms: pplx.visitor-id / pplx.metadata / pplx.edge-* are
+  // set on first anonymous visit.  __Secure-next-auth.session-token is written
+  // by next-auth only upon a *completed* sign-in (never for anonymous users).
+  const perplexityLoggedIn = perplexityC.some((c) =>
+    c.name === '__Secure-next-auth.session-token'
+  )
+
   return {
     gemini:     geminiC.some((c) => c.name === 'SID' || c.name === '__Secure-1PSID'),
     claude:     claudeC.length > 0,
-    chatgpt:    chatgptC.length >= 3 && chatgptC.some((c) => c.name.includes('session') || c.name.includes('token') || c.name === '__cf_bm'),
-    perplexity: perplexityC.length >= 3 && perplexityC.some((c) => c.name.includes('session') || c.name.includes('token') || c.name.startsWith('pplx')),
+    chatgpt:    chatgptLoggedIn,
+    perplexity: perplexityLoggedIn,
     grok:       grokHasXAuth || grokHasSSO,
   }
 }
@@ -1531,11 +1667,25 @@ async function logoutAi(aiName: AiName): Promise<void> {
   await ses.cookies.flushStore()
 
   const view = views.get(aiName)
-  if (view) {
+  if (view && !view.webContents.isDestroyed()) {
     const loginUrl = aiName === 'gemini'
       ? 'https://accounts.google.com/signin'
       : getSelectors(aiName).url
-    view.webContents.loadURL(loginUrl, { userAgent: DESKTOP_USER_AGENT }).catch(() => {})
+
+    if (aiName === 'chatgpt') {
+      // ChatGPT login detection is now DOM-based (checks for the login link).
+      // We must wait for the page to finish loading so the DOM is ready before
+      // login-status-changed triggers the check.
+      await new Promise<void>((resolve) => {
+        let done = false
+        const finish = () => { if (!done) { done = true; resolve() } }
+        const tid = setTimeout(finish, 5000)   // safety fallback
+        view.webContents.once('did-finish-load', () => { clearTimeout(tid); finish() })
+        view.webContents.loadURL(loginUrl, { userAgent: DESKTOP_USER_AGENT }).catch(finish)
+      })
+    } else {
+      view.webContents.loadURL(loginUrl, { userAgent: DESKTOP_USER_AGENT }).catch(() => {})
+    }
   }
   mainWindow?.webContents.send('login-status-changed')
 }
@@ -1545,6 +1695,67 @@ ipcMain.handle('get-login-status', () => getLoginStatus())
 
 ipcMain.handle('open-login-window', (_e, aiName: AiName) => {
   if (!AI_NAMES.includes(aiName)) return false
+
+  // ChatGPT / Perplexity: spawn the standalone .mjs login script instead of
+  // using openLoginWindow.  The standalone scripts have no parent-window
+  // relationship and no WebAuthn interference, so Google OAuth works cleanly.
+  if (aiName === 'chatgpt' || aiName === 'perplexity') {
+    const script = path.join(app.getAppPath(), `${aiName}-login.mjs`)
+    // Pass our userData path via env so the spawned Electron process uses the
+    // same persist:* session directories as the main app.  Without this the
+    // child uses its own default userData ("Electron") and cookies are never
+    // shared back to the main app.
+    const child  = spawn(process.execPath, [script], {
+      detached: false,
+      stdio:    ['ignore', 'pipe', 'ignore'],   // capture stdout for cookie transfer
+      env:      { ...process.env, AI_COUNCIL_USERDATA: app.getPath('userData') },
+    })
+    let stdoutData = ''
+    child.stdout?.on('data', (chunk: Buffer) => { stdoutData += chunk.toString() })
+    child.on('close', async () => {
+      // Import cookies output by the login script directly into our in-memory
+      // session cache.  Chromium's cookie store is process-local — writing to
+      // SQLite in the child does NOT update the parent's cache, so we must call
+      // ses.cookies.set() here to make the cookies visible to the BrowserView.
+      try {
+        const cookieList: Electron.Cookie[] = JSON.parse(stdoutData)
+        const ses = session.fromPartition(`persist:${aiName}`)
+        for (const c of cookieList) {
+          const protocol = c.secure ? 'https' : 'http'
+          const host = (c.domain ?? '').replace(/^\./, '')
+          if (!host) continue
+          await ses.cookies.set({
+            url:            `${protocol}://${host}${c.path ?? '/'}`,
+            name:           c.name,
+            value:          c.value,
+            domain:         c.domain,
+            path:           c.path,
+            secure:         c.secure,
+            httpOnly:       c.httpOnly,
+            expirationDate: c.expirationDate,
+            sameSite:       c.sameSite as any,
+          }).catch(() => {/* ignore individual cookie errors */})
+        }
+        await ses.cookies.flushStore()
+      } catch { /* no cookies or JSON parse error — proceed anyway */ }
+
+      // Reload the BrowserView so it navigates with the newly imported cookies.
+      const view = views.get(aiName)
+      if (view && !view.webContents.isDestroyed()) {
+        const url = getSelectors(aiName).url
+        view.webContents.once('did-finish-load', () => {
+          mainWindow?.webContents.send('login-status-changed')
+        })
+        view.webContents.loadURL(url, { userAgent: DESKTOP_USER_AGENT }).catch(() => {
+          mainWindow?.webContents.send('login-status-changed')
+        })
+      } else {
+        mainWindow?.webContents.send('login-status-changed')
+      }
+    })
+    return true
+  }
+
   openLoginWindow(aiName)
   return true
 })

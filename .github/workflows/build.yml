@@ -1,19 +1,19 @@
 name: Build & Release
 
-# ── 트리거 ────────────────────────────────────────────────────────────────────
+# ── Triggers ──────────────────────────────────────────────────────────────────
 on:
   push:
     tags:
-      - 'v*'          # v1.0.0 처럼 태그를 push 할 때 자동 실행
-  workflow_dispatch:   # GitHub 웹에서 수동 실행 버튼 제공
+      - 'v*'          # Runs automatically when a tag like v1.0.6 is pushed
+  workflow_dispatch:   # Also allows manual run from the GitHub Actions UI
 
-# ── 권한 ──────────────────────────────────────────────────────────────────────
+# ── Permissions ───────────────────────────────────────────────────────────────
 permissions:
-  contents: write     # GitHub Release 생성 + 파일 업로드에 필요
+  contents: write     # Required to create GitHub Releases and upload assets
 
 jobs:
   # ════════════════════════════════════════════════════════════════
-  #  Job 1: Mac DMG 빌드  (macos-latest 러너)
+  #  Job 1: Build macOS DMG  (macos-latest runner)
   # ════════════════════════════════════════════════════════════════
   build-mac:
     name: 🍎 Build macOS DMG
@@ -32,7 +32,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Convert .ico → .icns (macOS icon)
+      - name: Convert .ico to .icns (macOS icon)
         run: |
           pip3 install Pillow --quiet --break-system-packages 2>/dev/null || pip3 install Pillow --quiet
           python3 scripts/ico_to_png.py
@@ -47,14 +47,14 @@ jobs:
 
           iconutil -c icns "$ICONSET" -o ai-council.icns
           rm -rf "$ICONSET" ai-council-src.png
-          echo "ai-council.icns generated"
+          echo "ai-council.icns created"
 
       - name: Build (Vite)
         run: npm run build
 
       - name: Package DMG (x64 + arm64)
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false   # 코드사이닝 스킵
+          CSC_IDENTITY_AUTO_DISCOVERY: false   # Skip code signing
         run: npx electron-builder --mac dmg --x64 --arm64
 
       - name: Upload DMG artifacts
@@ -65,7 +65,7 @@ jobs:
           retention-days: 7
 
   # ════════════════════════════════════════════════════════════════
-  #  Job 2: Windows NSIS 인스톨러 빌드  (windows-latest 러너)
+  #  Job 2: Build Windows NSIS installer  (windows-latest runner)
   # ════════════════════════════════════════════════════════════════
   build-windows:
     name: 🪟 Build Windows Installer
@@ -98,7 +98,7 @@ jobs:
 
       - name: Package Windows Installer (NSIS)
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
+          CSC_IDENTITY_AUTO_DISCOVERY: false   # Skip code signing
         run: npx electron-builder --win nsis
 
       - name: Upload EXE artifact
@@ -109,8 +109,8 @@ jobs:
           retention-days: 7
 
   # ════════════════════════════════════════════════════════════════
-  #  Job 3: GitHub Release 생성 + 파일 첨부
-  #  (두 빌드 Job이 모두 성공했을 때만 실행)
+  #  Job 3: Create GitHub Release and attach all artifacts
+  #  (runs only after both build jobs succeed)
   # ════════════════════════════════════════════════════════════════
   release:
     name: 🚀 Create GitHub Release
@@ -139,9 +139,17 @@ jobs:
           body: |
             ## AI Council ${{ github.ref_name }}
 
-            ### 📥 설치 방법
-            | 플랫폼 | 파일 | 설명 |
-            |--------|------|------|
-            | 🍎 Mac (Intel) | `*-x64.dmg` | DMG 열고 Applications 폴더로 드래그 |
-            | 🍎 Mac (Apple Silicon M1/M2/M3) | `*-arm64.dmg` | 동일 |
-            | 🪟 Windows | `AI-Council-Setup.exe` | 더블클릭으로 설치 |
+            ### ✨ What's New
+            - **API Keys Tab** — Store API keys for Gemini, Claude, ChatGPT, Perplexity, Grok, and Groq directly in the Accounts panel. Drag-and-drop to set provider priority for query analysis.
+            - **AI Recommendation Engine** — As you type a query, the app recommends the best Primary AI with a reason. Falls back to rule-based logic when no API key is set.
+            - **Mid-Workflow Primary AI Reassignment** — Switch the Primary AI at either pause point (▶▶ Next or ✓ Continue) and the workflow continues with the new selection.
+
+            ### 📥 Installation
+            | Platform | File | Instructions |
+            |----------|------|--------------|
+            | 🍎 macOS (Intel) | `AI-Council-${{ github.ref_name }}-x64.dmg` | Open DMG, drag AI Council to Applications |
+            | 🍎 macOS (Apple Silicon M1/M2/M3/M4) | `AI-Council-${{ github.ref_name }}-arm64.dmg` | Same as above |
+            | 🪟 Windows 10 / 11 | `AI-Council-Setup.exe` | Double-click to run the setup wizard |
+
+            > **macOS Gatekeeper:** If macOS blocks the app, go to System Settings → Privacy & Security → Open Anyway, or run `xattr -cr "/Applications/AI Council.app"` in Terminal.
+            > **Windows SmartScreen:** Click "More info" → "Run anyway".

@@ -30,8 +30,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     attachedFiles?: Array<{ name: string; path: string; ext: string }>
   }): Promise<WorkflowResult> => ipcRenderer.invoke('start-workflow', params),
 
-  // Proceed past a workflow pause point (Next / Continue buttons)
-  workflowProceed: (): Promise<void> => ipcRenderer.invoke('workflow-proceed'),
+  // Proceed past a workflow pause point (Next / Continue buttons).
+  // Optionally pass a new primaryAi to reassign the Primary AI at the pause point.
+  workflowProceed: (decision?: { primaryAi?: AiName }): Promise<void> =>
+    ipcRenderer.invoke('workflow-proceed', decision),
 
   // File attachment
   openFileDialog: () => ipcRenderer.invoke('open-file-dialog'),
@@ -51,6 +53,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('login-status-changed', handler)
     return () => ipcRenderer.removeListener('login-status-changed', handler)
   },
+
+  // API Keys — stored in electron-store (never sent anywhere except the designated AI API)
+  getApiKeys: (): Promise<Partial<Record<AiName, string>> & { groq?: string }> =>
+    ipcRenderer.invoke('get-api-keys'),
+  setApiKeys: (keys: Partial<Record<AiName, string>> & { groq?: string }): Promise<boolean> =>
+    ipcRenderer.invoke('set-api-keys', keys),
+
+  getApiKeyOrder: (): Promise<string[]> =>
+    ipcRenderer.invoke('get-api-key-order'),
+  setApiKeyOrder: (order: string[]): Promise<boolean> =>
+    ipcRenderer.invoke('set-api-key-order', order),
+
+  // Real-time query analysis → Primary AI recommendation
+  analyzeQuery: (query: string): Promise<{
+    recommended: AiName
+    reason: string
+    roundSuggestions: Array<{ ai: AiName; reason: string }>
+  } | null> => ipcRenderer.invoke('analyze-query', query),
 
   setEnabledAis: (ais: AiName[]) =>
     ipcRenderer.invoke('set-enabled-ais', ais),

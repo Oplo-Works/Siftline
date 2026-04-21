@@ -144,6 +144,55 @@
     .ai-chip.perplexity { border-color: rgba(32,178,170,.5);   color: #20b2aa;  background: rgba(32,178,170,.08); }
     .ai-chip.grok       { border-color: rgba(124,58,237,.5);   color: #7c3aed;  background: rgba(124,58,237,.08); }
 
+    /* ── What's New banner ── */
+    .whats-new {
+      background: linear-gradient(135deg, rgba(99,179,237,0.06) 0%, rgba(183,148,244,0.06) 100%);
+      border: 1px solid rgba(99,179,237,0.2);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      margin-bottom: 56px;
+      animation: fadeUp .65s ease both;
+    }
+
+    .whats-new-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent-blue);
+      margin-bottom: 18px;
+      letter-spacing: -0.01em;
+    }
+
+    .new-feature {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .new-feature:last-child { border-bottom: none; padding-bottom: 0; }
+    .new-feature:first-of-type { padding-top: 0; }
+
+    .new-feature-icon {
+      font-size: 1.3rem;
+      min-width: 32px;
+      text-align: center;
+      margin-top: 2px;
+    }
+
+    .new-feature-title {
+      font-size: .95rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .new-feature-desc {
+      font-size: .875rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
     /* ── Section ── */
     section {
       margin-bottom: 56px;
@@ -159,6 +208,8 @@
     section:nth-child(8)  { animation-delay: .40s; }
     section:nth-child(9)  { animation-delay: .45s; }
     section:nth-child(10) { animation-delay: .50s; }
+    section:nth-child(11) { animation-delay: .55s; }
+    section:nth-child(12) { animation-delay: .60s; }
 
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(22px); }
@@ -190,6 +241,13 @@
       color: var(--text-primary);
       margin-bottom: 20px;
       letter-spacing: -0.02em;
+    }
+
+    h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 22px 0 10px;
     }
 
     /* ── Panel / Card ── */
@@ -377,6 +435,9 @@
       vertical-align: top;
     }
 
+    td a { color: var(--accent-blue); text-decoration: none; }
+    td a:hover { text-decoration: underline; }
+
     tbody tr:last-child td { border-bottom: none; }
     tbody tr:hover td { background: rgba(255,255,255,0.025); }
 
@@ -417,6 +478,19 @@
     }
 
     .green-box strong { color: var(--accent-green); }
+
+    .purple-box {
+      background: rgba(183,148,244,0.06);
+      border: 1px solid rgba(183,148,244,0.2);
+      border-radius: var(--radius-sm);
+      padding: 16px 20px;
+      font-size: .9rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+      margin-top: 16px;
+    }
+
+    .purple-box strong { color: var(--accent-purple); }
 
     /* ── Key icon highlight box ── */
     .key-box {
@@ -490,6 +564,39 @@
       line-height: 1.55;
     }
 
+    /* ── Sub-section heading ── */
+    .sub-heading {
+      font-size: .9rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      color: var(--accent-blue);
+      margin: 22px 0 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sub-heading::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Reassign highlight box ── */
+    .reassign-box {
+      background: rgba(245,158,11,0.06);
+      border: 1px solid rgba(245,158,11,0.22);
+      border-radius: var(--radius-sm);
+      padding: 16px 20px;
+      font-size: .9rem;
+      color: var(--text-muted);
+      line-height: 1.65;
+      margin-top: 20px;
+    }
+
+    .reassign-box strong { color: #f59e0b; }
+
     /* ── Divider ── */
     hr {
       border: none;
@@ -527,6 +634,46 @@
       <span class="ai-chip grok">⚡ Grok</span>
     </div>
   </header>
+
+  <!-- ── WHAT'S NEW ── -->
+  <div class="whats-new">
+    <div class="whats-new-title">✨ What's New</div>
+
+    <div class="new-feature">
+      <div class="new-feature-icon">⚡</div>
+      <div>
+        <div class="new-feature-title">API Keys Tab</div>
+        <div class="new-feature-desc">
+          New tab inside the Accounts panel — store API keys for all 5 AI providers plus Groq (ultra-fast Llama inference).
+          Drag-and-drop rows to set the analysis priority. Keys are saved in <code>electron-store</code> and never leave your machine.
+        </div>
+      </div>
+    </div>
+
+    <div class="new-feature">
+      <div class="new-feature-icon">🤖</div>
+      <div>
+        <div class="new-feature-title">AI Recommendation Engine</div>
+        <div class="new-feature-desc">
+          As you type a query, the app calls your highest-priority configured API to recommend the best Primary AI with a reason.
+          A banner with an <strong style="color:var(--accent-blue)">Apply</strong> button appears below the query box.
+          Falls back to keyword-based rule logic when no API key is set.
+        </div>
+      </div>
+    </div>
+
+    <div class="new-feature">
+      <div class="new-feature-icon">🔄</div>
+      <div>
+        <div class="new-feature-title">Mid-Workflow Primary AI Reassignment</div>
+        <div class="new-feature-desc">
+          At both pause points (<strong style="color:#f59e0b">▶▶ Next</strong> and <strong style="color:#10b981">✓ Continue</strong>)
+          the Primary AI chips become interactive — click any chip to switch mid-run.
+          The workflow engine continues with the newly assigned AI for all remaining steps.
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ── DOWNLOAD & INSTALL ── -->
   <section>
@@ -595,7 +742,7 @@
     <div class="panel">
       <pre><code>ai-council/
 ├── electron/
-│   ├── main.ts                  # Main process: BrowserViews, IPC, full workflow engine
+│   ├── main.ts                  # Main process: BrowserViews, IPC, workflow engine, recommendation engine
 │   ├── preload.ts               # Context-isolated API bridge (contextBridge)
 │   ├── preload-chrome-spoof.js  # Chrome identity spoof for OAuth popups
 │   ├── preload-google-login.js  # Google login flow helper
@@ -606,10 +753,10 @@
 │   ├── index.css                # Dark glassmorphism design system
 │   └── components/
 │       ├── TitleBar.tsx         # Frameless window bar with 🔑 Accounts, 📋 History, 📊 Logs
-│       ├── Toolbar.tsx          # Primary AI selector + Active panel toggles + query input + Start/Next/Continue
+│       ├── Toolbar.tsx          # Primary AI selector + Active toggles + query input + recommendation banner
 │       ├── StatusBar.tsx        # Live status text with animated progress bar
 │       ├── PanelGrid.tsx        # Panel headers above embedded BrowserViews (only enabled AIs shown)
-│       ├── AccountsPanel.tsx    # Per-AI login / logout panel (opened via 🔑 icon)
+│       ├── AccountsPanel.tsx    # Two-tab panel: Accounts (login/logout) + API Keys (storage & ordering)
 │       ├── FinalResultPanel.tsx # Collapsible final answer panel + per-file download
 │       ├── LogDrawer.tsx        # Real-time execution logs side drawer
 │       └── HistoryDrawer.tsx    # Persistent chat history side drawer
@@ -653,18 +800,39 @@ npm install</code></pre>
       <div class="qs-step">
         <div class="qs-step-header">
           <span class="qs-badge">2️⃣</span>
-          <span class="qs-title">AI service login — via 🔑 Accounts panel (recommended)</span>
+          <span class="qs-title">AI service login &amp; API keys — via 🔑 Accounts panel</span>
         </div>
+
+        <div class="sub-heading">🔑 Accounts tab — session login / logout per AI</div>
         <div class="key-box">
-          <strong>🔑 Click the key icon</strong> in the top-right corner of the title bar at any time.<br/>
-          The <strong>Accounts</strong> panel opens and shows real-time login status for each of the 5 AIs:<br/><br/>
+          Click the <strong>🔑 key icon</strong> in the top-right corner of the title bar at any time.<br/><br/>
           &nbsp;&nbsp;● <strong>Login</strong> — opens a dedicated login window; session is saved automatically<br/>
           &nbsp;&nbsp;● <strong>Re-login</strong> — re-authenticate an already-logged-in account<br/>
           &nbsp;&nbsp;● <strong>Logout</strong> — clears the session for that AI only<br/>
           &nbsp;&nbsp;● <strong>Logout All</strong> — clears all sessions at once<br/><br/>
           Sessions are persisted in the Electron <code>persist:</code> partition and survive app restarts.
         </div>
-        <p class="qs-desc" style="margin-top:14px; margin-bottom:10px">Alternative — standalone login scripts (run outside the app):</p>
+
+        <div class="sub-heading" style="margin-top:20px;">⚡ API Keys tab — store keys for the recommendation engine</div>
+        <div class="table-wrap" style="margin-bottom:14px;">
+          <table>
+            <thead>
+              <tr><th>Provider</th><th>Key prefix</th><th>Get a key</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Gemini</td><td><code>AIza...</code></td><td><a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com</a></td></tr>
+              <tr><td>Claude (Anthropic)</td><td><code>sk-ant-...</code></td><td><a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a></td></tr>
+              <tr><td>ChatGPT (OpenAI)</td><td><code>sk-...</code></td><td><a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a></td></tr>
+              <tr><td>Perplexity</td><td><code>pplx-...</code></td><td><a href="https://www.perplexity.ai/settings/api" target="_blank">perplexity.ai/settings/api</a></td></tr>
+              <tr><td>Grok (xAI)</td><td><code>xai-...</code></td><td><a href="https://console.x.ai/" target="_blank">console.x.ai</a></td></tr>
+              <tr><td>⚡ Groq (Llama · Ultra-fast)</td><td><code>gsk_...</code></td><td><a href="https://console.groq.com/keys" target="_blank">console.groq.com</a></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="qs-desc">Drag-and-drop rows to set which provider is tried <strong style="color:var(--text-primary)">first</strong> when analyzing a query.
+          Keys are stored in <code>electron-store</code> and never sent anywhere except the provider's own API.</p>
+
+        <p class="qs-desc" style="margin-top:18px; margin-bottom:10px">Alternative — standalone login scripts (run outside the app):</p>
         <pre><code>google-login.bat       # Gemini (Google account)
 claude-login.bat       # Claude.ai (including Google OAuth popup)
 chatgpt-login.bat      # ChatGPT
@@ -765,15 +933,24 @@ npx electron-builder --mac dmg --x64 --arm64</code></pre>
       </div>
     </div>
 
-    <div class="steps-grid">
+    <div class="steps-grid" style="margin-bottom:28px;">
       <div class="step-card"><div class="step-num">1</div><div class="step-text">App loads all selected AI websites in BrowserViews — log in via the <strong>🔑 Accounts panel</strong> or standalone login scripts</div></div>
       <div class="step-card"><div class="step-num">2</div><div class="step-text">Select <strong>Primary AI</strong> and configure <strong>Active</strong> panels (choose 2–5 AIs)</div></div>
       <div class="step-card"><div class="step-num">3</div><div class="step-text">Type your question, optionally attach files (PDF / DOCX / XLSX / TXT / MD / CSV), click <strong>▶ Start</strong></div></div>
       <div class="step-card"><div class="step-num">4</div><div class="step-text">MutationObserver-based stability detection waits for Primary AI's draft response — button turns amber <strong>▶▶ Next</strong></div></div>
-      <div class="step-card"><div class="step-num">5</div><div class="step-text">Click <strong>▶▶ Next</strong>: review prompt (draft + file context) injected simultaneously into all active Reviewer AIs</div></div>
+      <div class="step-card"><div class="step-num">5</div><div class="step-text">Click <strong>▶▶ Next</strong>: review prompt (draft + file context) injected simultaneously into all active Reviewer AIs. <em>You may reassign the Primary AI here.</em></div></div>
       <div class="step-card"><div class="step-num">6</div><div class="step-text">Wait for all reviewer feedback responses (parallel, with per-AI stability detection) — button turns green <strong>✓ Continue</strong></div></div>
-      <div class="step-card"><div class="step-num">7</div><div class="step-text">Click <strong>✓ Continue</strong>: combined feedback + final revision prompt injected back into Primary AI</div></div>
+      <div class="step-card"><div class="step-num">7</div><div class="step-text">Click <strong>✓ Continue</strong>: combined feedback + final revision prompt injected back into Primary AI. <em>You may reassign the Primary AI here.</em></div></div>
       <div class="step-card"><div class="step-num">8</div><div class="step-text">Final revised answer extracted, parsed into per-file blocks, displayed in collapsible <strong>Final Result Panel</strong> with individual download buttons</div></div>
+    </div>
+
+    <div class="reassign-box">
+      <strong>🔄 Mid-Workflow Primary AI Reassignment</strong><br/>
+      At the <strong>▶▶ Next</strong> and <strong>✓ Continue</strong> pause points the Primary AI chips become interactive and display a <em>"click to reassign"</em> hint.
+      Click any chip to switch the Primary AI on the fly — the workflow engine tracks the change and uses it for all remaining steps.
+      <br/><br/>
+      &nbsp;&nbsp;● Reassign at <strong>▶▶ Next</strong> → reviewers and final revision both run under the new Primary AI<br/>
+      &nbsp;&nbsp;● Reassign at <strong>✓ Continue</strong> → only the final revision step uses the new Primary AI
     </div>
   </section>
 
@@ -784,7 +961,10 @@ npx electron-builder --mac dmg --x64 --arm64</code></pre>
     <div class="panel">
       <p style="color:var(--text-muted); font-size:.93rem; margin-bottom:18px;">
         Click the <strong style="color:var(--text-primary)">🔑 key icon</strong> in the top-right of the title bar at any time — even while the app is running.
+        The panel has two tabs.
       </p>
+
+      <div class="sub-heading">🔑 Accounts tab</div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Action</th><th>What it does</th></tr></thead>
@@ -799,6 +979,51 @@ npx electron-builder --mac dmg --x64 --arm64</code></pre>
       <div class="green-box">
         <strong>Live status:</strong> The panel shows a real-time ● / ○ indicator for each AI.
         Status updates instantly via the <code>onLoginStatusChanged</code> IPC event whenever you log in or out.
+      </div>
+
+      <div class="sub-heading" style="margin-top:24px;">⚡ API Keys tab</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Feature</th><th>Details</th></tr></thead>
+          <tbody>
+            <tr><td>Key entry</td><td>Enter keys for Gemini, Claude, ChatGPT (OpenAI), Perplexity, Grok, and Groq</td></tr>
+            <tr><td>Show / hide</td><td>Toggle visibility per key — masked by default</td></tr>
+            <tr><td>Priority order</td><td>Drag-and-drop rows to control which provider is called first for query analysis</td></tr>
+            <tr><td>Save</td><td>Click <strong>Save</strong> to persist; order is auto-saved immediately on drop</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── AI RECOMMENDATION ENGINE ── -->
+  <section>
+    <div class="section-label">New Feature</div>
+    <h2>AI Recommendation Engine 🤖</h2>
+    <div class="panel">
+      <p style="color:var(--text-muted); font-size:.93rem; margin-bottom:18px;">
+        While you type a query (≥ 8 characters) the app waits 800 ms and then calls the highest-priority available API provider.
+        A banner appears below the query input with the result.
+      </p>
+
+      <div class="table-wrap" style="margin-bottom:20px;">
+        <table>
+          <thead><tr><th>Banner state</th><th>What you see</th></tr></thead>
+          <tbody>
+            <tr><td>Analyzing</td><td>Spinner + "Analyzing query…"</td></tr>
+            <tr><td>Result ready</td><td>Recommended AI badge, reason text, and an <strong>Apply</strong> button</td></tr>
+            <tr><td>Already applied</td><td>Button shows "✓ Applied" and is disabled</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="green-box">
+        <strong>How to use:</strong> Click <strong>Apply</strong> in the banner (or click the chip directly) to set the recommended AI as Primary before starting the workflow.
+      </div>
+
+      <div class="purple-box" style="margin-top:16px;">
+        <strong>Fallback — no API key configured:</strong> The engine uses keyword rules to pick the most suitable AI.
+        For example: analysis / documents → Gemini, creative writing → Claude, real-time news → Perplexity, coding → ChatGPT.
       </div>
     </div>
   </section>
@@ -938,6 +1163,7 @@ Incorporate the feedback and output the revised version of each file in the foll
             <tr><td>File parsing</td><td>pdf-parse · mammoth · xlsx</td></tr>
             <tr><td>File generation</td><td>docx · xlsx</td></tr>
             <tr><td>OAuth compatibility</td><td>preload-chrome-spoof.js (Chrome identity masking)</td></tr>
+            <tr><td>AI inference (recommendation)</td><td>Gemini · Claude · OpenAI · Perplexity · Grok · Groq APIs</td></tr>
           </tbody>
         </table>
       </div>
@@ -945,7 +1171,7 @@ Incorporate the feedback and output the revised version of each file in the foll
   </section>
 
   <footer>
-    <p>AI Council &mdash; README &nbsp;·&nbsp; Last updated 2026-04-15 &nbsp;·&nbsp; <a href="https://github.com/MinkyuTheBuilder/ai-council" target="_blank">GitHub</a></p>
+    <p>AI Council &mdash; README &nbsp;·&nbsp; Last updated 2026-04-21 &nbsp;·&nbsp; <a href="https://github.com/MinkyuTheBuilder/ai-council" target="_blank">GitHub</a></p>
   </footer>
 
 </div>

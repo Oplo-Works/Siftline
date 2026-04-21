@@ -7,6 +7,7 @@ import {
   LogEntry,
   HistoryItem,
   WorkflowStage,
+  AiRecommendation,
   AI_DISPLAY_NAMES,
   AI_COLORS,
   AI_ICONS,
@@ -52,6 +53,11 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(false)
   const [showAccounts, setShowAccounts] = useState(false)
   const isRunningRef = useRef(false)
+
+  // ── Recommendation engine state ──────────────────────────────────────────
+  const [recommendation, setRecommendation] = useState<AiRecommendation | null>(null)
+  const [analysisLoading, setAnalysisLoading] = useState(false)
+  const analyzeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const addLog = useCallback((entry: LogEntry) => {
     setLogs((prev) => [{ ...entry, msg: `[${new Date().toLocaleTimeString()}] ${entry.msg}` }, ...prev].slice(0, LOG_MAX_ITEMS))
@@ -117,6 +123,35 @@ export default function App() {
 
     return () => cleanups.forEach((fn) => fn())
   }, [addLog])
+
+  // ── Real-time query analysis for Primary AI recommendation ───────────────
+  useEffect(() => {
+    // Clear old timer
+    if (analyzeDebounceRef.current) clearTimeout(analyzeDebounceRef.current)
+
+    const trimmed = query.trim()
+    if (trimmed.length < 8) {
+      setRecommendation(null)
+      setAnalysisLoading(false)
+      return
+    }
+
+    setAnalysisLoading(true)
+    analyzeDebounceRef.current = setTimeout(async () => {
+      try {
+        const result = await window.electronAPI.analyzeQuery(trimmed)
+        setRecommendation(result)
+      } catch {
+        setRecommendation(null)
+      } finally {
+        setAnalysisLoading(false)
+      }
+    }, 800)  // 800ms debounce
+
+    return () => {
+      if (analyzeDebounceRef.current) clearTimeout(analyzeDebounceRef.current)
+    }
+  }, [query])
 
   // ── Notify main process when enabled AIs change ──────────────────────────
   const handleEnabledAisChange = useCallback((ais: AiName[]) => {
@@ -226,10 +261,11 @@ export default function App() {
   }, [])
 
   // ── Proceed past a workflow pause point (Next / Continue) ────────────────
+  // Pass the current primaryAi so main process can detect if it was reassigned.
   const handleProceed = useCallback(() => {
     setWorkflowStage('running')
-    window.electronAPI.workflowProceed()
-  }, [])
+    window.electronAPI.workflowProceed({ primaryAi })
+  }, [primaryAi])
 
   const handleDevTools = useCallback((ai: AiName) => {
     window.electronAPI.openViewDevTools(ai)
@@ -287,6 +323,8 @@ export default function App() {
         isRunning={isRunning}
         workflowStage={workflowStage}
         attachedFiles={attachedFiles}
+        recommendation={recommendation}
+        analysisLoading={analysisLoading}
         onPrimaryAiChange={setPrimaryAi}
         onEnabledAisChange={handleEnabledAisChange}
         onQueryChange={setQuery}

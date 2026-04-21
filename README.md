@@ -4,6 +4,16 @@
 
 ---
 
+## ✨ What's New
+
+| Feature | Description |
+|---------|-------------|
+| ⚡ **API Keys Tab** | New tab in the Accounts panel — store API keys for all 5 AI providers + Groq (ultra-fast Llama inference). Drag-and-drop rows to set analysis priority. Keys are saved in `electron-store` and never leave your machine. |
+| 🤖 **AI Recommendation Engine** | As you type a query, the app calls your configured API provider to recommend the best Primary AI with a reason. Falls back to rule-based logic when no key is configured. A recommendation banner with an **Apply** button appears below the query box. |
+| 🔄 **Mid-Workflow Primary AI Reassignment** | At both pause points (▶▶ Next and ✓ Continue) you can click a different AI chip to switch the Primary AI mid-run. The workflow engine picks up with the new selection for all remaining steps. |
+
+---
+
 ## Supported AI Services
 
 | Icon | AI | URL |
@@ -66,7 +76,7 @@ No build required. Download the latest installer from [GitHub Releases](https://
 ```text
 ai-council/
 ├── electron/
-│   ├── main.ts                  # Main process: BrowserViews, IPC, full workflow engine
+│   ├── main.ts                  # Main process: BrowserViews, IPC, workflow engine, recommendation engine
 │   ├── preload.ts               # Context-isolated API bridge (contextBridge)
 │   ├── preload-chrome-spoof.js  # Chrome identity spoof for OAuth popups
 │   ├── preload-google-login.js  # Google login flow helper
@@ -77,10 +87,10 @@ ai-council/
 │   ├── index.css                # Dark glassmorphism design system
 │   └── components/
 │       ├── TitleBar.tsx         # Frameless window bar with 🔑 Accounts, 📋 History, 📊 Logs
-│       ├── Toolbar.tsx          # Primary AI selector + Active panel toggles + query input + Start/Next/Continue
+│       ├── Toolbar.tsx          # Primary AI selector + Active panel toggles + query input + recommendation banner
 │       ├── StatusBar.tsx        # Live status text with animated progress bar
 │       ├── PanelGrid.tsx        # Panel headers above embedded BrowserViews (only enabled AIs shown)
-│       ├── AccountsPanel.tsx    # Per-AI login / logout panel (opened via 🔑 icon)
+│       ├── AccountsPanel.tsx    # Two-tab panel: Accounts (login/logout) + API Keys (key storage & ordering)
 │       ├── FinalResultPanel.tsx # Collapsible final answer panel + per-file download
 │       ├── LogDrawer.tsx        # Real-time execution logs side drawer
 │       └── HistoryDrawer.tsx    # Persistent chat history side drawer
@@ -118,7 +128,9 @@ npm install
 ### 2️⃣ AI service login — via 🔑 Accounts panel (recommended)
 
 Launch the app and click the **🔑 key icon** in the top-right corner of the title bar.  
-The **Accounts** panel opens and shows login status for each of the 5 AIs:
+The panel has **two tabs**:
+
+#### 🔑 Accounts tab — session login / logout per AI
 
 - **Login** — opens a dedicated login window for that AI; session is saved automatically
 - **Re-login** — re-authenticate an already-logged-in account
@@ -126,6 +138,20 @@ The **Accounts** panel opens and shows login status for each of the 5 AIs:
 - **Logout All** — logs out all AIs at once
 
 Sessions are persisted in the Electron `persist:` partition and survive app restarts.
+
+#### ⚡ API Keys tab — store API keys for the recommendation engine
+
+| Provider | Key prefix | Get a key |
+|----------|-----------|-----------|
+| Gemini | `AIza...` | [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) |
+| Claude | `sk-ant-...` | [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys) |
+| ChatGPT (OpenAI) | `sk-...` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| Perplexity | `pplx-...` | [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api) |
+| Grok (xAI) | `xai-...` | [console.x.ai](https://console.x.ai/) |
+| ⚡ Groq (Llama · Ultra-fast) | `gsk_...` | [console.groq.com/keys](https://console.groq.com/keys) |
+
+Drag-and-drop the rows to control which provider is tried **first** when analyzing a query.  
+API keys are stored in `electron-store` and never sent anywhere except the provider's own API.
 
 #### Alternative — standalone login scripts
 
@@ -226,17 +252,49 @@ The workflow is **manual** — you advance each stage by clicking the action but
 6. Wait for all Reviewers to finish → click **✓ Continue**
 7. Final revised answer is extracted and displayed in the **Final Result Panel**
 
+### 🔄 Reassigning Primary AI at Pause Points
+
+At both pause points (**▶▶ Next** and **✓ Continue**) the Primary AI chips become interactive.  
+Click any chip to switch the Primary AI mid-workflow — the app continues with the newly assigned AI:
+
+- Reassigning at **▶▶ Next** — reviewer step and final revision both use the new Primary AI
+- Reassigning at **✓ Continue** — final revision step uses the new Primary AI
+
 ---
 
 ## Accounts Panel (🔑)
 
 Click the **🔑 key icon** in the top-right of the title bar at any time.
 
+### 🔑 Accounts tab
+
 - Shows real-time login status (● logged in / ○ not logged in) for each AI
 - **Login** button opens a mini browser window for that AI's login page
+- **Re-login** re-authenticates an already-logged-in session
 - **Logout** clears only that AI's session cookie
 - **Logout All** clears all sessions at once
 - Status updates live via `onLoginStatusChanged` IPC event
+
+### ⚡ API Keys tab
+
+- Enter API keys for Gemini, Claude, ChatGPT (OpenAI), Perplexity, Grok, and Groq
+- Toggle show / hide masking per key
+- Drag-and-drop rows to set provider priority for the recommendation engine
+- Click **Save** to persist — order is auto-saved immediately on drop
+
+---
+
+## AI Recommendation Engine
+
+When you type a query (≥ 8 characters) the app debounces for 800 ms and then calls the first available API provider in your configured key order.  
+A banner appears below the query input:
+
+- **Loading state** — spinner + "Analyzing query…"
+- **Result state** — recommended AI badge, reason, and an **Apply** button
+
+Click **Apply** (or the chip directly) to set the recommended AI as Primary before starting the workflow.
+
+**Fallback logic (no API key configured):** The engine uses keyword rules to pick the most suitable AI — e.g. analysis / documents → Gemini, creative writing → Claude, real-time news → Perplexity, code → ChatGPT.
 
 ---
 
@@ -264,7 +322,7 @@ If you attach files with your question, all active AIs analyze the file contents
 A collapsible panel pinned to the bottom of the screen. Toggle it by clicking the header or the ▲/▼ button.
 
 | State | Height | Displayed |
-|------|------|-----------| 
+|------|------|-----------|
 | Collapsed | 36 px | Title · Primary AI name · complete/in-progress badge |
 | Expanded | 260 px | Preview (Markdown render) / Raw tab · Copy button · Per-file save buttons |
 
@@ -333,3 +391,4 @@ Incorporate the feedback and output the revised version of each file in the foll
 | File parsing | pdf-parse · mammoth · xlsx |
 | File generation | docx · xlsx |
 | OAuth compatibility | preload-chrome-spoof.js (Chrome identity masking) |
+| AI inference (recommendation) | Gemini · Claude · OpenAI · Perplexity · Grok · Groq APIs |

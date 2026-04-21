@@ -51,6 +51,8 @@ interface StoreSchema {
     timestamp: number
   }>
   windowBounds: Rectangle
+  apiKeys: Partial<Record<AiName, string>> & { groq?: string }
+  apiKeyOrder: string[]
 }
 
 // ─── Inline Selectors Config ──────────────────────────────────────────────────
@@ -218,6 +220,8 @@ const store = new Store<StoreSchema>({
   defaults: {
     chatHistory: [],
     windowBounds: { x: 0, y: 0, width: 1280, height: 720 },
+    apiKeys: {},
+    apiKeyOrder: ['gemini', 'claude', 'chatgpt', 'perplexity', 'grok', 'groq'],
   },
 })
 
@@ -231,7 +235,8 @@ let resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null
 // ─── Workflow pause-point gate ────────────────────────────────────────────────
 // When non-null, the workflow is paused and waiting for the user to click
 // Next or Continue. Resolved by the 'workflow-proceed' IPC handler.
-let workflowProceedResolver: (() => void) | null = null
+// The resolver receives an optional new primaryAi if the user reassigned it.
+let workflowProceedResolver: ((decision: { primaryAi?: AiName }) => void) | null = null
 
 // ─── UI Layout Constants ──────────────────────────────────────────────────────
 const TITLEBAR_HEIGHT = 40
@@ -498,9 +503,11 @@ function sendLog(level: 'info' | 'warn' | 'error', msg: string) {
  * Next or Continue.
  * Sends 'workflow-waiting' to the renderer so the button label updates,
  * then blocks until the renderer calls 'workflow-proceed'.
+ * Returns the new primaryAi if the user reassigned it at the pause point,
+ * or undefined if the primary AI was not changed.
  */
-function waitForUserProceed(stage: 'after-draft' | 'after-reviews'): Promise<void> {
-  return new Promise<void>((resolve) => {
+function waitForUserProceed(stage: 'after-draft' | 'after-reviews'): Promise<{ primaryAi?: AiName }> {
+  return new Promise<{ primaryAi?: AiName }>((resolve) => {
     workflowProceedResolver = resolve
     mainWindow?.webContents.send('workflow-waiting', { stage })
   })
@@ -1051,9 +1058,9 @@ async function createWindow() {
     const view = new BrowserView({
       webPreferences: {
         preload: needsChromeSpoof ? CHROME_SPOOF_PRELOAD
-               : needsOAuthSpoof  ? OAUTH_GOOGLE_SPOOF_PRELOAD
-               : needsLocaleSpoof ? EN_LOCALE_PRELOAD
-               : undefined,
+          : needsOAuthSpoof ? OAUTH_GOOGLE_SPOOF_PRELOAD
+            : needsLocaleSpoof ? EN_LOCALE_PRELOAD
+              : undefined,
         // contextIsolation: false is required for MAIN world access —
         // apply only to views that use a preload that needs it.
         contextIsolation: !(needsChromeSpoof || needsOAuthSpoof || needsLocaleSpoof),
@@ -1162,15 +1169,15 @@ async function createWindow() {
         event.preventDefault()   // stop the BrowserView from navigating to Google
 
         const popup = new BrowserWindow({
-          width:  520,
+          width: 520,
           height: 680,
-          title:  'Sign in',
+          title: 'Sign in',
           parent: mainWindow ?? undefined,
           webPreferences: {
-            partition:        `persist:${name}`,
-            preload:          CHROME_SPOOF_PRELOAD,   // full spoof — Google needs this
+            partition: `persist:${name}`,
+            preload: CHROME_SPOOF_PRELOAD,   // full spoof — Google needs this
             contextIsolation: false,
-            nodeIntegration:  false,
+            nodeIntegration: false,
           },
         })
         popup.setMenuBarVisibility(false)
@@ -1232,7 +1239,7 @@ async function createWindow() {
             )
             view.webContents.loadURL('https://accounts.google.com/signin', {
               userAgent: DESKTOP_USER_AGENT,
-            }).catch(() => {})
+            }).catch(() => { })
             return
           }
         } catch { /* ignore */ }
@@ -1257,7 +1264,7 @@ async function createWindow() {
           )
           view.webContents.loadURL('https://gemini.google.com', {
             userAgent: DESKTOP_USER_AGENT,
-          }).catch(() => {})
+          }).catch(() => { })
         }
       })
 
@@ -1295,6 +1302,44 @@ async function createWindow() {
 }
 
 // ─── IPC Handlers ─────────────────────────────────────────────────────────────
+
+// ── API Keys: get / set ───────────────────────────────────────────────────────
+ipcMain.handle('get-api-keys', () => {
+  return store.get('apiKeys') as StoreSchema['apiKeys']
+})
+
+ipcMain.handle('set-api-keys', (_e, keys: Partial<Record<AiName, string>> & { groq?: string }) => {
+  // Trim whitespace and remove empty strings so store stays clean
+  const cleaned: Record<string, string> = {}
+  for (const [k, v] of Object.entries(keys)) {
+    const trimmed = (v ?? '').trim()
+    if (trimmed) cleaned[k] = trimmed
+  }
+  store.set('apiKeys', cleaned)
+  return true
+})
+
+// ── API Key Order: get / set ──────────────────────────────────────────────────
+ipcMain.handle('get-api-key-order', () => {
+  return store.get('apiKeyOrder') as string[]
+})
+
+ipcMain.handle('set-api-key-order', (_e, order: string[]) => {
+  store.set('apiKeyOrder', order)
+  return true
+})
+
+// ── Real-time query analysis → Primary AI recommendation ──────────────────────
+ipcMain.handle('analyze-query', async (_e, query: string) => {
+  if (!query || query.trim().length < 5) return null
+  try {
+    const result = await analyzeQueryForPrimaryAi(query.trim())
+    return result
+  } catch (err) {
+    sendLog('warn', `[analyze-query] ${err instanceof Error ? err.message : String(err)}`)
+    return null
+  }
+})
 
 // ── File dialog ──────────────────────────────────────────────────────────────
 ipcMain.handle('open-file-dialog', async () => {
@@ -1359,27 +1404,27 @@ ipcMain.handle(
  * spoof from interfering with the main AI panel's API connections.
  */
 const LOGIN_COPY_DOMAINS: Record<AiName, string[]> = {
-  gemini:     ['.google.com', 'accounts.google.com'],
-  claude:     ['claude.ai', '.claude.ai'],
-  chatgpt:    ['.chatgpt.com', '.openai.com', 'auth.openai.com'],
+  gemini: ['.google.com', 'accounts.google.com'],
+  claude: ['claude.ai', '.claude.ai'],
+  chatgpt: ['.chatgpt.com', '.openai.com', 'auth.openai.com'],
   perplexity: ['.perplexity.ai'],
-  grok:       ['.grok.com', 'grok.com', '.x.com', 'x.com', '.twitter.com', 'twitter.com'],
+  grok: ['.grok.com', 'grok.com', '.x.com', 'x.com', '.twitter.com', 'twitter.com'],
 }
 
 const LOGIN_START_URLS: Record<AiName, string> = {
-  gemini:     'https://accounts.google.com/signin',
-  claude:     'https://claude.ai/login',
-  chatgpt:    'https://chatgpt.com/auth/login',
+  gemini: 'https://accounts.google.com/signin',
+  claude: 'https://claude.ai/login',
+  chatgpt: 'https://chatgpt.com/auth/login',
   perplexity: 'https://www.perplexity.ai',
-  grok:       'https://grok.com',
+  grok: 'https://grok.com',
 }
 
 const LOGIN_TITLES: Record<AiName, string> = {
-  gemini:     'Google Login — Gemini (AI Council)',
-  claude:     'Claude Login — AI Council',
-  chatgpt:    'ChatGPT Login — AI Council',
+  gemini: 'Google Login — Gemini (AI Council)',
+  claude: 'Claude Login — AI Council',
+  chatgpt: 'ChatGPT Login — AI Council',
   perplexity: 'Perplexity Login — AI Council',
-  grok:       'Grok Login — AI Council',
+  grok: 'Grok Login — AI Council',
 }
 
 /** Check whether the login session already has valid session cookies.
@@ -1415,10 +1460,10 @@ async function isLoginComplete(aiName: AiName, loginSes: Electron.Session, url: 
     // auth_token + ct0 = X session credentials (set on x.com during login)
     // sso + sso-rw    = Grok SSO cookies (set on grok.com after X auth handshake)
     // Either pair confirms a real logged-in user (not just anonymous visitor cookies).
-    const xCookies   = all.filter((c) => c.domain.includes('x.com') || c.domain.includes('twitter.com'))
+    const xCookies = all.filter((c) => c.domain.includes('x.com') || c.domain.includes('twitter.com'))
     const grokCookies = all.filter((c) => c.domain.includes('grok.com'))
-    const hasXAuth   = xCookies.some((c) => c.name === 'auth_token') &&
-                       xCookies.some((c) => c.name === 'ct0')
+    const hasXAuth = xCookies.some((c) => c.name === 'auth_token') &&
+      xCookies.some((c) => c.name === 'ct0')
     const hasGrokSSO = grokCookies.some((c) => c.name === 'sso' || c.name === 'sso-rw')
     return hasXAuth || hasGrokSSO
   }
@@ -1480,10 +1525,10 @@ function openLoginWindow(aiName: AiName): void {
     for (const [k, v] of Object.entries(details.requestHeaders)) {
       if (!SKIP.has(k.toLowerCase())) headers[k] = v as string
     }
-    headers['user-agent']                  = DESKTOP_USER_AGENT
-    headers['sec-ch-ua']                   = `"Chromium";v="${_CHROME_MAJOR}", "Google Chrome";v="${_CHROME_MAJOR}", "Not-A.Brand";v="24"`
-    headers['sec-ch-ua-mobile']            = '?0'
-    headers['sec-ch-ua-platform']          = '"Windows"'
+    headers['user-agent'] = DESKTOP_USER_AGENT
+    headers['sec-ch-ua'] = `"Chromium";v="${_CHROME_MAJOR}", "Google Chrome";v="${_CHROME_MAJOR}", "Not-A.Brand";v="24"`
+    headers['sec-ch-ua-mobile'] = '?0'
+    headers['sec-ch-ua-platform'] = '"Windows"'
     headers['sec-ch-ua-full-version-list'] = `"Chromium";v="${_CHROME_FULL}", "Google Chrome";v="${_CHROME_FULL}", "Not-A.Brand";v="24.0.0.0"`
     // Force English locale for Grok login window (covers grok.com + x.com pages)
     if (aiName === 'grok') {
@@ -1498,15 +1543,15 @@ function openLoginWindow(aiName: AiName): void {
   // lighter locale preload to avoid any risk of patching X.com globals.
   const loginPreload = aiName === 'grok' ? EN_LOCALE_PRELOAD : CHROME_SPOOF_PRELOAD
   const loginWin = new BrowserWindow({
-    width:  520,
+    width: 520,
     height: 720,
-    title:  LOGIN_TITLES[aiName],
+    title: LOGIN_TITLES[aiName],
     parent: mainWindow ?? undefined,
     webPreferences: {
-      partition:        loginPartition,
-      preload:          loginPreload,
+      partition: loginPartition,
+      preload: loginPreload,
       contextIsolation: false,
-      nodeIntegration:  false,
+      nodeIntegration: false,
     },
   })
   loginWin.setMenuBarVisibility(false)
@@ -1549,7 +1594,7 @@ function openLoginWindow(aiName: AiName): void {
     if (view) {
       const aiConfig = getSelectors(aiName)
       const reloadUrl = aiName === 'gemini' ? 'https://gemini.google.com' : aiConfig.newChatUrl
-      view.webContents.loadURL(reloadUrl, { userAgent: DESKTOP_USER_AGENT }).catch(() => {})
+      view.webContents.loadURL(reloadUrl, { userAgent: DESKTOP_USER_AGENT }).catch(() => { })
     }
 
     // Tell renderer to refresh login status display
@@ -1564,7 +1609,7 @@ function openLoginWindow(aiName: AiName): void {
       '\'<p style="color:#9898b0">AI Council panel will reload automatically.</p>\' +' +
       '\'<p style="color:#5a5a78;font-size:12px;margin-top:20px">Closing in 3 seconds...</p>\' +' +
       '\'</div>\''
-    ).catch(() => {})
+    ).catch(() => { })
     setTimeout(() => { if (!loginWin.isDestroyed()) loginWin.close() }, 3000)
   }
 
@@ -1573,8 +1618,8 @@ function openLoginWindow(aiName: AiName): void {
   // did-finish-load   — page fully loaded (catches SPA post-login redirects)
   // did-navigate-in-page — hash / pushState navigation (SPA internal routing)
   const attachNavigationListeners = (wc: Electron.WebContents) => {
-    wc.on('did-navigate',         (_e, url) => checkLogin(url))
-    wc.on('did-finish-load',      ()        => checkLogin(wc.getURL()))
+    wc.on('did-navigate', (_e, url) => checkLogin(url))
+    wc.on('did-finish-load', () => checkLogin(wc.getURL()))
     wc.on('did-navigate-in-page', (_e, url) => checkLogin(url))
   }
   attachNavigationListeners(loginWin.webContents)
@@ -1604,14 +1649,14 @@ async function getLoginStatus(): Promise<Record<AiName, boolean>> {
     session.fromPartition('persist:grok').cookies.get({}),
   ])
 
-  const geminiC     = geminiAll.filter((c) => c.domain.includes('google.com'))
-  const claudeC     = claudeAll.filter((c) => c.domain.includes('claude.ai') || c.domain.includes('anthropic.com'))
-  const chatgptC    = chatgptAll.filter((c) => c.domain.includes('chatgpt.com') || c.domain.includes('openai.com'))
+  const geminiC = geminiAll.filter((c) => c.domain.includes('google.com'))
+  const claudeC = claudeAll.filter((c) => c.domain.includes('claude.ai') || c.domain.includes('anthropic.com'))
+  const chatgptC = chatgptAll.filter((c) => c.domain.includes('chatgpt.com') || c.domain.includes('openai.com'))
   const perplexityC = perplexityAll.filter((c) => c.domain.includes('perplexity.ai'))
-  const grokXC      = grokAll.filter((c) => c.domain.includes('x.com') || c.domain.includes('twitter.com'))
-  const grokSiteC   = grokAll.filter((c) => c.domain.includes('grok.com'))
-  const grokHasXAuth  = grokXC.some((c) => c.name === 'auth_token') && grokXC.some((c) => c.name === 'ct0')
-  const grokHasSSO    = grokSiteC.some((c) => c.name === 'sso' || c.name === 'sso-rw')
+  const grokXC = grokAll.filter((c) => c.domain.includes('x.com') || c.domain.includes('twitter.com'))
+  const grokSiteC = grokAll.filter((c) => c.domain.includes('grok.com'))
+  const grokHasXAuth = grokXC.some((c) => c.name === 'auth_token') && grokXC.some((c) => c.name === 'ct0')
+  const grokHasSSO = grokSiteC.some((c) => c.name === 'sso' || c.name === 'sso-rw')
 
   // ── ChatGPT ──────────────────────────────────────────────────────────────
   // Cookie-based detection is unreliable: every cookie on chatgpt.com /
@@ -1652,11 +1697,11 @@ async function getLoginStatus(): Promise<Record<AiName, boolean>> {
   )
 
   return {
-    gemini:     geminiC.some((c) => c.name === 'SID' || c.name === '__Secure-1PSID'),
-    claude:     claudeC.length > 0,
-    chatgpt:    chatgptLoggedIn,
+    gemini: geminiC.some((c) => c.name === 'SID' || c.name === '__Secure-1PSID'),
+    claude: claudeC.length > 0,
+    chatgpt: chatgptLoggedIn,
     perplexity: perplexityLoggedIn,
-    grok:       grokHasXAuth || grokHasSSO,
+    grok: grokHasXAuth || grokHasSSO,
   }
 }
 
@@ -1684,7 +1729,7 @@ async function logoutAi(aiName: AiName): Promise<void> {
         view.webContents.loadURL(loginUrl, { userAgent: DESKTOP_USER_AGENT }).catch(finish)
       })
     } else {
-      view.webContents.loadURL(loginUrl, { userAgent: DESKTOP_USER_AGENT }).catch(() => {})
+      view.webContents.loadURL(loginUrl, { userAgent: DESKTOP_USER_AGENT }).catch(() => { })
     }
   }
   mainWindow?.webContents.send('login-status-changed')
@@ -1705,10 +1750,10 @@ ipcMain.handle('open-login-window', (_e, aiName: AiName) => {
     // same persist:* session directories as the main app.  Without this the
     // child uses its own default userData ("Electron") and cookies are never
     // shared back to the main app.
-    const child  = spawn(process.execPath, [script], {
+    const child = spawn(process.execPath, [script], {
       detached: false,
-      stdio:    ['ignore', 'pipe', 'ignore'],   // capture stdout for cookie transfer
-      env:      { ...process.env, AI_COUNCIL_USERDATA: app.getPath('userData') },
+      stdio: ['ignore', 'pipe', 'ignore'],   // capture stdout for cookie transfer
+      env: { ...process.env, AI_COUNCIL_USERDATA: app.getPath('userData') },
     })
     let stdoutData = ''
     child.stdout?.on('data', (chunk: Buffer) => { stdoutData += chunk.toString() })
@@ -1725,16 +1770,16 @@ ipcMain.handle('open-login-window', (_e, aiName: AiName) => {
           const host = (c.domain ?? '').replace(/^\./, '')
           if (!host) continue
           await ses.cookies.set({
-            url:            `${protocol}://${host}${c.path ?? '/'}`,
-            name:           c.name,
-            value:          c.value,
-            domain:         c.domain,
-            path:           c.path,
-            secure:         c.secure,
-            httpOnly:       c.httpOnly,
+            url: `${protocol}://${host}${c.path ?? '/'}`,
+            name: c.name,
+            value: c.value,
+            domain: c.domain,
+            path: c.path,
+            secure: c.secure,
+            httpOnly: c.httpOnly,
             expirationDate: c.expirationDate,
-            sameSite:       c.sameSite as any,
-          }).catch(() => {/* ignore individual cookie errors */})
+            sameSite: c.sameSite as any,
+          }).catch(() => {/* ignore individual cookie errors */ })
         }
         await ses.cookies.flushStore()
       } catch { /* no cookies or JSON parse error — proceed anyway */ }
@@ -1803,12 +1848,13 @@ ipcMain.handle('clear-history', () => {
 
 // ── Workflow proceed (Next / Continue button) ─────────────────────────────────
 // Called by the renderer when the user clicks Next or Continue.
+// Optionally carries a new primaryAi if the user reassigned it at the pause point.
 // Resolves the pending pause-point promise inside start-workflow.
-ipcMain.handle('workflow-proceed', () => {
+ipcMain.handle('workflow-proceed', (_e, decision?: { primaryAi?: AiName }) => {
   if (workflowProceedResolver) {
     const resolve = workflowProceedResolver
     workflowProceedResolver = null
-    resolve()
+    resolve(decision ?? {})
   }
 })
 
@@ -1895,6 +1941,9 @@ ipcMain.handle(
     }
 
     // Use caller-supplied enabled list (falls back to all AIs for backwards compat)
+    // currentPrimary is a mutable tracker updated at each pause point when the
+    // user reassigns the Primary AI. It starts as the caller-supplied primaryAi.
+    let currentPrimary: AiName = primaryAi
     const reviewers = enabledAiNames.filter((n) => n !== primaryAi)
     const primaryConfig = getSelectors(primaryAi)
     const hasFiles = Array.isArray(attachedFiles) && attachedFiles.length > 0
@@ -1962,18 +2011,24 @@ ipcMain.handle(
       mainWindow?.webContents.send('draft-ready', { ai: primaryAi, draft: draftAnswer })
 
       // ── PAUSE POINT 1: Wait for user to click "Next" ──────────────────────
-      sendStatus(`✅ ${primaryAi} has finished. Review the answer above, then click Next to send to reviewers.`)
+      sendStatus(`✅ ${currentPrimary} has finished. Review the answer above, then click Next to send to reviewers.`)
       sendLog('info', '[Pause 1] Waiting for user to click Next')
-      await waitForUserProceed('after-draft')
+      const pause1Decision = await waitForUserProceed('after-draft')
+      if (pause1Decision.primaryAi && pause1Decision.primaryAi !== currentPrimary) {
+        sendLog('info', `[Pause 1] Primary AI reassigned: ${currentPrimary} → ${pause1Decision.primaryAi}`)
+        currentPrimary = pause1Decision.primaryAi
+      }
       sendLog('info', '[Pause 1] User clicked Next — proceeding to reviewer step')
 
       // ── STEP 5: Inject reviewer prompt into all reviewers simultaneously ──
+      // Recompute reviewers based on currentPrimary (may have changed at Pause 1)
+      const activeReviewers = enabledAiNames.filter((n) => n !== currentPrimary)
       sendStatus(MSG.sendingReviews())
-      sendLog('info', '[Step 5] Injecting review requests')
+      sendLog('info', `[Step 5] Injecting review requests to: ${activeReviewers.join(', ')}`)
 
       const filePaths = hasFiles ? attachedFiles!.map((f) => f.path) : []
 
-      const reviewPromises = reviewers.map(async (reviewerName) => {
+      const reviewPromises = activeReviewers.map(async (reviewerName) => {
         const reviewerView = views.get(reviewerName)!
         const reviewerConfig = getSelectors(reviewerName)
 
@@ -2009,7 +2064,7 @@ ipcMain.handle(
 
         // Build prompt: omit embedded file content when files were physically attached
         const prompt = buildReviewerPrompt(
-          primaryAi, query, draftAnswer,
+          currentPrimary, query, draftAnswer,
           filesAttached ? '' : fileContext   // skip text embed if CDP succeeded
         )
 
@@ -2070,56 +2125,63 @@ ipcMain.handle(
       // ── PAUSE POINT 2: Wait for user to click "Continue" ──────────────────
       sendStatus('✅ All reviewer feedback is ready. Review the panels above, then click Continue to generate the final answer.')
       sendLog('info', '[Pause 2] Waiting for user to click Continue')
-      await waitForUserProceed('after-reviews')
+      const pause2Decision = await waitForUserProceed('after-reviews')
+      if (pause2Decision.primaryAi && pause2Decision.primaryAi !== currentPrimary) {
+        sendLog('info', `[Pause 2] Primary AI reassigned: ${currentPrimary} → ${pause2Decision.primaryAi}`)
+        currentPrimary = pause2Decision.primaryAi
+      }
       sendLog('info', '[Pause 2] User clicked Continue — proceeding to final revision')
 
-      // ── STEP 7: Inject final revision prompt into Primary AI ──────────────
-      sendStatus(MSG.sendingRevision(primaryAi))
-      sendLog('info', '[Step 7] Sending final revision prompt')
+      // ── STEP 7: Inject final revision prompt into (current) Primary AI ─────
+      // currentPrimary may have been reassigned at Pause 2.
+      const finalPrimaryConfig = getSelectors(currentPrimary)
+      const finalPrimaryView = views.get(currentPrimary)!
+      sendStatus(MSG.sendingRevision(currentPrimary))
+      sendLog('info', `[Step 7] Sending final revision prompt to ${currentPrimary}`)
 
       const attachedFileNames = hasFiles ? attachedFiles!.map((f) => f.name) : []
       const finalPrompt = buildFinalRevisionPrompt(feedbackResults, hasFiles, attachedFileNames)
 
       const finalInputRes = await execWithFallback(
-        primaryView,
-        primaryConfig.inputSelectors,
+        finalPrimaryView,
+        finalPrimaryConfig.inputSelectors,
         (sel) => `!!document.querySelector(\`${sel}\`)`
       )
 
       if (!finalInputRes.success) {
-        throw new Error('Could not find Primary AI input box for final revision request.')
+        throw new Error(`Could not find ${currentPrimary} input box for final revision request.`)
       }
 
       const finalBaseline = await captureCurrentText(
-        primaryView,
-        primaryConfig.responseContainerSelectors
+        finalPrimaryView,
+        finalPrimaryConfig.responseContainerSelectors
       )
       sendLog('info', `[Step 7] Final baseline captured (${finalBaseline.length} chars)`)
 
-      await pasteText(primaryView, finalPrompt, finalInputRes.selector!)
+      await pasteText(finalPrimaryView, finalPrompt, finalInputRes.selector!)
       await sleep(CLICK_SEND_DELAY_MS)
-      await clickSend(primaryView, primaryConfig.sendButtonSelectors)
+      await clickSend(finalPrimaryView, finalPrimaryConfig.sendButtonSelectors)
 
       // ── STEP 8: Extract final revised answer ──────────────────────────────
-      sendStatus(MSG.waitingFinal(primaryAi))
+      sendStatus(MSG.waitingFinal(currentPrimary))
       sendLog('info', `[Step 8] Waiting ${INITIAL_RESPONSE_WAIT_MS}ms before polling...`)
       await sleep(INITIAL_RESPONSE_WAIT_MS)
       sendLog('info', '[Step 8] Polling final revised answer (ignoring baseline)')
 
       const finalAnswer = await waitForStableResponse(
-        primaryView,
-        primaryConfig.responseContainerSelectors,
+        finalPrimaryView,
+        finalPrimaryConfig.responseContainerSelectors,
         WORKFLOW_TIMEOUT_MS,
         STABLE_RESPONSE_MS,
-        primaryAi,
+        currentPrimary,
         finalBaseline
       )
 
-      // Save to history
+      // Save to history — record the AI that actually produced the final answer
       const historyEntry = {
         id: `${Date.now()}`,
         query,
-        primaryAi,
+        primaryAi: currentPrimary,
         result: finalAnswer,
         timestamp: Date.now(),
       }
@@ -2150,18 +2212,47 @@ function buildPrimaryPrompt(query: string, fileContext: string): string {
   return `${query}${fileContext}`
 }
 
+// ─── AI Persona Roles ─────────────────────────────────────────────────────────
+// Each AI reviewer gets a role that matches its native strengths so feedback
+// is diverse and complementary rather than echo-chamber repetitions.
+const AI_REVIEWER_PERSONAS: Record<AiName, { role: string; focus: string }> = {
+  gemini: {
+    role: 'Holistic Integrator & Accessibility Expert',
+    focus: 'You see the big picture. Focus on whether the overall structure makes sense, whether the content is accessible and readable to a broad audience, and whether key connections between ideas are clearly communicated.',
+  },
+  claude: {
+    role: 'Logic & Structure Analyst',
+    focus: 'You are a rigorous logical analyst. Focus on the internal consistency, structural soundness, argumentation quality, and whether conclusions follow from premises. Identify logical gaps or contradictions.',
+  },
+  chatgpt: {
+    role: 'Creative Strategist & Practicality Advisor',
+    focus: 'You are a creative problem-solver. Focus on whether the approach is practical and actionable, suggest creative alternatives or improvements, and evaluate whether the solution can be effectively implemented in the real world.',
+  },
+  perplexity: {
+    role: 'Fact-Checker & Research Specialist',
+    focus: 'You are a meticulous fact-checker with deep research skills. Focus on factual accuracy, identify any claims that may be outdated or unverified, and flag missing data or references that should be included.',
+  },
+  grok: {
+    role: 'Devil\'s Advocate & Edge Case Explorer',
+    focus: 'You are a bold contrarian thinker. Challenge assumptions, identify edge cases and failure modes, point out what could go wrong, and ensure the analysis holds up under adversarial scrutiny.',
+  },
+}
+
 function buildReviewerPrompt(
-  _primaryAi: AiName,
+  reviewerAi: AiName,
   query: string,
   draft: string,
   fileContext: string
 ): string {
   const fileSection = fileContext ? `\n${fileContext}\n` : ''
+  const persona = AI_REVIEWER_PERSONAS[reviewerAi]
 
-  return `Here is an analysis result for the following question${fileContext ? ' and attached file(s)' : ''}.
+  return `You are acting as a **${persona.role}**.
+${persona.focus}
 
 **Important rules:**
-- Do not mention the source AI name in your feedback
+- Provide feedback from the perspective of your assigned role above
+- Do not mention the source AI name of the original analysis
 - Do not include web search citations, source links, or reference numbers ([1][2], etc.)
 - Write only the feedback — do not attribute anything to any source
 
@@ -2172,10 +2263,10 @@ ${fileSection}
 ${draft}
 
 Please review the above analysis based on the following criteria:
-1. Accuracy (are there any factual errors?)
-2. Completeness (is any important content missing?)
+1. Accuracy (are there any factual errors, based on your role?)
+2. Completeness (is any important content missing from your perspective?)
 3. Clarity (are there any parts that are hard to understand?)
-4. Suggestions for improvement`
+4. Suggestions for improvement (specific, actionable recommendations from your role's viewpoint)`
 }
 
 function buildFinalRevisionPrompt(
@@ -2259,11 +2350,241 @@ function primaryAiDisplayName(ai: AiName): string {
     claude: 'Claude',
     chatgpt: 'ChatGPT',
     perplexity: 'Perplexity',
+    grok: 'Grok',
   }
-  return map[ai]
+  return map[ai] ?? ai
 }
 
-// ─── CDP File Attachment ──────────────────────────────────────────────────────
+// ─── AI Recommendation Engine ─────────────────────────────────────────────────
+// Uses the Gemini API (if key is set) to analyze the user's query and
+// recommend the best Primary AI and per-round suggestions.
+
+interface AiRecommendationResult {
+  recommended: AiName
+  reason: string
+  roundSuggestions: Array<{ ai: AiName; reason: string }>
+}
+
+/**
+ * Rule-based fallback recommendation — used when no API key is configured
+ * or when the API call fails.
+ */
+function ruleBasedRecommendation(query: string): AiRecommendationResult {
+  const q = query.toLowerCase()
+
+  // Coding / technical
+  if (/\b(code|coding|program|function|bug|error|debug|algorithm|api|typescript|javascript|python|react|node|sql|database|refactor|implement|class|module|async|await)\b/.test(q)) {
+    return {
+      recommended: 'claude',
+      reason: 'Coding & technical tasks — Claude excels at logic, structure, and code quality.',
+      roundSuggestions: [
+        { ai: 'chatgpt', reason: 'Practical implementation strategies' },
+        { ai: 'gemini', reason: 'Big-picture architecture review' },
+      ],
+    }
+  }
+
+  // Latest news / real-time facts
+  if (/\b(news|latest|recent|today|current|2024|2025|2026|trending|stock|price|weather|event|happen)\b/.test(q)) {
+    return {
+      recommended: 'perplexity',
+      reason: 'Real-time search & fact-checking — Perplexity retrieves the latest information.',
+      roundSuggestions: [
+        { ai: 'gemini', reason: 'Context & big-picture synthesis' },
+        { ai: 'claude', reason: 'Logical analysis of the findings' },
+      ],
+    }
+  }
+
+  // Creative writing / storytelling
+  if (/\b(write|story|creative|poem|script|novel|fiction|blog|essay|marketing|copy|slogan|brand|advertisement|content)\b/.test(q)) {
+    return {
+      recommended: 'chatgpt',
+      reason: 'Creative writing & strategy — ChatGPT has strong creative and practical writing skills.',
+      roundSuggestions: [
+        { ai: 'claude', reason: 'Structure & logical coherence review' },
+        { ai: 'grok', reason: 'Unconventional angles & edge case check' },
+      ],
+    }
+  }
+
+  // Controversial / sensitive / debate
+  if (/\b(debate|controversial|opinion|argument|pros.*cons|cons.*pros|ethical|moral|should|vs\.?|versus|compare|which is better)\b/.test(q)) {
+    return {
+      recommended: 'grok',
+      reason: 'Controversial & debate topics — Grok provides bold, unfiltered perspectives.',
+      roundSuggestions: [
+        { ai: 'claude', reason: 'Balanced logical analysis' },
+        { ai: 'perplexity', reason: 'Fact-checking & grounding claims' },
+      ],
+    }
+  }
+
+  // Long documents / data analysis
+  if (/\b(analyze|analysis|report|document|file|data|spreadsheet|summarize|summary|review|evaluate|assess)\b/.test(q)) {
+    return {
+      recommended: 'gemini',
+      reason: 'Document analysis & synthesis — Gemini handles long contexts and integration best.',
+      roundSuggestions: [
+        { ai: 'claude', reason: 'Logical & structural critique' },
+        { ai: 'perplexity', reason: 'Fact verification' },
+      ],
+    }
+  }
+
+  // Default: Gemini for general questions
+  return {
+    recommended: 'gemini',
+    reason: 'General question — Gemini provides a broad, well-rounded starting point.',
+    roundSuggestions: [
+      { ai: 'claude', reason: 'Logical depth & structure review' },
+      { ai: 'perplexity', reason: 'Fact-checking & research validation' },
+    ],
+  }
+}
+
+/**
+ * Use the Gemini API to intelligently recommend the best Primary AI for a query.
+ * Falls back to rule-based logic if the API call fails or no key is set.
+ */
+async function analyzeQueryForPrimaryAi(query: string): Promise<AiRecommendationResult> {
+  const apiKeys = store.get('apiKeys') as StoreSchema['apiKeys']
+  const defaultOrder = ['gemini', 'claude', 'chatgpt', 'perplexity', 'grok', 'groq']
+  const apiKeyOrder: string[] = (store.get('apiKeyOrder') as string[] | undefined) ?? defaultOrder
+
+  // Shared routing prompt — compact enough for fast/cheap models
+  const ROUTING_PROMPT = `You are an AI routing expert. A user submitted this query to a multi-AI review system.
+Analyze the query and recommend the BEST Primary AI from: gemini, claude, chatgpt, perplexity, grok.
+
+AI strengths:
+- gemini: Large document analysis, broad knowledge synthesis, accessibility
+- claude: Coding, logic, structure, long-form reasoning, technical writing
+- chatgpt: Creative writing, practical strategies, implementation advice
+- perplexity: Real-time facts, latest news, research & fact-checking
+- grok: Controversial topics, devil's advocate, edge cases, unfiltered analysis
+
+User Query: "${query.slice(0, 500)}"
+
+Respond ONLY with valid JSON (no markdown, no explanation):
+{"recommended":"<ai_name>","reason":"<one sentence>","roundSuggestions":[{"ai":"<ai_name>","reason":"<brief>"},{"ai":"<ai_name>","reason":"<brief>"}]}`
+
+  const validAis: AiName[] = ['gemini', 'claude', 'chatgpt', 'perplexity', 'grok']
+
+  /** Parse LLM text -> AiRecommendationResult or null */
+  const parseResult = (text: string): AiRecommendationResult | null => {
+    try {
+      const jsonText = text.replace(/```json?\s*/g, '').replace(/```\s*/g, '').trim()
+      const parsed = JSON.parse(jsonText) as AiRecommendationResult
+      return validAis.includes(parsed.recommended) ? parsed : null
+    } catch {
+      return null
+    }
+  }
+
+  // Iterate providers in user-defined order
+  for (const provider of apiKeyOrder) {
+    const key = (apiKeys as Record<string, string | undefined>)?.[provider]
+    if (!key) continue  // no key for this provider -> skip
+
+    try {
+      let responseText = ''
+
+      if (provider === 'gemini') {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: ROUTING_PROMPT }] }],
+              generationConfig: { temperature: 0.1, maxOutputTokens: 300 },
+            }),
+          }
+        )
+        if (res.ok) {
+          const data = await res.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
+          responseText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+        }
+
+      } else if (provider === 'claude') {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': key,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-3-haiku-20240307',
+            max_tokens: 300,
+            messages: [{ role: 'user', content: ROUTING_PROMPT }],
+          }),
+        })
+        if (res.ok) {
+          const data = await res.json() as { content?: Array<{ text?: string }> }
+          responseText = data?.content?.[0]?.text ?? ''
+        }
+
+      } else if (provider === 'chatgpt') {
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${key}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            max_tokens: 300,
+            temperature: 0.1,
+            messages: [{ role: 'user', content: ROUTING_PROMPT }],
+          }),
+        })
+        if (res.ok) {
+          const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> }
+          responseText = data?.choices?.[0]?.message?.content ?? ''
+        }
+
+      } else if (provider === 'groq') {
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${key}`,
+          },
+          body: JSON.stringify({
+            model: 'llama3-8b-8192',
+            max_tokens: 300,
+            temperature: 0.1,
+            messages: [{ role: 'user', content: ROUTING_PROMPT }],
+          }),
+        })
+        if (res.ok) {
+          const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> }
+          responseText = data?.choices?.[0]?.message?.content ?? ''
+        }
+
+      } else {
+        // perplexity / grok (xAI) — no routing completion endpoint configured; skip
+        continue
+      }
+
+      if (responseText) {
+        const result = parseResult(responseText)
+        if (result) {
+          sendLog('info', `[recommend] ${provider} -> ${result.recommended}: ${result.reason}`)
+          return result
+        }
+      }
+    } catch (err) {
+      sendLog('warn', `[recommend] ${provider} failed: ${err instanceof Error ? err.message : String(err)} — trying next`)
+    }
+  }
+
+  // All providers failed or no key available -> rule-based fallback
+  sendLog('info', '[recommend] Rule-based fallback (no working API key)')
+  return ruleBasedRecommendation(query)
+}
+
 // Upload button selectors: clicking these reveals the hidden <input type="file">
 // in each AI's UI before we set files programmatically via CDP.
 const FILE_UPLOAD_BUTTON_SELECTORS: Partial<Record<AiName, string[]>> = {

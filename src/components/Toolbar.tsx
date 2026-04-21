@@ -1,5 +1,5 @@
 import { useRef, KeyboardEvent } from 'react'
-import { AiName, AI_DISPLAY_NAMES, AI_COLORS, AI_ICONS, AttachedFile, WorkflowStage } from '../types'
+import { AiName, AI_DISPLAY_NAMES, AI_COLORS, AI_ICONS, AiRecommendation, AttachedFile, WorkflowStage } from '../types'
 
 interface ToolbarProps {
   primaryAi: AiName
@@ -8,6 +8,8 @@ interface ToolbarProps {
   isRunning: boolean
   workflowStage: WorkflowStage
   attachedFiles: AttachedFile[]
+  recommendation: AiRecommendation | null
+  analysisLoading: boolean
   onPrimaryAiChange: (ai: AiName) => void
   onEnabledAisChange: (ais: AiName[]) => void
   onQueryChange: (q: string) => void
@@ -37,6 +39,8 @@ export default function Toolbar({
   isRunning,
   workflowStage,
   attachedFiles,
+  recommendation,
+  analysisLoading,
   onPrimaryAiChange,
   onEnabledAisChange,
   onQueryChange,
@@ -113,11 +117,13 @@ export default function Toolbar({
             {AI_NAMES.map((ai) => {
               const color = AI_COLORS[ai]
               const isSelected = primaryAi === ai
+              // Chip is interactive when: workflow not running, OR at a pause point
+              const chipDisabled = isRunning && !isAtPausePoint
               return (
                 <button
                   key={ai}
                   id={`btn-primary-${ai}`}
-                  className={`ai-chip ${isSelected ? 'selected' : ''}`}
+                  className={`ai-chip ${isSelected ? 'selected' : ''} ${isAtPausePoint ? 'reassignable' : ''}`}
                   style={
                     isSelected
                       ? {
@@ -129,12 +135,19 @@ export default function Toolbar({
                         } as React.CSSProperties
                       : {}
                   }
-                  onClick={() => !isRunning && onPrimaryAiChange(ai)}
-                  disabled={isRunning}
-                  title={AI_DISPLAY_NAMES[ai]}
+                  onClick={() => !chipDisabled && onPrimaryAiChange(ai)}
+                  disabled={chipDisabled}
+                  title={
+                    isAtPausePoint
+                      ? `Reassign Primary AI to ${AI_DISPLAY_NAMES[ai]}`
+                      : AI_DISPLAY_NAMES[ai]
+                  }
                 >
                   <span className="ai-chip-icon">{AI_ICONS[ai]}</span>
                   <span className="ai-chip-name">{AI_DISPLAY_NAMES[ai]}</span>
+                  {isAtPausePoint && isSelected && (
+                    <span className="ai-chip-reassign-hint">click to reassign</span>
+                  )}
                 </button>
               )
             })}
@@ -245,6 +258,48 @@ export default function Toolbar({
           )}
         </button>
       </div>
+
+      {/* ── AI Recommendation Banner — shown while typing query ── */}
+      {!isRunning && (analysisLoading || recommendation) && (
+        <div className="recommendation-bar">
+          {analysisLoading ? (
+            <div className="recommendation-loading">
+              <span className="rec-spinner" />
+              <span>Analyzing query…</span>
+            </div>
+          ) : recommendation ? (
+            <div className="recommendation-content">
+              <div className="recommendation-left">
+                <span className="rec-icon">⚡</span>
+                <span className="rec-label">Recommended Primary AI:</span>
+                <span
+                  className="rec-ai-badge"
+                  style={{
+                    color: AI_COLORS[recommendation.recommended].primary,
+                    borderColor: AI_COLORS[recommendation.recommended].primary,
+                    background: `${AI_COLORS[recommendation.recommended].primary}18`,
+                  }}
+                >
+                  {AI_ICONS[recommendation.recommended]}&nbsp;{AI_DISPLAY_NAMES[recommendation.recommended]}
+                </span>
+                <span className="rec-reason">{recommendation.reason}</span>
+              </div>
+              <button
+                id="btn-apply-recommendation"
+                className="rec-apply-btn"
+                style={{
+                  '--rec-color': AI_COLORS[recommendation.recommended].primary,
+                } as React.CSSProperties}
+                onClick={() => onPrimaryAiChange(recommendation.recommended)}
+                disabled={primaryAi === recommendation.recommended}
+                title="Apply this recommendation"
+              >
+                {primaryAi === recommendation.recommended ? '✓ Applied' : 'Apply'}
+              </button>
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {/* ── Attachment bar — only rendered when files are attached ── */}
       {attachedFiles.length > 0 && (

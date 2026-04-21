@@ -42,6 +42,12 @@ export interface HistoryItem {
   timestamp: number
 }
 
+export interface AiRecommendation {
+  recommended: AiName
+  reason: string
+  roundSuggestions: Array<{ ai: AiName; reason: string }>
+}
+
 export interface AiPanelState {
   name: AiName
   loaded: boolean
@@ -117,7 +123,7 @@ declare global {
         query: string
         attachedFiles?: AttachedFile[]
       }) => Promise<WorkflowResult>
-      workflowProceed: () => Promise<void>
+      workflowProceed: (decision?: { primaryAi?: AiName }) => Promise<void>
       openFileDialog: () => Promise<AttachedFile[]>
       saveFile: (params: {
         content: string
@@ -129,6 +135,11 @@ declare global {
       logoutAi: (ai: AiName) => Promise<boolean>
       logoutAll: () => Promise<boolean>
       onLoginStatusChanged: (cb: () => void) => () => void
+      getApiKeys: () => Promise<Partial<Record<AiName, string>> & { groq?: string }>
+      setApiKeys: (keys: Partial<Record<AiName, string>> & { groq?: string }) => Promise<boolean>
+      getApiKeyOrder: () => Promise<string[]>
+      setApiKeyOrder: (order: string[]) => Promise<boolean>
+      analyzeQuery: (query: string) => Promise<AiRecommendation | null>
       setEnabledAis: (ais: AiName[]) => Promise<boolean>
       setAttachmentBarVisible: (visible: boolean) => Promise<void>
       setFinalPanelExpanded: (expanded: boolean) => Promise<void>

@@ -4,7 +4,7 @@ name: Build & Release
 on:
   push:
     tags:
-      - 'v*'          # Runs automatically when a tag like v1.0.6 is pushed
+      - 'v*'           # Runs automatically when a tag like v1.0.7 is pushed
   workflow_dispatch:   # Also allows manual run from the GitHub Actions UI
 
 # ── Permissions ───────────────────────────────────────────────────────────────
@@ -26,7 +26,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -78,7 +78,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -116,7 +116,7 @@ jobs:
     name: 🚀 Create GitHub Release
     needs: [build-mac, build-windows]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')   # 태그 push 시에만 Release 생성
+    if: startsWith(github.ref, 'refs/tags/')
 
     steps:
       - name: Download all artifacts
@@ -127,29 +127,66 @@ jobs:
       - name: List files
         run: find dist-all -type f
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "AI Council ${{ github.ref_name }}"
+          name: "AI Council ${{ github.ref_name }} — Council Chat Mode"
           draft: false
           prerelease: false
+          make_latest: true
+          fail_on_unmatched_files: false
           files: |
             dist-all/mac-dmg/*.dmg
             dist-all/windows-installer/*.exe
           body: |
-            ## AI Council ${{ github.ref_name }}
+            ### ✨ What's New in ${{ github.ref_name }}
 
-            ### ✨ What's New
-            - **API Keys Tab** — Store API keys for Gemini, Claude, ChatGPT, Perplexity, Grok, and Groq directly in the Accounts panel. Drag-and-drop to set provider priority for query analysis.
-            - **AI Recommendation Engine** — As you type a query, the app recommends the best Primary AI with a reason. Falls back to rule-based logic when no API key is set.
-            - **Mid-Workflow Primary AI Reassignment** — Switch the Primary AI at either pause point (▶▶ Next or ✓ Continue) and the workflow continues with the new selection.
+            #### 💬 Council Chat Mode
+            - Brand-new group-chat panel alongside the existing Workflow mode
+            - Bubble-style UI with left/right alignment (inspired by WhatsApp/KakaoTalk)
+            - `@mention` system: use `@Gemini`, `@Claude`, `@all` to target specific AIs
+            - 2-sentence preview with "▼ Read More" toggle for long responses
+            - Real-time streaming response display with typing indicator
+
+            #### 🔀 Dual Interaction Mode
+            - Seamless toggle between **Workflow** (structured 3-step review) and **Council Chat** (free-form discussion)
+            - Participants and primary AI selection carry across both modes
+            - One-click bridge from Workflow results into a Council Chat discussion
+
+            #### 💾 Saved Sessions (Snapshots)
+            - Save / load any Council Chat session with full message and UI state
+            - Favorites, labels, notes, archive, bulk-delete, export/import as JSON, duplicate
+            - Auto-saves every 3 seconds after any change so you never lose a conversation
+
+            #### 🎯 AI Moderator
+            - Real-time consensus analysis of the ongoing conversation
+            - Suggests the next speaker and a ready-to-send follow-up prompt
+            - **Apply** (paste to input) or **Send Now** for instant dispatch
+
+            #### 📌 Candidate Pinning & Comparison
+            - Pin any AI reply as a candidate answer
+            - Side-by-side comparison panel for all pinned candidates
+            - Generate a **merged draft** from two or more pinned replies before handing off to Workflow
+
+            #### 🔗 Workflow Handoff
+            - Move the full Council Chat transcript to Workflow as a structured seed prompt
+            - Move a single pinned reply to Workflow with one click
+            - Use a selected or merged candidate as the Workflow starting draft
+
+            #### 🌐 Response Language Detection
+            - Automatic detection of the user's script (Korean, Japanese, Chinese, Arabic, Cyrillic, and more)
+            - A language directive is injected into every prompt so AIs always reply in your language
+            - Applies to Workflow prompts, reviewer feedback, revisions, and Council Chat messages
+
+            ---
 
             ### 📥 Installation
-            | Platform | File | Instructions |
-            |----------|------|--------------|
-            | 🍎 macOS (Intel) | `AI-Council-${{ github.ref_name }}-x64.dmg` | Open DMG, drag AI Council to Applications |
-            | 🍎 macOS (Apple Silicon M1/M2/M3/M4) | `AI-Council-${{ github.ref_name }}-arm64.dmg` | Same as above |
-            | 🪟 Windows 10 / 11 | `AI-Council-Setup.exe` | Double-click to run the setup wizard |
+
+            | Platform | File |
+            |----------|------|
+            | 🍎 macOS (Apple Silicon) | `AI-Council-${{ github.ref_name }}-arm64.dmg` |
+            | 🍎 macOS (Intel) | `AI-Council-${{ github.ref_name }}-x64.dmg` |
+            | 🪟 Windows | `AI-Council-Setup.exe` |
 
             > **macOS Gatekeeper:** If macOS blocks the app, go to System Settings → Privacy & Security → Open Anyway, or run `xattr -cr "/Applications/AI Council.app"` in Terminal.
             > **Windows SmartScreen:** Click "More info" → "Run anyway".

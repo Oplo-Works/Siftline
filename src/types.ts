@@ -1,9 +1,11 @@
-export type AiName = 'gemini' | 'claude' | 'chatgpt' | 'perplexity' | 'grok'
+export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'groq' | 'perplexity'
+
+export type InteractionMode = 'workflow' | 'chat'
 
 export interface AttachedFile {
   name: string
   path: string
-  ext: string   // lowercase, e.g. 'pdf', 'docx', 'xlsx', 'txt', 'csv', 'md'
+  ext: string
 }
 
 export interface ParsedFileContent {
@@ -20,14 +22,7 @@ export interface WorkflowResult {
   error?: string
 }
 
-/**
- * Tracks which manual gate the UI is currently at.
- * - 'idle'           : workflow not running
- * - 'running'        : workflow running automatically (no user action needed)
- * - 'waiting-next'   : Primary AI answered; button should show "Next"
- * - 'waiting-continue': Reviewers done; button should show "Continue"
- */
-export type WorkflowStage = 'idle' | 'running' | 'waiting-next' | 'waiting-continue'
+export type WorkflowStage = 'idle' | 'running' | 'waiting-next' | 'waiting-continue' | 'ready-next-round'
 
 export interface LogEntry {
   level: 'info' | 'warn' | 'error'
@@ -69,36 +64,171 @@ export interface AppState {
   showHistory: boolean
 }
 
+export interface AiRolePreset {
+  title: string
+  detail: string
+}
+
+export interface CouncilMessage {
+  id: string
+  kind: 'user' | 'assistant' | 'system'
+  text: string
+  createdAt: number
+  source?: 'chat' | 'workflow-bridge'
+  ai?: AiName
+  pending?: boolean
+  error?: boolean
+}
+
+export interface CouncilIntentState {
+  kind: 'mention' | 'all' | 'none' | 'unsupported'
+  targetAi?: AiName
+  targetAis?: AiName[]
+  note: string
+}
+
+export interface CouncilFailedTurn {
+  ai: AiName
+  promptText: string
+  errorMessage: string
+}
+
+export interface CouncilRoomState {
+  participants: AiName[]
+  primaryAi: AiName
+  status: 'idle' | 'running'
+  pendingAi: AiName | null
+  messages: CouncilMessage[]
+  lastIntent: CouncilIntentState | null
+  failedTurn: CouncilFailedTurn | null
+}
+
+export interface CouncilSendPayload {
+  text: string
+  participants: AiName[]
+  primaryAi: AiName
+}
+
+export interface WorkflowCouncilBridgeResult {
+  room: CouncilRoomState
+  bridged: boolean
+  note: string
+}
+
+export interface CouncilContextPayload {
+  participants: AiName[]
+  primaryAi: AiName
+}
+
+export interface CouncilUiState {
+  pinnedCandidateIds: string[]
+  selectedCandidateId: string | null
+}
+
+export interface CouncilSnapshotInsight {
+  workflowReady: boolean
+  workflowPreview: string | null
+  moderatorConsensus: string | null
+  moderatorNextSpeaker: AiName | null
+  moderatorNextPrompt: string | null
+}
+
+export type CouncilSnapshotLifecycle = 'in-progress' | 'completed'
+
+export interface CouncilSnapshotSummary {
+  id: string
+  title: string
+  label: string | null
+  note: string | null
+  savedAt: number
+  lastOpenedAt: number
+  messageCount: number
+  isActive: boolean
+  isDirty: boolean
+  isFavorite: boolean
+  isArchived: boolean
+  lifecycle: CouncilSnapshotLifecycle
+  primaryAi: AiName
+  participants: AiName[]
+  insight: CouncilSnapshotInsight
+}
+
+export interface CouncilSnapshotTransferResult {
+  ok: boolean
+  title?: string
+  filePath?: string
+  reason?: string
+}
+
+export interface CouncilSnapshotPayload {
+  room: CouncilRoomState
+  uiState: CouncilUiState
+  insight?: Partial<CouncilSnapshotInsight>
+}
+
+export const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'groq', 'perplexity']
+
+export const DEFAULT_ENABLED_AIS: AiName[] = ['chatgpt', 'claude', 'gemini']
+
 export const AI_DISPLAY_NAMES: Record<AiName, string> = {
-  gemini: 'Gemini',
-  claude: 'Claude',
   chatgpt: 'ChatGPT',
-  perplexity: 'Perplexity',
+  claude: 'Claude',
+  gemini: 'Gemini',
   grok: 'Grok',
+  groq: 'Groq',
+  perplexity: 'Perplexity',
 }
 
 export const AI_COLORS: Record<AiName, { primary: string; glow: string; badge: string }> = {
-  gemini: { primary: '#4285f4', glow: 'rgba(66,133,244,0.35)', badge: '#4285f4' },
-  claude: { primary: '#cc785c', glow: 'rgba(204,120,92,0.35)', badge: '#cc785c' },
   chatgpt: { primary: '#10a37f', glow: 'rgba(16,163,127,0.35)', badge: '#10a37f' },
-  perplexity: { primary: '#20b2aa', glow: 'rgba(32,178,170,0.35)', badge: '#20b2aa' },
+  claude: { primary: '#cc785c', glow: 'rgba(204,120,92,0.35)', badge: '#cc785c' },
+  gemini: { primary: '#4285f4', glow: 'rgba(66,133,244,0.35)', badge: '#4285f4' },
   grok: { primary: '#7c3aed', glow: 'rgba(124,58,237,0.35)', badge: '#7c3aed' },
+  groq: { primary: '#f97316', glow: 'rgba(249,115,22,0.35)', badge: '#f97316' },
+  perplexity: { primary: '#20b2aa', glow: 'rgba(32,178,170,0.35)', badge: '#20b2aa' },
 }
 
 export const AI_ICONS: Record<AiName, string> = {
-  gemini: '✦',
-  claude: '◎',
-  chatgpt: '⊕',
-  perplexity: '◈',
-  grok: '⚡',
+  chatgpt: 'C',
+  claude: 'A',
+  gemini: 'G',
+  grok: 'X',
+  groq: 'Q',
+  perplexity: 'P',
 }
 
-/** UI status messages — centralised for easy editing/i18n */
+export const AI_ROLE_PRESETS: Record<AiName, AiRolePreset> = {
+  chatgpt: {
+    title: 'Practical Coach',
+    detail: 'Checks practical usefulness and clarity.',
+  },
+  claude: {
+    title: 'Logic Auditor',
+    detail: 'Checks reasoning and structural rigor.',
+  },
+  gemini: {
+    title: 'Systems Synthesizer',
+    detail: 'Adds big-picture context and framing.',
+  },
+  grok: {
+    title: 'Adversarial Critic',
+    detail: 'Pushes on assumptions and edge cases.',
+  },
+  groq: {
+    title: 'Concise Alternative',
+    detail: 'Suggests a shorter, simpler alternative.',
+  },
+  perplexity: {
+    title: 'Fact / Freshness',
+    detail: 'Verifies accuracy and freshness.',
+  },
+}
+
 export const STATUS_MESSAGES = {
   INITIAL: 'Loading AI websites... Please log in to each service.',
   WORKFLOW_START: 'Starting workflow...',
-  WORKFLOW_DONE: '✅ Done! Final answer is ready.',
-  NO_QUERY: '❗ Please enter a question.',
+  WORKFLOW_DONE: 'Done! Final answer is ready.',
+  NO_QUERY: 'Please enter a question.',
   injecting: (ai: AiName) => `Typing question into ${ai}...`,
   sending: (ai: AiName) => `Sending question to ${ai}...`,
   waitingPrimary: (ai: AiName) => `${ai} is generating a response... (up to 2 min)`,
@@ -107,7 +237,7 @@ export const STATUS_MESSAGES = {
   collectingFeedbacks: () => 'Collecting feedback from all reviewers...',
   sendingRevision: (ai: AiName) => `Sending final revision request to ${ai}...`,
   waitingFinal: (ai: AiName) => `Waiting for ${ai}'s final revised answer...`,
-  error: (msg: string) => `❌ Error: ${msg}`,
+  error: (msg: string) => `Error: ${msg}`,
 } as const
 
 declare global {
@@ -143,6 +273,42 @@ declare global {
       setEnabledAis: (ais: AiName[]) => Promise<boolean>
       setAttachmentBarVisible: (visible: boolean) => Promise<void>
       setFinalPanelExpanded: (expanded: boolean) => Promise<void>
+      getCouncilRoom: () => Promise<CouncilRoomState>
+      getCouncilUiState: () => Promise<CouncilUiState>
+      setCouncilUiState: (state: CouncilUiState) => Promise<CouncilUiState>
+      getCouncilSnapshots: () => Promise<CouncilSnapshotSummary[]>
+      saveCouncilSnapshot: (payload: CouncilSnapshotPayload & { title?: string }) => Promise<CouncilSnapshotSummary[]>
+      loadCouncilSnapshot: (snapshotId: string) => Promise<CouncilSnapshotPayload | null>
+      toggleCouncilSnapshotFavorite: (snapshotId: string) => Promise<CouncilSnapshotSummary[]>
+      renameCouncilSnapshot: (snapshotId: string, title: string) => Promise<CouncilSnapshotSummary[]>
+      annotateCouncilSnapshot: (snapshotId: string, meta: {
+        label?: string | null
+        note?: string | null
+      }) => Promise<CouncilSnapshotSummary[]>
+      toggleCouncilSnapshotLifecycle: (snapshotId: string) => Promise<CouncilSnapshotSummary[]>
+      toggleCouncilSnapshotArchived: (snapshotId: string) => Promise<CouncilSnapshotSummary[]>
+      exportCouncilSnapshot: (snapshotId: string) => Promise<CouncilSnapshotTransferResult>
+      importCouncilSnapshot: () => Promise<{
+        snapshots: CouncilSnapshotSummary[]
+        importedTitle?: string
+      }>
+      duplicateCouncilSnapshot: (snapshotId: string) => Promise<CouncilSnapshotSummary[]>
+      deleteCouncilSnapshot: (snapshotId: string) => Promise<CouncilSnapshotSummary[]>
+      syncCouncilRoomContext: (payload: CouncilContextPayload) => Promise<CouncilRoomState>
+      sendCouncilMessage: (payload: CouncilSendPayload) => Promise<CouncilRoomState>
+      bridgeWorkflowToCouncil: (payload: {
+        participants: AiName[]
+        primaryAi: AiName
+      }) => Promise<WorkflowCouncilBridgeResult>
+      resetCouncilRoom: (payload?: Partial<CouncilContextPayload>) => Promise<CouncilRoomState>
+      retryCouncilTurn: () => Promise<CouncilRoomState>
+      skipCouncilTurn: () => Promise<CouncilRoomState>
+      setCouncilChatVisible: (visible: boolean) => Promise<void>
+      switchInteractionMode: (payload: {
+        mode: InteractionMode
+        participants: AiName[]
+        primaryAi: AiName
+      }) => Promise<CouncilRoomState>
       minimize: () => Promise<void>
       maximize: () => Promise<void>
       close: () => Promise<void>
@@ -154,6 +320,8 @@ declare global {
       onDraftReady: (cb: (data: { ai: AiName; draft: string }) => void) => () => void
       onFeedbackReady: (cb: (data: { ai: AiName; feedback: string }) => void) => () => void
       onWaitingForUser: (cb: (data: { stage: 'after-draft' | 'after-reviews' }) => void) => () => void
+      onCouncilRoomUpdate: (cb: (room: CouncilRoomState) => void) => () => void
+      onCouncilStreamChunk: (cb: (data: { ai: AiName; messageId: string; text: string }) => void) => () => void
     }
   }
 }

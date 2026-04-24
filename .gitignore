@@ -26,3 +26,20 @@ npm-debug.log*
 # Temp icon assets (generated at build time)
 ai-council.iconset/
 .claude/
+
+# Runtime generated output & session dumps
+outputs/
+sessions/
+
+# Marketing / launch collateral (not part of the shipped app)
+AI_Council_Launch_Script.docx
+AI_Council_Substack_Post.docx
+AI_Council_TTS_Script.txt
+AI_Council_Video_Package.docx
+AI_Council_Video_Package.html
+AI_Council_Group_Chat_Upgrade_Plan.html
+AI_Council_Group_Chat_Upgrade_Plan.md
+
+# Substack helper scripts (standalone utility, not part of AI Council runtime)
+builder_substack.py
+builder_substack.bat

@@ -1,9 +1,8 @@
 /**
- * Claude AI login session preparation script
+ * Claude Login Session Script
  *
- * - Log in to your Anthropic account in the persist:claude partition to save cookies.
- * - Saved cookies allow the Claude panel to load normally when the main app (AI Council) runs.
- * - Automatically closes when the window is closed after login.
+ * Opens a standalone Claude login window in the persist:claude partition so
+ * Google OAuth can finish without parent-window WebAuthn/passkey interference.
  */
 
 import { app, BrowserWindow, session } from 'electron'
@@ -12,67 +11,77 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// Use same UA/partition as main app
-const CHROME_FULL  = process.versions.chrome
+const CHROME_FULL = process.versions.chrome
 const CHROME_MAJOR = CHROME_FULL.split('.')[0]
-const DESKTOP_UA   = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_MAJOR}.0.0.0 Safari/537.36`
-const PARTITION    = 'persist:claude'   // Same partition as main app
+const DESKTOP_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_MAJOR}.0.0.0 Safari/537.36`
+const PARTITION = 'persist:claude'
 
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled')
+app.commandLine.appendSwitch('disable-quic')
+app.commandLine.appendSwitch('disable-features', 'WebAuthentication,WebAuthenticationCable,WebAuthenticationConditionalUI')
+
+if (process.env.AI_COUNCIL_USERDATA) {
+  app.setPath('userData', process.env.AI_COUNCIL_USERDATA)
+}
 
 app.whenReady().then(async () => {
   const ses = session.fromPartition(PARTITION)
+
+  ses.setPermissionRequestHandler((_wc, permission, callback) => {
+    if (permission === 'publickey-credentials-get' || permission === 'publickey-credentials-create') {
+      callback(false)
+      return
+    }
+    callback(true)
+  })
   ses.setUserAgent(DESKTOP_UA)
 
-  // ── UA header spoofing (Same as main app) ─────────────────────────────────────
   ses.webRequest.onBeforeSendHeaders({ urls: ['*://*/*'] }, (details, callback) => {
     const headers = {}
-    const SKIP = new Set([
+    const skip = new Set([
       'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform',
-      'sec-ch-ua-full-version-list', 'user-agent',
+      'sec-ch-ua-full-version-list', 'user-agent', 'x-client-data',
     ])
     for (const [k, v] of Object.entries(details.requestHeaders)) {
-      if (!SKIP.has(k.toLowerCase())) headers[k] = v
+      if (!skip.has(k.toLowerCase())) headers[k] = v
     }
-    headers['user-agent']                   = DESKTOP_UA
-    headers['sec-ch-ua']                    = `"Chromium";v="${CHROME_MAJOR}", "Google Chrome";v="${CHROME_MAJOR}", "Not-A.Brand";v="24"`
-    headers['sec-ch-ua-mobile']             = '?0'
-    headers['sec-ch-ua-platform']           = '"Windows"'
-    headers['sec-ch-ua-full-version-list']  = `"Chromium";v="${CHROME_FULL}", "Google Chrome";v="${CHROME_FULL}", "Not-A.Brand";v="24.0.0.0"`
+    headers['user-agent'] = DESKTOP_UA
+    headers['sec-ch-ua'] = `"Chromium";v="${CHROME_MAJOR}", "Google Chrome";v="${CHROME_MAJOR}", "Not-A.Brand";v="24"`
+    headers['sec-ch-ua-mobile'] = '?0'
+    headers['sec-ch-ua-platform'] = '"Windows"'
+    headers['sec-ch-ua-full-version-list'] = `"Chromium";v="${CHROME_FULL}", "Google Chrome";v="${CHROME_FULL}", "Not-A.Brand";v="24.0.0.0"`
     callback({ requestHeaders: headers })
   })
 
-  // ── Login Window ────────────────────────────────────────────────────────────
   const SPOOF_PRELOAD = path.join(__dirname, 'electron', 'preload-chrome-spoof.js')
+
   const win = new BrowserWindow({
-    width:  520,
+    width: 520,
     height: 720,
-    title:  'Claude Login — AI Council Session Preparation',
+    title: 'Claude Login - AI Council Session Setup',
     webPreferences: {
-      partition:        PARTITION,
-      preload:          SPOOF_PRELOAD,
+      partition: PARTITION,
+      preload: SPOOF_PRELOAD,
       contextIsolation: false,
-      nodeIntegration:  false,
+      nodeIntegration: false,
     },
   })
 
   win.setMenuBarVisibility(false)
   win.webContents.setUserAgent(DESKTOP_UA)
 
-  // ── Google OAuth popup handling ────────────────────────────────────────────────
-  // Google OAuth popup opens when clicking "Continue with Google" on claude.ai.
-  // Must apply same preload + partition + UA to popups so Google doesn't detect Electron.
   const OAUTH_ALLOWED = [
     'accounts.google.com',
     'oauth2.googleapis.com',
     'accounts.youtube.com',
     'claude.ai',
+    'anthropic.com',
   ]
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     try {
       const hostname = new URL(url).hostname.replace(/^www\./, '')
-      const allowed = OAUTH_ALLOWED.some(d => hostname === d || hostname.endsWith('.' + d))
+      const allowed = OAUTH_ALLOWED.some((d) => hostname === d || hostname.endsWith('.' + d))
       if (!allowed) return { action: 'deny' }
     } catch {
       return { action: 'deny' }
@@ -82,83 +91,76 @@ app.whenReady().then(async () => {
       overrideBrowserWindowOptions: {
         width: 500,
         height: 660,
+        title: 'Sign in',
         webPreferences: {
-          partition:        PARTITION,
-          preload:          SPOOF_PRELOAD,
+          partition: PARTITION,
+          preload: SPOOF_PRELOAD,
           contextIsolation: false,
-          nodeIntegration:  false,
+          nodeIntegration: false,
         },
       },
     }
   })
 
-  // Apply UA + session cookie detection logic to popup windows
-  win.webContents.on('did-create-window', (popup) => {
+  let finished = false
+
+  async function hasClaudeSession() {
+    const cookies = await ses.cookies.get({})
+    return cookies.some((c) =>
+      (c.domain.includes('claude.ai') || c.domain.includes('anthropic.com')) &&
+      (
+        c.name === 'sessionKey' ||
+        c.name === '__Secure-next-auth.session-token' ||
+        c.name === 'lastActiveOrg' ||
+        c.name.startsWith('ch_')
+      )
+    )
+  }
+
+  async function checkAndFinish() {
+    if (finished) return
+    const loginDone = await hasClaudeSession()
+    if (!loginDone) return
+
+    finished = true
+    const allCookies = await ses.cookies.get({})
+    process.stdout.write(JSON.stringify(allCookies) + '\n')
+    await ses.cookies.flushStore()
+
+    win.setTitle('Login complete - closing in 3 s')
+    win.webContents.executeJavaScript(`
+      document.body.innerHTML =
+        '<div style="font-family:sans-serif;text-align:center;padding:60px 30px;background:#fdf4ff">' +
+        '<div style="font-size:64px">&#x2705;</div>' +
+        '<h2 style="color:#6b21a8;margin:16px 0">Claude login complete!</h2>' +
+        '<p style="color:#7e22ce">Claude will now load correctly in AI Council.</p>' +
+        '<p style="color:#6b7280;font-size:13px;margin-top:24px">Closing in 3 seconds...</p>' +
+        '</div>'
+    `).catch(() => {})
+    setTimeout(() => app.quit(), 3000)
+  }
+
+  const attachPopupHandlers = (popup) => {
     popup.setMenuBarVisibility(false)
     popup.webContents.setUserAgent(DESKTOP_UA)
-
-    popup.webContents.on('did-navigate', async (_e, url) => {
-      // Login complete when returning to claude.ai after Google OAuth
-      if (!url.startsWith('https://claude.ai')) return
-      const cookies = await ses.cookies.get({ domain: 'claude.ai' })
-      const hasSession = cookies.length > 0
-      if (hasSession) {
-        console.log(`✅ Claude login complete (OAuth) — ${cookies.length} cookies saved`)
-        await ses.cookies.flushStore()
-        win.setTitle('✅ Login Complete — Closing window in 3 seconds')
-        win.webContents.executeJavaScript(`
-          document.body.innerHTML =
-            '<div style="font-family:sans-serif;text-align:center;padding:60px 30px;background:#fdf4ff">' +
-            '<div style="font-size:64px">✅</div>' +
-            '<h2 style="color:#6b21a8;margin:16px 0">Claude Login Complete!</h2>' +
-            '<p style="color:#7e22ce">Claude panel will now load correctly in the AI Council app.</p>' +
-            '<p style="color:#6b7280;font-size:13px;margin-top:24px">Window will close automatically in 3 seconds...</p>' +
-            '</div>'
-        `).catch(() => {})
-        setTimeout(() => app.quit(), 3000)
+    popup.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => {
+      if (permission === 'publickey-credentials-get' || permission === 'publickey-credentials-create') {
+        callback(false)
+        return
       }
+      callback(true)
     })
-  })
+    popup.webContents.on('did-navigate', () => setTimeout(() => checkAndFinish(), 500))
+    popup.webContents.on('did-navigate-in-page', () => setTimeout(() => checkAndFinish(), 500))
+    popup.webContents.on('did-finish-load', () => setTimeout(() => checkAndFinish(), 500))
+  }
 
-  // Login completion detection: marked as complete when navigating to claude.ai main page
-  win.webContents.on('did-navigate', async (_e, url) => {
-    // Check if reached claude.ai domain after login
-    const isOnClaude = url.startsWith('https://claude.ai') && !url.includes('/login') && !url.includes('/oauth')
+  win.webContents.on('did-create-window', attachPopupHandlers)
+  win.webContents.on('did-navigate', () => setTimeout(() => checkAndFinish(), 500))
+  win.webContents.on('did-navigate-in-page', () => setTimeout(() => checkAndFinish(), 500))
+  win.webContents.on('did-finish-load', () => setTimeout(() => checkAndFinish(), 500))
 
-    if (!isOnClaude) return
-
-    // Check cookies (Anthropic session cookies)
-    const cookies = await ses.cookies.get({ domain: 'claude.ai' })
-    const hasSession = cookies.some(c =>
-      c.name === 'sessionKey' ||
-      c.name === '__Secure-next-auth.session-token' ||
-      c.name === 'lastActiveOrg' ||
-      c.name.startsWith('ch_')
-    )
-
-    if (hasSession || cookies.length > 0) {
-      console.log(`✅ Claude login complete — ${cookies.length} cookies saved`)
-      await ses.cookies.flushStore()   // Save to disk immediately
-
-      // Show completion notice and exit after 3s
-      win.setTitle('✅ Login Complete — Closing window in 3 seconds')
-      win.webContents.executeJavaScript(`
-        document.body.innerHTML =
-          '<div style="font-family:sans-serif;text-align:center;padding:60px 30px;background:#fdf4ff">' +
-          '<div style="font-size:64px">✅</div>' +
-          '<h2 style="color:#6b21a8;margin:16px 0">Claude Login Complete!</h2>' +
-          '<p style="color:#7e22ce">Claude panel will now load correctly in the AI Council app.</p>' +
-          '<p style="color:#6b7280;font-size:13px;margin-top:24px">Window will close automatically in 3 seconds...</p>' +
-          '</div>'
-      `).catch(() => {})
-      setTimeout(() => app.quit(), 3000)
-    }
-  })
-
-  // Start with Claude login page
   win.loadURL('https://claude.ai/login', { userAgent: DESKTOP_UA })
-
-  // Exit on window close
   win.on('closed', () => app.quit())
 })
 

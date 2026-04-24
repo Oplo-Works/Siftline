@@ -13,11 +13,23 @@ import { fileURLToPath } from 'url'
 import { createRequire } from 'module'
 import fs from 'fs'
 import { spawn } from 'child_process'
+import {
+  COUNCIL_MENTION_ALIASES as _COUNCIL_MENTION_ALIASES,
+  parseCouncilIntent as parseCouncilIntentPure,
+  getSequentialCouncilTargets as getSequentialCouncilTargetsPure,
+  summarizeCouncilMessages as summarizeCouncilMessagesPure,
+  renderCouncilTranscript as renderCouncilTranscriptPure,
+  buildCouncilPrompt as buildCouncilPromptPure,
+} from './councilPrompt.js'
+import { buildResponseLanguageDirective } from '../src/responseLanguage.js'
 
 const require = createRequire(import.meta.url)
 // electron-store ships CJS
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const Store = require('electron-store')
+const Store = require('electron-store') as new <T extends object>(options: { defaults: T }) => {
+  get<K extends keyof T>(key: K): T[K]
+  set<K extends keyof T>(key: K, value: T[K]): void
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -30,7 +42,8 @@ app.commandLine.appendSwitch('disable-quic')
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled')
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-export type AiName = 'gemini' | 'claude' | 'chatgpt' | 'perplexity' | 'grok'
+export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'groq' | 'perplexity'
+type InteractionMode = 'workflow' | 'chat'
 
 interface AiConfig {
   url: string
@@ -53,6 +66,22 @@ interface StoreSchema {
   windowBounds: Rectangle
   apiKeys: Partial<Record<AiName, string>> & { groq?: string }
   apiKeyOrder: string[]
+  councilRoomSnapshot: CouncilRoomState | null
+  councilUiState: {
+    pinnedCandidateIds: string[]
+    selectedCandidateId: string | null
+  }
+  councilSnapshots: Array<{
+    id: string
+    title: string
+    savedAt: number
+    messageCount: number
+    isFavorite: boolean
+    room: CouncilRoomState
+    uiState: CouncilUiState
+    insight: CouncilSnapshotInsight
+  }>
+  activeCouncilSnapshotId: string | null
 }
 
 // ─── Inline Selectors Config ──────────────────────────────────────────────────
@@ -199,6 +228,31 @@ const DEFAULT_SELECTORS: Record<AiName, AiConfig> = {
     ],
     loadedIndicatorSelectors: ['textarea', 'div[contenteditable]'],
   },
+  groq: {
+    url: 'https://console.groq.com/chat',
+    newChatUrl: 'https://console.groq.com/chat',
+    inputSelectors: [
+      'textarea[placeholder*="Ask"]',
+      'textarea[placeholder*="Message"]',
+      'textarea[placeholder*="Prompt"]',
+      'textarea',
+      'div[contenteditable="true"][role="textbox"]',
+      'div[contenteditable="true"]',
+    ],
+    sendButtonSelectors: [
+      'button[aria-label*="Send"]',
+      'button[aria-label*="Submit"]',
+      'button[type="submit"]',
+      'button[data-testid="send-button"]',
+    ],
+    responseContainerSelectors: [
+      '.prose',
+      '[class*="prose"]',
+      '[data-testid*="message"]',
+      'article',
+    ],
+    loadedIndicatorSelectors: ['textarea', 'div[contenteditable]', '[contenteditable]'],
+  },
 }
 
 /** Load selectors: use userData override if present, else use bundled defaults */
@@ -221,15 +275,31 @@ const store = new Store<StoreSchema>({
     chatHistory: [],
     windowBounds: { x: 0, y: 0, width: 1280, height: 720 },
     apiKeys: {},
-    apiKeyOrder: ['gemini', 'claude', 'chatgpt', 'perplexity', 'grok', 'groq'],
+    apiKeyOrder: ['chatgpt', 'claude', 'gemini', 'grok', 'groq', 'perplexity'],
+    councilRoomSnapshot: null,
+    councilUiState: {
+      pinnedCandidateIds: [],
+      selectedCandidateId: null,
+    },
+    councilSnapshots: [],
+    activeCouncilSnapshotId: null,
   },
 })
 
 let mainWindow: BrowserWindow | null = null
 const views: Map<AiName, BrowserView> = new Map()
-const AI_NAMES: AiName[] = ['gemini', 'claude', 'chatgpt', 'perplexity', 'grok']
+const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'groq', 'perplexity']
+const DEFAULT_ENABLED_AI_NAMES: AiName[] = ['chatgpt', 'claude', 'gemini']
+const AI_DISPLAY_NAMES: Record<AiName, string> = {
+  chatgpt: 'ChatGPT',
+  claude: 'Claude',
+  gemini: 'Gemini',
+  grok: 'Grok',
+  groq: 'Groq',
+  perplexity: 'Perplexity',
+}
 // Which AIs are currently visible — user can toggle panels on/off
-let enabledAiNames: AiName[] = [...AI_NAMES]
+let enabledAiNames: AiName[] = [...DEFAULT_ENABLED_AI_NAMES]
 let resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
 // ─── Workflow pause-point gate ────────────────────────────────────────────────
@@ -237,6 +307,107 @@ let resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null
 // Next or Continue. Resolved by the 'workflow-proceed' IPC handler.
 // The resolver receives an optional new primaryAi if the user reassigned it.
 let workflowProceedResolver: ((decision: { primaryAi?: AiName }) => void) | null = null
+
+interface WorkflowAttachment {
+  name: string
+  path: string
+  ext: string
+}
+
+interface WorkflowSessionState {
+  topicSeed: string
+  lastUserQuery: string
+  currentPrimary: AiName
+  latestDraft: string
+  latestFinalAnswer: string
+  latestFeedbacks: Array<{ ai: AiName; feedback: string }>
+  fileContext: string
+  attachedFiles: WorkflowAttachment[]
+  participants: AiName[]
+  roundsCompleted: number
+}
+
+let workflowSession: WorkflowSessionState | null = null
+
+interface CouncilMessage {
+  id: string
+  kind: 'user' | 'assistant' | 'system'
+  text: string
+  createdAt: number
+  source?: 'chat' | 'workflow-bridge'
+  ai?: AiName
+  pending?: boolean
+  error?: boolean
+}
+
+interface CouncilIntentState {
+  kind: 'mention' | 'all' | 'none' | 'unsupported'
+  targetAi?: AiName
+  targetAis?: AiName[]
+  note: string
+}
+
+interface CouncilRoomState {
+  participants: AiName[]
+  primaryAi: AiName
+  status: 'idle' | 'running'
+  pendingAi: AiName | null
+  messages: CouncilMessage[]
+  lastIntent: CouncilIntentState | null
+  failedTurn: {
+    ai: AiName
+    promptText: string
+    errorMessage: string
+  } | null
+}
+
+interface CouncilRuntimeState extends CouncilRoomState {
+  deliveredCount: Partial<Record<AiName, number>>
+  threadPrepared: Partial<Record<AiName, boolean>>
+}
+
+interface CouncilUiState {
+  pinnedCandidateIds: string[]
+  selectedCandidateId: string | null
+}
+
+interface CouncilSnapshotInsight {
+  workflowReady: boolean
+  workflowPreview: string | null
+  moderatorConsensus: string | null
+  moderatorNextSpeaker: AiName | null
+  moderatorNextPrompt: string | null
+}
+
+type CouncilSnapshotLifecycle = 'in-progress' | 'completed'
+
+interface CouncilSnapshotRecord {
+  id: string
+  title: string
+  label: string | null
+  note: string | null
+  savedAt: number
+  lastOpenedAt: number
+  messageCount: number
+  isFavorite: boolean
+  isArchived: boolean
+  lifecycle: CouncilSnapshotLifecycle
+  room: CouncilRoomState
+  uiState: CouncilUiState
+  insight: CouncilSnapshotInsight
+}
+
+interface CouncilSnapshotExportEnvelope {
+  version: 1
+  exportedAt: number
+  snapshot: CouncilSnapshotRecord
+}
+
+interface WorkflowCouncilBridgeResult {
+  room: CouncilRoomState
+  bridged: boolean
+  note: string
+}
 
 // ─── UI Layout Constants ──────────────────────────────────────────────────────
 const TITLEBAR_HEIGHT = 40
@@ -248,9 +419,17 @@ const FINAL_PANEL_FULL_H = 260  // expanded: full content
 let finalPanelExpanded = false
 const FINAL_PANEL_HEIGHT = 0      // legacy — not used directly below
 const PANEL_HEADER_HEIGHT = 36
+const COUNCIL_CHAT_PANEL_WIDTH = 420
+let councilChatVisible = false
 
 // Dynamically updated when attachment bar visibility changes
 let attachmentBarVisible = false
+
+let councilRoom: CouncilRuntimeState = loadPersistedCouncilRoom()
+let councilTurnChain: Promise<void> = Promise.resolve()
+let currentInteractionMode: InteractionMode = 'workflow'
+const viewThreadOwners: Partial<Record<AiName, InteractionMode | null>> = {}
+let councilWorkflowBridgeSignature: string | null = null
 
 // ─── Browser Identity Spoofing ───────────────────────────────────────────────
 // Electron exposes itself via User-Agent AND sec-ch-ua headers, which causes
@@ -303,6 +482,252 @@ const INITIAL_RESPONSE_WAIT_MS = 3_000  // 3 s warm-up after Send
 // and accept the text anyway.
 const STREAMING_GUARD_OVERRIDE_MS = 8_000  // force-accept after 8 s of stable text
 
+function createEmptyCouncilRuntimeState(): CouncilRuntimeState {
+  return {
+    participants: [...DEFAULT_ENABLED_AI_NAMES],
+    primaryAi: 'gemini',
+    status: 'idle',
+    pendingAi: null,
+    messages: [],
+    lastIntent: null,
+    failedTurn: null,
+    deliveredCount: {},
+    threadPrepared: {},
+  }
+}
+
+function persistCouncilRoomState() {
+  store.set('councilRoomSnapshot', cloneCouncilRoomState())
+}
+
+function loadPersistedCouncilRoom(): CouncilRuntimeState {
+  const snapshot = store.get('councilRoomSnapshot')
+  return loadPersistedCouncilRoomFromSnapshot(snapshot)
+}
+
+function sanitizeCouncilUiState(payload: Partial<CouncilUiState> | undefined | null): CouncilUiState {
+  const pinnedCandidateIds = Array.isArray(payload?.pinnedCandidateIds)
+    ? payload.pinnedCandidateIds.filter((id): id is string => typeof id === 'string')
+    : []
+  const selectedCandidateId = typeof payload?.selectedCandidateId === 'string'
+    ? payload.selectedCandidateId
+    : null
+
+  return {
+    pinnedCandidateIds,
+    selectedCandidateId,
+  }
+}
+
+function truncateSnapshotText(text: string | null | undefined, maxChars: number): string | null {
+  if (typeof text !== 'string') return null
+  const normalized = text.replace(/\s+/g, ' ').trim()
+  if (!normalized) return null
+  return normalized.length <= maxChars ? normalized : `${normalized.slice(0, maxChars - 3).trimEnd()}...`
+}
+
+function sanitizeSnapshotLabel(label: string | null | undefined): string | null {
+  return truncateSnapshotText(label, 28)
+}
+
+function sanitizeSnapshotNote(note: string | null | undefined): string | null {
+  return truncateSnapshotText(note, 140)
+}
+
+function sanitizeSnapshotFilenamePart(value: string): string {
+  const normalized = value
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '')
+    .replace(/\s+/g, '-')
+    .trim()
+  return normalized.length > 0 ? normalized.slice(0, 48) : 'council-session'
+}
+
+function sanitizeSnapshotLifecycle(
+  lifecycle: CouncilSnapshotLifecycle | string | null | undefined
+): CouncilSnapshotLifecycle {
+  return lifecycle === 'completed' ? 'completed' : 'in-progress'
+}
+
+function sanitizeCouncilSnapshotInsight(payload: Partial<CouncilSnapshotInsight> | undefined | null): CouncilSnapshotInsight {
+  const nextSpeaker = payload?.moderatorNextSpeaker
+  return {
+    workflowReady: Boolean(payload?.workflowReady),
+    workflowPreview: truncateSnapshotText(payload?.workflowPreview, 220),
+    moderatorConsensus: truncateSnapshotText(payload?.moderatorConsensus, 160),
+    moderatorNextSpeaker: typeof nextSpeaker === 'string' && AI_NAMES.includes(nextSpeaker as AiName)
+      ? nextSpeaker as AiName
+      : null,
+    moderatorNextPrompt: truncateSnapshotText(payload?.moderatorNextPrompt, 180),
+  }
+}
+
+function defaultCouncilSnapshotTitle(room: CouncilRoomState): string {
+  const latestUserMessage = [...room.messages]
+    .reverse()
+    .find((message) => message.kind === 'user' && typeof message.text === 'string' && message.text.trim().length > 0)
+
+  if (!latestUserMessage) {
+    return `Council Snapshot ${new Date().toLocaleString()}`
+  }
+
+  const normalized = latestUserMessage.text.replace(/\s+/g, ' ').trim()
+  return normalized.length <= 60 ? normalized : `${normalized.slice(0, 57).trimEnd()}...`
+}
+
+function sanitizeCouncilSnapshotRecord(record: CouncilSnapshotRecord): CouncilSnapshotRecord {
+  const room = loadPersistedCouncilRoomFromSnapshot(record.room)
+  const uiState = sanitizeCouncilUiState(record.uiState)
+  const insight = sanitizeCouncilSnapshotInsight(record.insight)
+  const allowedIds = new Set(room.messages.map((message) => message.id))
+
+  return {
+    id: record.id,
+    title: typeof record.title === 'string' && record.title.trim().length > 0
+      ? record.title.trim()
+      : defaultCouncilSnapshotTitle(room),
+    label: sanitizeSnapshotLabel(record.label),
+    note: sanitizeSnapshotNote(record.note),
+    savedAt: typeof record.savedAt === 'number' ? record.savedAt : Date.now(),
+    lastOpenedAt: typeof record.lastOpenedAt === 'number'
+      ? record.lastOpenedAt
+      : (typeof record.savedAt === 'number' ? record.savedAt : Date.now()),
+    messageCount: room.messages.length,
+    isFavorite: Boolean(record.isFavorite),
+    isArchived: Boolean(record.isArchived),
+    lifecycle: sanitizeSnapshotLifecycle(record.lifecycle),
+    room,
+    uiState: {
+      pinnedCandidateIds: uiState.pinnedCandidateIds.filter((id) => allowedIds.has(id)),
+      selectedCandidateId: uiState.selectedCandidateId && allowedIds.has(uiState.selectedCandidateId)
+        ? uiState.selectedCandidateId
+        : null,
+    },
+    insight,
+  }
+}
+
+function loadPersistedCouncilRoomFromSnapshot(snapshot: CouncilRoomState | null | undefined): CouncilRuntimeState {
+  if (!snapshot) return createEmptyCouncilRuntimeState()
+
+  const safeParticipants = Array.isArray(snapshot.participants)
+    ? snapshot.participants.filter((ai): ai is AiName => AI_NAMES.includes(ai as AiName))
+    : []
+  const safeMessages = Array.isArray(snapshot.messages)
+    ? snapshot.messages
+        .filter((message): message is CouncilMessage => Boolean(message && typeof message.text === 'string'))
+        .filter((message) => !message.pending)
+        .map((message) => ({
+          ...message,
+          pending: false,
+        }))
+    : []
+
+  return {
+    participants: safeParticipants.length > 0 ? safeParticipants : [...DEFAULT_ENABLED_AI_NAMES],
+    primaryAi: AI_NAMES.includes(snapshot.primaryAi) ? snapshot.primaryAi : 'gemini',
+    status: 'idle',
+    pendingAi: null,
+    messages: safeMessages,
+    lastIntent: safeMessages.length > 0
+      ? {
+          kind: 'none',
+          note: 'Restored previous council transcript.',
+        }
+      : null,
+    failedTurn: snapshot.failedTurn ?? null,
+    deliveredCount: {},
+    threadPrepared: {},
+  }
+}
+
+function getCouncilSnapshots(): CouncilSnapshotRecord[] {
+  const snapshots = store.get('councilSnapshots') ?? []
+  return snapshots
+    .map((snapshot) => sanitizeCouncilSnapshotRecord(snapshot))
+    .sort((a, b) => {
+      if (a.isArchived !== b.isArchived) return a.isArchived ? 1 : -1
+      if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1
+      return b.savedAt - a.savedAt
+    })
+}
+
+function persistCouncilSnapshots(snapshots: CouncilSnapshotRecord[]) {
+  store.set('councilSnapshots', snapshots)
+}
+
+function getActiveCouncilSnapshotId(): string | null {
+  const value = store.get('activeCouncilSnapshotId')
+  return typeof value === 'string' && value.trim().length > 0 ? value : null
+}
+
+function setActiveCouncilSnapshotId(snapshotId: string | null) {
+  store.set('activeCouncilSnapshotId', snapshotId)
+}
+
+function serializeCouncilSnapshotComparableState(
+  room: CouncilRoomState,
+  uiState: CouncilUiState
+): string {
+  return JSON.stringify({
+    participants: [...room.participants],
+    primaryAi: room.primaryAi,
+    messages: room.messages.map((message) => ({
+      id: message.id,
+      kind: message.kind,
+      text: message.text,
+      createdAt: message.createdAt,
+      ai: message.ai ?? null,
+      pending: Boolean(message.pending),
+      error: Boolean(message.error),
+    })),
+    lastIntent: room.lastIntent
+      ? {
+          kind: room.lastIntent.kind,
+          targetAi: room.lastIntent.targetAi ?? null,
+          targetAis: room.lastIntent.targetAis ?? [],
+          note: room.lastIntent.note,
+        }
+      : null,
+    failedTurn: room.failedTurn
+      ? {
+          ai: room.failedTurn.ai,
+          promptText: room.failedTurn.promptText,
+          errorMessage: room.failedTurn.errorMessage,
+        }
+      : null,
+    uiState: {
+      pinnedCandidateIds: [...uiState.pinnedCandidateIds],
+      selectedCandidateId: uiState.selectedCandidateId,
+    },
+  })
+}
+
+function summarizeCouncilSnapshots(snapshots: CouncilSnapshotRecord[]) {
+  const activeSnapshotId = getActiveCouncilSnapshotId()
+  const currentRoom = loadPersistedCouncilRoomFromSnapshot(store.get('councilRoomSnapshot'))
+  const currentUiState = sanitizeCouncilUiState(store.get('councilUiState'))
+  const currentComparable = serializeCouncilSnapshotComparableState(currentRoom, currentUiState)
+  return snapshots.map(({ id, title, label, note, savedAt, lastOpenedAt, messageCount, isFavorite, isArchived, lifecycle, room, uiState, insight }) => ({
+    id,
+    title,
+    label,
+    note,
+    savedAt,
+    lastOpenedAt,
+    messageCount,
+    isActive: id === activeSnapshotId,
+    isDirty: id === activeSnapshotId
+      ? serializeCouncilSnapshotComparableState(room, sanitizeCouncilUiState(uiState)) !== currentComparable
+      : false,
+    isFavorite,
+    isArchived,
+    lifecycle,
+    primaryAi: room.primaryAi,
+    participants: [...room.participants],
+    insight,
+  }))
+}
+
 // ─── Streaming Detection ─────────────────────────────────────────────────────
 // These selectors are present in the DOM ONLY while the AI is still generating.
 // If any match, we must keep waiting even if text appears stable.
@@ -328,6 +753,10 @@ const STREAMING_INDICATOR_SELECTORS: Partial<Record<AiName, string[]>> = {
   grok: [
     'button[aria-label="Stop"]',
     'button[aria-label="Stop generating"]',
+    '[data-testid="stop-button"]',
+  ],
+  groq: [
+    'button[aria-label*="Stop"]',
     '[data-testid="stop-button"]',
   ],
 }
@@ -496,6 +925,470 @@ function sendStatus(msg: string) {
 
 function sendLog(level: 'info' | 'warn' | 'error', msg: string) {
   mainWindow?.webContents.send('log', { level, msg })
+}
+
+/**
+ * Load a URL in a WebContents and swallow the noisy `ERR_ABORTED` rejection
+ * that Electron emits whenever a subsequent navigation supersedes this one.
+ * Any other error is logged (not thrown) so silent navigation failures still
+ * surface in the log drawer.
+ */
+function loadURLSafe(
+  wc: WebContents,
+  url: string,
+  context: string,
+  options?: Electron.LoadURLOptions,
+): Promise<void> {
+  return wc.loadURL(url, options).catch((err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err)
+    if (message.includes('ERR_ABORTED')) return
+    sendLog('warn', `[${context}] loadURL failed: ${message}`)
+  })
+}
+
+function cloneCouncilRoomState(): CouncilRoomState {
+  return {
+    participants: [...councilRoom.participants],
+    primaryAi: councilRoom.primaryAi,
+    status: councilRoom.status,
+    pendingAi: councilRoom.pendingAi,
+    messages: councilRoom.messages.map((message) => ({ ...message })),
+    lastIntent: councilRoom.lastIntent ? { ...councilRoom.lastIntent } : null,
+    failedTurn: councilRoom.failedTurn ? { ...councilRoom.failedTurn } : null,
+  }
+}
+
+function emitCouncilRoomUpdate() {
+  persistCouncilRoomState()
+  mainWindow?.webContents.send('council-room-updated', cloneCouncilRoomState())
+}
+
+function emitCouncilStreamChunk(ai: AiName, messageId: string, text: string) {
+  mainWindow?.webContents.send('council-stream-chunk', { ai, messageId, text })
+}
+
+function makeCouncilMessage(
+  kind: CouncilMessage['kind'],
+  text: string,
+  extras: Partial<CouncilMessage> = {}
+): CouncilMessage {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    kind,
+    text,
+    createdAt: Date.now(),
+    source: extras.source ?? 'chat',
+    ...extras,
+  }
+}
+
+function hasMeaningfulCouncilMessages(messages: CouncilMessage[] = councilRoom.messages): boolean {
+  return messages.some((message) => message.kind !== 'system' && message.text.trim().length > 0)
+}
+
+function getWorkflowBridgeStage(session: WorkflowSessionState): 'query' | 'draft' | 'reviews' | 'final' {
+  if (session.latestFinalAnswer.trim().length > 0) return 'final'
+  if (session.latestFeedbacks.some((item) => item.feedback.trim().length > 0)) return 'reviews'
+  if (session.latestDraft.trim().length > 0) return 'draft'
+  return 'query'
+}
+
+function buildWorkflowCouncilBridgeSignature(session: WorkflowSessionState): string {
+  const feedbackSignature = session.latestFeedbacks
+    .filter((item) => item.feedback.trim().length > 0)
+    .map((item) => `${item.ai}:${item.feedback.trim().slice(0, 240)}`)
+    .join('||')
+
+  return [
+    session.currentPrimary,
+    session.lastUserQuery.trim(),
+    session.latestDraft.trim().slice(0, 400),
+    session.latestFinalAnswer.trim().slice(0, 400),
+    feedbackSignature,
+    session.attachedFiles.map((file) => file.name).join('|'),
+    String(session.roundsCompleted),
+  ].join('###')
+}
+
+function buildWorkflowCouncilBridgePayload(session: WorkflowSessionState): {
+  summary: string
+  messages: CouncilMessage[]
+} {
+  const stage = getWorkflowBridgeStage(session)
+  const primaryName = AI_DISPLAY_NAMES[session.currentPrimary]
+  const attachedFileSummary = session.attachedFiles.length > 0
+    ? ` Attached files: ${session.attachedFiles.map((file) => file.name).join(', ')}.`
+    : ''
+  const reviewerMessages = session.latestFeedbacks
+    .filter((item) => item.feedback.trim().length > 0)
+    .map((item) => makeCouncilMessage('assistant', item.feedback.trim(), {
+      ai: item.ai,
+      source: 'workflow-bridge',
+    }))
+  const messages: CouncilMessage[] = []
+  const userQuery = session.lastUserQuery.trim()
+
+  if (userQuery) {
+    messages.push(makeCouncilMessage('user', userQuery, { source: 'workflow-bridge' }))
+  }
+
+  if (stage === 'draft') {
+    if (session.latestDraft.trim()) {
+      messages.push(makeCouncilMessage('assistant', session.latestDraft.trim(), {
+        ai: session.currentPrimary,
+        source: 'workflow-bridge',
+      }))
+    }
+
+    return {
+      summary: `Imported the latest Workflow draft from ${primaryName} into Council Chat.${attachedFileSummary} Continue here and mention an AI when you want a reply.`,
+      messages,
+    }
+  }
+
+  if (stage === 'reviews') {
+    if (session.latestDraft.trim()) {
+      messages.push(makeCouncilMessage('assistant', session.latestDraft.trim(), {
+        ai: session.currentPrimary,
+        source: 'workflow-bridge',
+      }))
+    }
+    messages.push(...reviewerMessages)
+
+    return {
+      summary: `Imported the current Workflow draft and reviewer feedback into Council Chat.${attachedFileSummary} Continue the discussion here before the final revision.`,
+      messages,
+    }
+  }
+
+  if (stage === 'final') {
+    messages.push(...reviewerMessages)
+    messages.push(makeCouncilMessage('assistant', session.latestFinalAnswer.trim(), {
+      ai: session.currentPrimary,
+      source: 'workflow-bridge',
+    }))
+
+    return {
+      summary: `Imported the latest Workflow result from ${primaryName} into Council Chat.${attachedFileSummary} Continue here, or gather fresh council replies from the active AIs.`,
+      messages,
+    }
+  }
+
+  return {
+    summary: `Imported the latest Workflow objective into Council Chat.${attachedFileSummary} Continue the discussion here and mention an AI when you want a reply.`,
+    messages,
+  }
+}
+
+function bridgeWorkflowToCouncil(
+  participants: AiName[],
+  primaryAi: AiName
+): WorkflowCouncilBridgeResult {
+  syncCouncilRoomContext(participants, primaryAi)
+  councilRoom.status = 'idle'
+  councilRoom.pendingAi = null
+  clearFailedCouncilTurn()
+
+  if (!workflowSession) {
+    const note = hasMeaningfulCouncilMessages()
+      ? 'Council Chat is active. The existing council transcript is ready to continue.'
+      : 'Council Chat is active. Use @AI mentions in the docked panel to continue the conversation.'
+    emitCouncilRoomUpdate()
+    return {
+      room: cloneCouncilRoomState(),
+      bridged: false,
+      note,
+    }
+  }
+
+  const signature = buildWorkflowCouncilBridgeSignature(workflowSession)
+  if (signature === councilWorkflowBridgeSignature) {
+    const stage = getWorkflowBridgeStage(workflowSession)
+    const note = stage === 'final'
+      ? 'Council Chat is already synced with the latest Workflow result.'
+      : 'Council Chat is already synced with the latest Workflow context.'
+    emitCouncilRoomUpdate()
+    return {
+      room: cloneCouncilRoomState(),
+      bridged: false,
+      note,
+    }
+  }
+
+  const { summary, messages } = buildWorkflowCouncilBridgePayload(workflowSession)
+  const shouldReplaceTranscript = !hasMeaningfulCouncilMessages()
+
+  if (shouldReplaceTranscript) {
+    setActiveCouncilSnapshotId(null)
+    councilRoom.messages = [makeCouncilMessage('system', summary, { source: 'workflow-bridge' }), ...messages]
+    councilRoom.deliveredCount = {}
+    councilRoom.threadPrepared = {}
+  } else {
+    councilRoom.messages.push(
+      makeCouncilMessage('system', summary, { source: 'workflow-bridge' }),
+      ...messages
+    )
+  }
+
+  councilRoom.lastIntent = {
+    kind: 'none',
+    note: summary,
+  }
+  councilWorkflowBridgeSignature = signature
+  emitCouncilRoomUpdate()
+
+  return {
+    room: cloneCouncilRoomState(),
+    bridged: true,
+    note: summary,
+  }
+}
+
+function syncCouncilRoomContext(participants: AiName[], primaryAi: AiName): CouncilRoomState {
+  const nextParticipants = participants.filter((ai) => AI_NAMES.includes(ai))
+  councilRoom.participants = nextParticipants.length > 0 ? nextParticipants : [...DEFAULT_ENABLED_AI_NAMES]
+  councilRoom.primaryAi = primaryAi
+  emitCouncilRoomUpdate()
+  return cloneCouncilRoomState()
+}
+
+function clearFailedCouncilTurn(note?: string) {
+  councilRoom.failedTurn = null
+  if (note) {
+    councilRoom.lastIntent = {
+      kind: 'none',
+      note,
+    }
+  }
+}
+
+/**
+ * Record a failed council turn and emit an update.
+ * `processCouncilTurn` already resets `status`/`pendingAi` and removes its
+ * placeholder on throw — this helper only captures the failure metadata and
+ * appends a user-facing system message.
+ */
+function recordCouncilTurnFailure(
+  ai: AiName,
+  promptText: string,
+  err: unknown,
+  intent?: CouncilIntentState,
+) {
+  const errorMessage = err instanceof Error ? err.message : String(err)
+  councilRoom.lastIntent = intent ?? {
+    kind: 'mention',
+    targetAi: ai,
+    note: `${AI_DISPLAY_NAMES[ai]} failed to reply.`,
+  }
+  councilRoom.failedTurn = { ai, promptText, errorMessage }
+  councilRoom.messages.push(
+    makeCouncilMessage(
+      'system',
+      `Failed to get a reply from ${AI_DISPLAY_NAMES[ai]}: ${errorMessage}`,
+      { error: true },
+    ),
+  )
+  emitCouncilRoomUpdate()
+}
+
+function doesWorkflowOwnThread(ai: AiName): boolean {
+  return viewThreadOwners[ai] === 'workflow' && Boolean(workflowSession?.participants.includes(ai))
+}
+
+function doesCouncilOwnThread(ai: AiName): boolean {
+  return viewThreadOwners[ai] === 'chat' && Boolean(councilRoom.threadPrepared[ai])
+}
+
+function markViewThreadOwner(ai: AiName, mode: InteractionMode | null) {
+  viewThreadOwners[ai] = mode
+}
+
+async function handoffInteractionMode(
+  mode: InteractionMode,
+  participants: AiName[],
+  primaryAi: AiName
+): Promise<CouncilRoomState> {
+  currentInteractionMode = mode
+  councilChatVisible = mode === 'chat'
+
+  if (mode === 'chat') {
+    syncCouncilRoomContext(participants, primaryAi)
+    councilRoom.status = 'idle'
+    councilRoom.pendingAi = null
+    clearFailedCouncilTurn()
+    for (const ai of AI_NAMES) {
+      if (viewThreadOwners[ai] !== 'chat') {
+        delete councilRoom.threadPrepared[ai]
+      }
+    }
+  } else {
+    councilRoom.status = 'idle'
+    councilRoom.pendingAi = null
+    clearFailedCouncilTurn('Workflow mode is active.')
+    councilRoom.threadPrepared = {}
+  }
+
+  updateViewBounds()
+  emitCouncilRoomUpdate()
+  return cloneCouncilRoomState()
+}
+
+function resetCouncilRoomContext(participants?: AiName[], primaryAi: AiName = councilRoom.primaryAi): CouncilRoomState {
+  setActiveCouncilSnapshotId(null)
+  councilWorkflowBridgeSignature = null
+  councilRoom = {
+    participants: participants && participants.length > 0 ? participants : [...DEFAULT_ENABLED_AI_NAMES],
+    primaryAi,
+    status: 'idle',
+    pendingAi: null,
+    messages: [
+      makeCouncilMessage(
+        'system',
+        'Council Chat is ready. Mention one active AI such as @Gemini or @Claude to request a reply.'
+      ),
+    ],
+    lastIntent: {
+      kind: 'none',
+      note: 'Shared transcript is ready. Mention one active AI for the first MVP.',
+    },
+    failedTurn: null,
+    deliveredCount: {},
+    threadPrepared: {},
+  }
+  emitCouncilRoomUpdate()
+  return cloneCouncilRoomState()
+}
+
+// Council prompt/intent helpers are in ./councilPrompt.ts — these wrappers
+// bind the pure functions to this module's state (AI_NAMES, AI_DISPLAY_NAMES,
+// councilRoom, AI_REVIEWER_BRIEFS).
+const parseCouncilIntent = parseCouncilIntentPure
+void _COUNCIL_MENTION_ALIASES
+
+function getSequentialCouncilTargets(participants: AiName[], primaryAi: AiName): AiName[] {
+  return getSequentialCouncilTargetsPure(participants, primaryAi, AI_NAMES)
+}
+
+function summarizeCouncilMessages(messages: CouncilMessage[], maxChars: number): string {
+  return summarizeCouncilMessagesPure(messages, maxChars, AI_DISPLAY_NAMES)
+}
+
+function renderCouncilTranscript(messages: CouncilMessage[]): string {
+  return renderCouncilTranscriptPure(messages, AI_DISPLAY_NAMES)
+}
+
+function buildCouncilPrompt(aiName: AiName, promptText: string): string {
+  return buildCouncilPromptPure(aiName, promptText, {
+    deliveredCount: councilRoom.deliveredCount[aiName] ?? 0,
+    messages: councilRoom.messages,
+    displayNames: AI_DISPLAY_NAMES,
+    brief: AI_REVIEWER_BRIEFS[aiName],
+  })
+}
+
+async function processCouncilTurn(aiName: AiName, promptText: string): Promise<void> {
+  const view = views.get(aiName)
+  if (!view) throw new Error(`No BrowserView found for ${aiName}`)
+
+  councilRoom.status = 'running'
+  councilRoom.pendingAi = aiName
+  councilRoom.lastIntent = {
+    kind: 'mention',
+    targetAi: aiName,
+    note: `${AI_DISPLAY_NAMES[aiName]} is replying...`,
+  }
+  const placeholder = makeCouncilMessage('assistant', 'Waiting for reply...', {
+    ai: aiName,
+    pending: true,
+  })
+  councilRoom.messages.push(placeholder)
+  emitCouncilRoomUpdate()
+
+  try {
+    const config = getSelectors(aiName)
+    if (!doesCouncilOwnThread(aiName)) {
+      await navigateToNewChat(view, aiName)
+      markViewThreadOwner(aiName, 'chat')
+      councilRoom.threadPrepared[aiName] = true
+    }
+
+    const inputRes = await execWithFallback(
+      view,
+      config.inputSelectors,
+      (sel) => `!!document.querySelector(\`${sel}\`)`
+    )
+    if (!inputRes.success || !inputRes.selector) {
+      throw new Error(`Input selector not found for ${aiName}`)
+    }
+
+    const baseline = await captureCurrentText(view, config.responseContainerSelectors)
+    const councilPrompt = buildCouncilPrompt(aiName, promptText)
+
+    sendLog('info', `[council] ${aiName}: injecting ${councilPrompt.length} chars`)
+    await pasteText(view, councilPrompt, inputRes.selector)
+    await sleep(CLICK_SEND_DELAY_MS)
+
+    const sent = await clickSend(view, config.sendButtonSelectors)
+    if (!sent) {
+      throw new Error(`Send button not found for ${aiName}`)
+    }
+
+    await sleep(INITIAL_RESPONSE_WAIT_MS)
+    const reply = await waitForStableResponse(
+      view,
+      config.responseContainerSelectors,
+      WORKFLOW_TIMEOUT_MS,
+      STABLE_RESPONSE_MS,
+      aiName,
+      baseline,
+      (chunk) => {
+        const placeholderIndex = councilRoom.messages.findIndex((message) => message.id === placeholder.id)
+        if (placeholderIndex === -1) return
+        councilRoom.messages[placeholderIndex] = {
+          ...councilRoom.messages[placeholderIndex],
+          text: chunk,
+          pending: true,
+        }
+        emitCouncilStreamChunk(aiName, placeholder.id, chunk)
+        emitCouncilRoomUpdate()
+      }
+    )
+
+    const placeholderIndex = councilRoom.messages.findIndex((message) => message.id === placeholder.id)
+    const finalMessage = makeCouncilMessage('assistant', reply, { ai: aiName })
+    if (placeholderIndex !== -1) {
+      councilRoom.messages.splice(placeholderIndex, 1, finalMessage)
+    } else {
+      councilRoom.messages.push(finalMessage)
+    }
+
+    councilRoom.deliveredCount[aiName] = councilRoom.messages.length
+    councilRoom.status = 'idle'
+    councilRoom.pendingAi = null
+    councilRoom.lastIntent = {
+      kind: 'mention',
+      targetAi: aiName,
+      note: `${AI_DISPLAY_NAMES[aiName]} replied and the transcript is shared with the council.`,
+    }
+    emitCouncilRoomUpdate()
+  } catch (err) {
+    // Guaranteed cleanup: remove this turn's placeholder and reset room state
+    // so callers only need to record the failure — they don't risk drifting
+    // from the transcript shape.
+    const idx = councilRoom.messages.findIndex((message) => message.id === placeholder.id)
+    if (idx !== -1) councilRoom.messages.splice(idx, 1)
+    if (councilRoom.pendingAi === aiName) councilRoom.pendingAi = null
+    councilRoom.status = 'idle'
+    emitCouncilRoomUpdate()
+    throw err
+  }
+}
+
+async function enqueueCouncilTurn(aiName: AiName, promptText: string): Promise<void> {
+  councilTurnChain = councilTurnChain
+    .catch(() => undefined)
+    .then(() => processCouncilTurn(aiName, promptText))
+  return councilTurnChain
 }
 
 /**
@@ -709,7 +1602,8 @@ async function waitForStableResponse(
   timeoutMs = WORKFLOW_TIMEOUT_MS,
   stableMs = STABLE_RESPONSE_MS,
   aiName?: AiName,
-  baselineText = ''
+  baselineText = '',
+  onChunk?: (text: string) => void
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     let cancelled = false
@@ -720,6 +1614,7 @@ async function waitForStableResponse(
     let pollCount = 0
     // Best quality text seen so far — used by the force-resolve safety net.
     let bestTextSeen = ''
+    let lastChunkSent = ''
 
     const globalTimeout = setTimeout(() => {
       cancelled = true
@@ -824,6 +1719,10 @@ async function waitForStableResponse(
         if (cleanText && isNewText && isQualityResponse(cleanText)) {
           // Track best text for safety-net resolver
           if (cleanText.length > bestTextSeen.length) bestTextSeen = cleanText
+          if (onChunk && cleanText !== lastChunkSent) {
+            lastChunkSent = cleanText
+            onChunk(cleanText)
+          }
 
           // ── Streaming guard ─────────────────────────────────────────────
           if (aiName) {
@@ -943,7 +1842,11 @@ function computeViewBounds(indexInEnabled: number, totalEnabled: number, winWidt
   const finalH = finalPanelExpanded ? FINAL_PANEL_FULL_H : FINAL_PANEL_HEADER_H
   const gridTop = TITLEBAR_HEIGHT + TOOLBAR_HEIGHT + attachH + STATUS_BAR_HEIGHT + PANEL_HEADER_HEIGHT
   const gridHeight = winHeight - gridTop - finalH
-  const panelWidth = Math.floor(winWidth / Math.max(totalEnabled, 1))
+  const availableWidth = Math.max(
+    winWidth - (councilChatVisible ? COUNCIL_CHAT_PANEL_WIDTH : 0),
+    320
+  )
+  const panelWidth = Math.floor(availableWidth / Math.max(totalEnabled, 1))
   return {
     x: indexInEnabled * panelWidth,
     y: gridTop,
@@ -961,10 +1864,11 @@ function updateViewBounds() {
     if (!view) return
     try {
       if (enabledAiNames.includes(name)) {
+        try { mainWindow.addBrowserView(view) } catch { /* already added */ }
         view.setBounds(computeViewBounds(enabledIndex, enabledAiNames.length, winWidth, winHeight))
         enabledIndex++
       } else {
-        // Move disabled view off-screen (keeps it loaded for fast re-enable)
+        try { mainWindow.removeBrowserView(view) } catch { /* already removed */ }
         view.setBounds({ x: -10000, y: 0, width: 100, height: 100 })
       }
     } catch {
@@ -1045,16 +1949,18 @@ async function createWindow() {
     const ses = session.fromPartition(`persist:${name}`)
     ses.setUserAgent(DESKTOP_USER_AGENT)
 
-    // Gemini/Google 계열만 전체 Chrome 스푸핑 preload 필요.
-    const needsChromeSpoof = name === 'gemini'
+    // Gemini and Grok benefit from a fuller Chrome-style renderer identity.
+    // Grok has recently started treating the plain Electron BrowserView more
+    // aggressively than a normal browser tab, so give it the same stronger
+    // renderer spoofing we already use for Gemini.
+    const needsChromeSpoof = name === 'gemini' || name === 'grok'
     // ChatGPT / Perplexity: domain-gated OAuth preload.
     // Applies Chrome spoofing ONLY on Google/Microsoft/Apple OAuth pages so that
     // Google login works without breaking React/WebSocket on the AI sites themselves.
     const needsOAuthSpoof = name === 'chatgpt' || name === 'perplexity'
-    // Grok reads navigator.language to set its UI locale.
-    // We inject a minimal preload that overrides it to en-US (contextIsolation: false
-    // is required so the override lands in the page's own V8 context).
-    const needsLocaleSpoof = name === 'grok'
+    // Grok previously used a locale-only preload. Now that it uses the full
+    // Chrome spoof preload above, keep this off to avoid conflicting preload selection.
+    const needsLocaleSpoof = false
     const view = new BrowserView({
       webPreferences: {
         preload: needsChromeSpoof ? CHROME_SPOOF_PRELOAD
@@ -1132,23 +2038,45 @@ async function createWindow() {
       })
     }
 
-    // Force English locale for Grok — grok.com auto-detects language from the
-    // Accept-Language header and shows Korean on Korean Windows systems.
+    // Force English locale and Chrome-like request hints for Grok.
+    // This narrows the gap between the embedded BrowserView and a regular
+    // Chrome/Edge tab, which helps avoid Grok serving the degraded
+    // "under heavy usage / try SuperGrok" experience to the app only.
     if (name === 'grok') {
       view.webContents.session.webRequest.onBeforeSendHeaders(
         { urls: ['*://grok.com/*', '*://*.grok.com/*', '*://x.com/*', '*://*.x.com/*'] },
         (details, callback) => {
-          const headers = { ...details.requestHeaders }
-          // Override Accept-Language to English regardless of system locale
+          const headers: Record<string, string> = {}
+          const SKIP_KEYS = new Set([
+            'sec-ch-ua',
+            'sec-ch-ua-mobile',
+            'sec-ch-ua-platform',
+            'sec-ch-ua-full-version-list',
+            'user-agent',
+            'x-client-data',
+            'accept-language',
+          ])
+          for (const [key, value] of Object.entries(details.requestHeaders)) {
+            if (!SKIP_KEYS.has(key.toLowerCase())) {
+              headers[key] = value as string
+            }
+          }
+          Object.assign(headers, CHROME_CLIENT_HINTS)
+          headers['user-agent'] = DESKTOP_USER_AGENT
           headers['Accept-Language'] = 'en-US,en;q=0.9'
           callback({ requestHeaders: headers })
         }
       )
     }
 
-    mainWindow.addBrowserView(view)
-    const bounds = computeViewBounds(i, mainWindow.getSize()[0], mainWindow.getSize()[1])
-    view.setBounds(bounds)
+    const enabledIndex = enabledAiNames.indexOf(name)
+    if (enabledIndex !== -1) {
+      mainWindow.addBrowserView(view)
+      const [winWidth, winHeight] = mainWindow.getSize()
+      view.setBounds(computeViewBounds(enabledIndex, enabledAiNames.length, winWidth, winHeight))
+    } else {
+      view.setBounds({ x: -10000, y: 0, width: 100, height: 100 })
+    }
     view.setAutoResize({ width: false, height: false, horizontal: false, vertical: false })
 
     views.set(name, view)
@@ -1199,8 +2127,13 @@ async function createWindow() {
             const homeUrl = getSelectors(name).url
             v.webContents.once('did-finish-load', () =>
               mainWindow?.webContents.send('login-status-changed'))
-            v.webContents.loadURL(homeUrl, { userAgent: DESKTOP_USER_AGENT }).catch(() =>
-              mainWindow?.webContents.send('login-status-changed'))
+            v.webContents.loadURL(homeUrl, { userAgent: DESKTOP_USER_AGENT }).catch((err) => {
+              const message = err instanceof Error ? err.message : String(err)
+              if (!message.includes('ERR_ABORTED')) {
+                sendLog('warn', `[oauth-return:${name}] loadURL failed: ${message}`)
+              }
+              mainWindow?.webContents.send('login-status-changed')
+            })
           } else {
             mainWindow?.webContents.send('login-status-changed')
           }
@@ -1237,12 +2170,17 @@ async function createWindow() {
               'status-update',
               '⚠️ Gemini connection error (502) — Google login required. Please log in from the Gemini panel.'
             )
-            view.webContents.loadURL('https://accounts.google.com/signin', {
-              userAgent: DESKTOP_USER_AGENT,
-            }).catch(() => { })
+            void loadURLSafe(
+              view.webContents,
+              'https://accounts.google.com/signin',
+              'gemini-502-redirect',
+              { userAgent: DESKTOP_USER_AGENT },
+            )
             return
           }
-        } catch { /* ignore */ }
+        } catch (err) {
+          sendLog('warn', `[gemini] 502 probe failed: ${err instanceof Error ? err.message : String(err)}`)
+        }
         mainWindow?.webContents.send('view-loaded', { ai: name })
       })
 
@@ -1262,9 +2200,12 @@ async function createWindow() {
             'status-update',
             '✅ Google login complete! Loading Gemini...'
           )
-          view.webContents.loadURL('https://gemini.google.com', {
-            userAgent: DESKTOP_USER_AGENT,
-          }).catch(() => { })
+          void loadURLSafe(
+            view.webContents,
+            'https://gemini.google.com',
+            'gemini-post-login',
+            { userAgent: DESKTOP_USER_AGENT },
+          )
         }
       })
 
@@ -1407,25 +2348,28 @@ const LOGIN_COPY_DOMAINS: Record<AiName, string[]> = {
   gemini: ['.google.com', 'accounts.google.com'],
   claude: ['claude.ai', '.claude.ai'],
   chatgpt: ['.chatgpt.com', '.openai.com', 'auth.openai.com'],
-  perplexity: ['.perplexity.ai'],
   grok: ['.grok.com', 'grok.com', '.x.com', 'x.com', '.twitter.com', 'twitter.com'],
+  groq: ['.groq.com', 'groq.com', 'console.groq.com'],
+  perplexity: ['.perplexity.ai'],
 }
 
 const LOGIN_START_URLS: Record<AiName, string> = {
   gemini: 'https://accounts.google.com/signin',
   claude: 'https://claude.ai/login',
   chatgpt: 'https://chatgpt.com/auth/login',
-  perplexity: 'https://www.perplexity.ai',
   grok: 'https://grok.com',
+  groq: 'https://console.groq.com/chat',
+  perplexity: 'https://www.perplexity.ai',
 }
 
-const LOGIN_TITLES: Record<AiName, string> = {
+const LOGIN_TITLES = {
   gemini: 'Google Login — Gemini (AI Council)',
   claude: 'Claude Login — AI Council',
   chatgpt: 'ChatGPT Login — AI Council',
   perplexity: 'Perplexity Login — AI Council',
   grok: 'Grok Login — AI Council',
-}
+} as Record<AiName, string>
+LOGIN_TITLES.groq = 'Groq Login - AI Council'
 
 /** Check whether the login session already has valid session cookies.
  *  Uses loginSes.cookies.get({}) (no domain filter) to catch cookies set on
@@ -1456,16 +2400,19 @@ async function isLoginComplete(aiName: AiName, loginSes: Electron.Session, url: 
       relevant.some((c) => c.name.includes('session') || c.name.includes('token') || c.name.startsWith('pplx'))
   }
   if (aiName === 'grok') {
-    // Grok auth is backed by X (Twitter).
-    // auth_token + ct0 = X session credentials (set on x.com during login)
-    // sso + sso-rw    = Grok SSO cookies (set on grok.com after X auth handshake)
-    // Either pair confirms a real logged-in user (not just anonymous visitor cookies).
-    const xCookies = all.filter((c) => c.domain.includes('x.com') || c.domain.includes('twitter.com'))
+    // Grok must complete its own SSO handshake on grok.com.
+    // X auth cookies alone are too early: they can appear before grok.com
+    // finishes establishing the actual product session, which makes the app
+    // look "logged in" while the panel still behaves like a degraded visitor.
     const grokCookies = all.filter((c) => c.domain.includes('grok.com'))
-    const hasXAuth = xCookies.some((c) => c.name === 'auth_token') &&
-      xCookies.some((c) => c.name === 'ct0')
     const hasGrokSSO = grokCookies.some((c) => c.name === 'sso' || c.name === 'sso-rw')
-    return hasXAuth || hasGrokSSO
+    return hasGrokSSO
+  }
+  if (aiName === 'groq') {
+    const groqCookies = all.filter((c) => c.domain.includes('groq.com'))
+    return groqCookies.some((c) =>
+      c.name === 'stytch_session' || c.name === 'stytch_session_jwt'
+    )
   }
   return false
 }
@@ -1594,7 +2541,7 @@ function openLoginWindow(aiName: AiName): void {
     if (view) {
       const aiConfig = getSelectors(aiName)
       const reloadUrl = aiName === 'gemini' ? 'https://gemini.google.com' : aiConfig.newChatUrl
-      view.webContents.loadURL(reloadUrl, { userAgent: DESKTOP_USER_AGENT }).catch(() => { })
+      void loadURLSafe(view.webContents, reloadUrl, `login-reload:${aiName}`, { userAgent: DESKTOP_USER_AGENT })
     }
 
     // Tell renderer to refresh login status display
@@ -1641,22 +2588,25 @@ function openLoginWindow(aiName: AiName): void {
  *  Uses cookies.get({}) (no domain filter) to avoid missing cookies set on
  *  subdomains like www.chatgpt.com or www.perplexity.ai. */
 async function getLoginStatus(): Promise<Record<AiName, boolean>> {
-  const [geminiAll, claudeAll, chatgptAll, perplexityAll, grokAll] = await Promise.all([
+  const [geminiAll, claudeAll, chatgptAll, perplexityAll, grokAll, groqAll] = await Promise.all([
     session.fromPartition('persist:gemini').cookies.get({}),
     session.fromPartition('persist:claude').cookies.get({}),
     session.fromPartition('persist:chatgpt').cookies.get({}),
     session.fromPartition('persist:perplexity').cookies.get({}),
     session.fromPartition('persist:grok').cookies.get({}),
+    session.fromPartition('persist:groq').cookies.get({}),
   ])
 
   const geminiC = geminiAll.filter((c) => c.domain.includes('google.com'))
   const claudeC = claudeAll.filter((c) => c.domain.includes('claude.ai') || c.domain.includes('anthropic.com'))
   const chatgptC = chatgptAll.filter((c) => c.domain.includes('chatgpt.com') || c.domain.includes('openai.com'))
   const perplexityC = perplexityAll.filter((c) => c.domain.includes('perplexity.ai'))
-  const grokXC = grokAll.filter((c) => c.domain.includes('x.com') || c.domain.includes('twitter.com'))
   const grokSiteC = grokAll.filter((c) => c.domain.includes('grok.com'))
-  const grokHasXAuth = grokXC.some((c) => c.name === 'auth_token') && grokXC.some((c) => c.name === 'ct0')
+  const groqC = groqAll.filter((c) => c.domain.includes('groq.com'))
   const grokHasSSO = grokSiteC.some((c) => c.name === 'sso' || c.name === 'sso-rw')
+  const groqLoggedIn = groqC.some((c) =>
+    c.name === 'stytch_session' || c.name === 'stytch_session_jwt'
+  )
 
   // ── ChatGPT ──────────────────────────────────────────────────────────────
   // Cookie-based detection is unreliable: every cookie on chatgpt.com /
@@ -1700,8 +2650,9 @@ async function getLoginStatus(): Promise<Record<AiName, boolean>> {
     gemini: geminiC.some((c) => c.name === 'SID' || c.name === '__Secure-1PSID'),
     claude: claudeC.length > 0,
     chatgpt: chatgptLoggedIn,
+    grok: grokHasSSO,
+    groq: groqLoggedIn,
     perplexity: perplexityLoggedIn,
-    grok: grokHasXAuth || grokHasSSO,
   }
 }
 
@@ -1729,7 +2680,7 @@ async function logoutAi(aiName: AiName): Promise<void> {
         view.webContents.loadURL(loginUrl, { userAgent: DESKTOP_USER_AGENT }).catch(finish)
       })
     } else {
-      view.webContents.loadURL(loginUrl, { userAgent: DESKTOP_USER_AGENT }).catch(() => { })
+      void loadURLSafe(view.webContents, loginUrl, `login-nav:${aiName}`, { userAgent: DESKTOP_USER_AGENT })
     }
   }
   mainWindow?.webContents.send('login-status-changed')
@@ -1738,14 +2689,22 @@ async function logoutAi(aiName: AiName): Promise<void> {
 // ── Accounts IPC handlers ─────────────────────────────────────────────────────
 ipcMain.handle('get-login-status', () => getLoginStatus())
 
+const STANDALONE_LOGIN_SCRIPTS: Partial<Record<AiName, string>> = {
+  gemini: 'google-login.mjs',
+  claude: 'claude-login.mjs',
+  chatgpt: 'chatgpt-login.mjs',
+  grok: 'grok-login.mjs',
+  groq: 'groq-login.mjs',
+  perplexity: 'perplexity-login.mjs',
+}
+
 ipcMain.handle('open-login-window', (_e, aiName: AiName) => {
   if (!AI_NAMES.includes(aiName)) return false
 
-  // ChatGPT / Perplexity: spawn the standalone .mjs login script instead of
-  // using openLoginWindow.  The standalone scripts have no parent-window
-  // relationship and no WebAuthn interference, so Google OAuth works cleanly.
-  if (aiName === 'chatgpt' || aiName === 'perplexity') {
-    const script = path.join(app.getAppPath(), `${aiName}-login.mjs`)
+  // Standalone login scripts avoid parent-window WebAuthn/passkey interference.
+  const standaloneScript = STANDALONE_LOGIN_SCRIPTS[aiName]
+  if (standaloneScript) {
+    const script = path.join(app.getAppPath(), standaloneScript)
     // Pass our userData path via env so the spawned Electron process uses the
     // same persist:* session directories as the main app.  Without this the
     // child uses its own default userData ("Electron") and cookies are never
@@ -1763,7 +2722,12 @@ ipcMain.handle('open-login-window', (_e, aiName: AiName) => {
       // SQLite in the child does NOT update the parent's cache, so we must call
       // ses.cookies.set() here to make the cookies visible to the BrowserView.
       try {
-        const cookieList: Electron.Cookie[] = JSON.parse(stdoutData)
+        const cookieJson = stdoutData
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .find((line) => line.startsWith('[') && line.endsWith(']'))
+        if (!cookieJson) throw new Error('No cookie JSON emitted')
+        const cookieList: Electron.Cookie[] = JSON.parse(cookieJson)
         const ses = session.fromPartition(`persist:${aiName}`)
         for (const c of cookieList) {
           const protocol = c.secure ? 'https' : 'http'
@@ -1779,10 +2743,14 @@ ipcMain.handle('open-login-window', (_e, aiName: AiName) => {
             httpOnly: c.httpOnly,
             expirationDate: c.expirationDate,
             sameSite: c.sameSite as any,
-          }).catch(() => {/* ignore individual cookie errors */ })
+          }).catch((err) => {
+            sendLog('warn', `[${aiName}] cookie import failed for ${c.name}: ${err instanceof Error ? err.message : String(err)}`)
+          })
         }
         await ses.cookies.flushStore()
-      } catch { /* no cookies or JSON parse error — proceed anyway */ }
+      } catch (err) {
+        sendLog('warn', `[${aiName}] login cookie import failed: ${err instanceof Error ? err.message : String(err)}`)
+      }
 
       // Reload the BrowserView so it navigates with the newly imported cookies.
       const view = views.get(aiName)
@@ -1791,7 +2759,11 @@ ipcMain.handle('open-login-window', (_e, aiName: AiName) => {
         view.webContents.once('did-finish-load', () => {
           mainWindow?.webContents.send('login-status-changed')
         })
-        view.webContents.loadURL(url, { userAgent: DESKTOP_USER_AGENT }).catch(() => {
+        view.webContents.loadURL(url, { userAgent: DESKTOP_USER_AGENT }).catch((err) => {
+          const message = err instanceof Error ? err.message : String(err)
+          if (!message.includes('ERR_ABORTED')) {
+            sendLog('warn', `[post-login-reload:${aiName}] loadURL failed: ${message}`)
+          }
           mainWindow?.webContents.send('login-status-changed')
         })
       } else {
@@ -1820,7 +2792,7 @@ ipcMain.handle('logout-all', async () => {
 ipcMain.handle('set-enabled-ais', (_e, ais: AiName[]) => {
   if (!Array.isArray(ais) || ais.length === 0) return false
   enabledAiNames = ais.filter((n) => AI_NAMES.includes(n))
-  if (enabledAiNames.length === 0) enabledAiNames = [...AI_NAMES]
+  if (enabledAiNames.length === 0) enabledAiNames = [...DEFAULT_ENABLED_AI_NAMES]
   updateViewBounds()
   return true
 })
@@ -1835,6 +2807,459 @@ ipcMain.handle('set-attachment-bar-visible', (_e, visible: boolean) => {
 ipcMain.handle('set-final-panel-expanded', (_e, expanded: boolean) => {
   finalPanelExpanded = expanded
   updateViewBounds()
+})
+
+ipcMain.handle('set-council-chat-visible', (_e, visible: boolean) => {
+  councilChatVisible = !!visible
+  updateViewBounds()
+})
+
+ipcMain.handle('switch-interaction-mode', (_e, payload: { mode: InteractionMode; participants: AiName[]; primaryAi: AiName }) => {
+  return handoffInteractionMode(payload.mode, payload.participants, payload.primaryAi)
+})
+
+ipcMain.handle('get-council-room', () => {
+  if (councilRoom.messages.length === 0) {
+    return resetCouncilRoomContext(councilRoom.participants, councilRoom.primaryAi)
+  }
+  return cloneCouncilRoomState()
+})
+
+ipcMain.handle('get-council-ui-state', () => {
+  return sanitizeCouncilUiState(store.get('councilUiState'))
+})
+
+ipcMain.handle('set-council-ui-state', (_e, payload?: Partial<CouncilUiState>) => {
+  const nextState = sanitizeCouncilUiState(payload)
+  store.set('councilUiState', nextState)
+  return nextState
+})
+
+ipcMain.handle('get-council-snapshots', () => {
+  return summarizeCouncilSnapshots(getCouncilSnapshots())
+})
+
+ipcMain.handle('save-council-snapshot', (_e, payload?: {
+  room?: CouncilRoomState
+  uiState?: CouncilUiState
+  title?: string
+  insight?: Partial<CouncilSnapshotInsight>
+}) => {
+  const baseRoom = loadPersistedCouncilRoomFromSnapshot(payload?.room ?? councilRoom)
+  const roomState: CouncilRoomState = {
+    participants: [...baseRoom.participants],
+    primaryAi: baseRoom.primaryAi,
+    status: 'idle',
+    pendingAi: null,
+    messages: baseRoom.messages.map((message) => ({ ...message, pending: false })),
+    lastIntent: baseRoom.lastIntent ? { ...baseRoom.lastIntent } : null,
+    failedTurn: baseRoom.failedTurn ? { ...baseRoom.failedTurn } : null,
+  }
+  const uiState = sanitizeCouncilUiState(payload?.uiState)
+  const insight = sanitizeCouncilSnapshotInsight(payload?.insight)
+  const snapshots = getCouncilSnapshots()
+  const activeSnapshotId = getActiveCouncilSnapshotId()
+  const existingActiveSnapshot = activeSnapshotId
+    ? snapshots.find((snapshot) => snapshot.id === activeSnapshotId)
+    : null
+  const nextSnapshot: CouncilSnapshotRecord = sanitizeCouncilSnapshotRecord({
+    id: existingActiveSnapshot?.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title: typeof payload?.title === 'string' && payload.title.trim().length > 0
+      ? payload.title.trim()
+      : existingActiveSnapshot?.title ?? defaultCouncilSnapshotTitle(roomState),
+    label: existingActiveSnapshot?.label ?? null,
+    note: existingActiveSnapshot?.note ?? null,
+    savedAt: Date.now(),
+    lastOpenedAt: existingActiveSnapshot?.lastOpenedAt ?? Date.now(),
+    messageCount: roomState.messages.length,
+    isFavorite: existingActiveSnapshot?.isFavorite ?? false,
+    isArchived: existingActiveSnapshot?.isArchived ?? false,
+    lifecycle: existingActiveSnapshot?.lifecycle ?? 'in-progress',
+    room: roomState,
+    uiState,
+    insight,
+  })
+  const nextSnapshots = existingActiveSnapshot
+    ? [nextSnapshot, ...snapshots.filter((snapshot) => snapshot.id !== existingActiveSnapshot.id)].slice(0, 24)
+    : [nextSnapshot, ...snapshots].slice(0, 24)
+  persistCouncilSnapshots(nextSnapshots)
+  setActiveCouncilSnapshotId(nextSnapshot.id)
+  return summarizeCouncilSnapshots(getCouncilSnapshots())
+})
+
+ipcMain.handle('load-council-snapshot', (_e, snapshotId: string) => {
+  const snapshots = getCouncilSnapshots()
+  const snapshot = snapshots.find((item) => item.id === snapshotId)
+  if (!snapshot) return null
+
+  const nextSnapshots = snapshots.map((item) =>
+    item.id === snapshotId
+      ? sanitizeCouncilSnapshotRecord({
+          ...item,
+          lastOpenedAt: Date.now(),
+        })
+      : item
+  )
+  persistCouncilSnapshots(nextSnapshots)
+  const hydratedSnapshot = nextSnapshots.find((item) => item.id === snapshotId) ?? snapshot
+
+  const runtime = loadPersistedCouncilRoomFromSnapshot(hydratedSnapshot.room)
+  councilRoom = runtime
+  enabledAiNames = [...runtime.participants]
+  setActiveCouncilSnapshotId(hydratedSnapshot.id)
+  store.set('councilRoomSnapshot', cloneCouncilRoomState())
+  store.set('councilUiState', sanitizeCouncilUiState(hydratedSnapshot.uiState))
+  updateViewBounds()
+  emitCouncilRoomUpdate()
+
+  return {
+    room: cloneCouncilRoomState(),
+    uiState: sanitizeCouncilUiState(hydratedSnapshot.uiState),
+  }
+})
+
+ipcMain.handle('rename-council-snapshot', (_e, snapshotId: string, title: string) => {
+  const normalizedTitle = typeof title === 'string' ? title.trim() : ''
+  const nextSnapshots = getCouncilSnapshots().map((snapshot) =>
+    snapshot.id === snapshotId
+      ? sanitizeCouncilSnapshotRecord({
+          ...snapshot,
+          title: normalizedTitle.length > 0 ? normalizedTitle : snapshot.title,
+        })
+      : snapshot
+  )
+  persistCouncilSnapshots(nextSnapshots)
+  return summarizeCouncilSnapshots(nextSnapshots)
+})
+
+ipcMain.handle('annotate-council-snapshot', (_e, snapshotId: string, meta?: {
+  label?: string | null
+  note?: string | null
+}) => {
+  const nextSnapshots = getCouncilSnapshots().map((snapshot) =>
+    snapshot.id === snapshotId
+      ? sanitizeCouncilSnapshotRecord({
+          ...snapshot,
+          label: sanitizeSnapshotLabel(meta?.label),
+          note: sanitizeSnapshotNote(meta?.note),
+        })
+      : snapshot
+  )
+  persistCouncilSnapshots(nextSnapshots)
+  return summarizeCouncilSnapshots(nextSnapshots)
+})
+
+ipcMain.handle('toggle-council-snapshot-lifecycle', (_e, snapshotId: string) => {
+  const nextSnapshots = getCouncilSnapshots().map((snapshot) =>
+    snapshot.id === snapshotId
+      ? sanitizeCouncilSnapshotRecord({
+          ...snapshot,
+          lifecycle: snapshot.lifecycle === 'completed' ? 'in-progress' : 'completed',
+        })
+      : snapshot
+  )
+  persistCouncilSnapshots(nextSnapshots)
+  return summarizeCouncilSnapshots(nextSnapshots)
+})
+
+ipcMain.handle('toggle-council-snapshot-archived', (_e, snapshotId: string) => {
+  const nextSnapshots = getCouncilSnapshots().map((snapshot) =>
+    snapshot.id === snapshotId
+      ? sanitizeCouncilSnapshotRecord({
+          ...snapshot,
+          isArchived: !snapshot.isArchived,
+        })
+      : snapshot
+  )
+  persistCouncilSnapshots(nextSnapshots)
+  return summarizeCouncilSnapshots(nextSnapshots)
+})
+
+ipcMain.handle('export-council-snapshot', async (_e, snapshotId: string) => {
+  if (!mainWindow) return { ok: false, reason: 'window-unavailable' }
+
+  const snapshot = getCouncilSnapshots().find((item) => item.id === snapshotId)
+  if (!snapshot) return { ok: false, reason: 'snapshot-not-found' }
+
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'Export Council Session',
+    defaultPath: `${sanitizeSnapshotFilenamePart(snapshot.title)}.council-session.json`,
+    filters: [
+      { name: 'Council Session JSON', extensions: ['json'] },
+      { name: 'All Files', extensions: ['*'] },
+    ],
+  })
+
+  if (result.canceled || !result.filePath) {
+    return { ok: false, reason: 'canceled' }
+  }
+
+  try {
+    const envelope: CouncilSnapshotExportEnvelope = {
+      version: 1,
+      exportedAt: Date.now(),
+      snapshot: sanitizeCouncilSnapshotRecord(snapshot),
+    }
+    fs.writeFileSync(result.filePath, JSON.stringify(envelope, null, 2), 'utf-8')
+    return {
+      ok: true,
+      title: snapshot.title,
+      filePath: result.filePath,
+    }
+  } catch (err) {
+    sendLog('error', `Council snapshot export error: ${err instanceof Error ? err.message : String(err)}`)
+    return { ok: false, reason: 'write-failed' }
+  }
+})
+
+ipcMain.handle('import-council-snapshot', async () => {
+  if (!mainWindow) {
+    return { snapshots: summarizeCouncilSnapshots(getCouncilSnapshots()) }
+  }
+
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Import Council Session',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Council Session JSON', extensions: ['json'] },
+      { name: 'All Files', extensions: ['*'] },
+    ],
+  })
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return { snapshots: summarizeCouncilSnapshots(getCouncilSnapshots()) }
+  }
+
+  try {
+    const raw = fs.readFileSync(result.filePaths[0], 'utf-8')
+    const parsed = JSON.parse(raw) as Partial<CouncilSnapshotExportEnvelope> | CouncilSnapshotRecord
+    const importedRecord = 'snapshot' in parsed && parsed.snapshot
+      ? parsed.snapshot
+      : parsed as CouncilSnapshotRecord
+
+    const nextImported = sanitizeCouncilSnapshotRecord({
+      ...importedRecord,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      savedAt: Date.now(),
+      lastOpenedAt: Date.now(),
+      isFavorite: false,
+      isArchived: false,
+      lifecycle: importedRecord.lifecycle ?? 'in-progress',
+    })
+
+    const nextSnapshots = [nextImported, ...getCouncilSnapshots()].slice(0, 24)
+    persistCouncilSnapshots(nextSnapshots)
+    return {
+      snapshots: summarizeCouncilSnapshots(nextSnapshots),
+      importedTitle: nextImported.title,
+    }
+  } catch (err) {
+    sendLog('error', `Council snapshot import error: ${err instanceof Error ? err.message : String(err)}`)
+    return { snapshots: summarizeCouncilSnapshots(getCouncilSnapshots()) }
+  }
+})
+
+ipcMain.handle('toggle-council-snapshot-favorite', (_e, snapshotId: string) => {
+  const nextSnapshots = getCouncilSnapshots().map((snapshot) =>
+    snapshot.id === snapshotId
+      ? sanitizeCouncilSnapshotRecord({
+          ...snapshot,
+          isFavorite: !snapshot.isFavorite,
+        })
+      : snapshot
+  )
+  persistCouncilSnapshots(nextSnapshots)
+  return summarizeCouncilSnapshots(getCouncilSnapshots())
+})
+
+ipcMain.handle('duplicate-council-snapshot', (_e, snapshotId: string) => {
+  const snapshots = getCouncilSnapshots()
+  const snapshot = snapshots.find((item) => item.id === snapshotId)
+  if (!snapshot) return summarizeCouncilSnapshots(snapshots)
+
+  const duplicated: CouncilSnapshotRecord = sanitizeCouncilSnapshotRecord({
+    ...snapshot,
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title: `${snapshot.title} (Copy)`,
+    savedAt: Date.now(),
+    lastOpenedAt: Date.now(),
+    isFavorite: false,
+    isArchived: false,
+    lifecycle: 'in-progress',
+  })
+  const nextSnapshots = [duplicated, ...snapshots].slice(0, 24)
+  persistCouncilSnapshots(nextSnapshots)
+  setActiveCouncilSnapshotId(duplicated.id)
+  return summarizeCouncilSnapshots(nextSnapshots)
+})
+
+ipcMain.handle('delete-council-snapshot', (_e, snapshotId: string) => {
+  const nextSnapshots = getCouncilSnapshots().filter((snapshot) => snapshot.id !== snapshotId)
+  persistCouncilSnapshots(nextSnapshots)
+  if (getActiveCouncilSnapshotId() === snapshotId) {
+    setActiveCouncilSnapshotId(null)
+  }
+  return summarizeCouncilSnapshots(nextSnapshots)
+})
+
+ipcMain.handle('sync-council-room-context', (_e, payload: { participants: AiName[]; primaryAi: AiName }) => {
+  return syncCouncilRoomContext(payload.participants, payload.primaryAi)
+})
+
+ipcMain.handle('bridge-workflow-to-council', (_e, payload: { participants: AiName[]; primaryAi: AiName }) => {
+  return bridgeWorkflowToCouncil(payload.participants, payload.primaryAi)
+})
+
+ipcMain.handle('reset-council-room', (_e, payload?: { participants?: AiName[]; primaryAi?: AiName }) => {
+  return resetCouncilRoomContext(payload?.participants, payload?.primaryAi ?? councilRoom.primaryAi)
+})
+
+ipcMain.handle('retry-council-turn', async () => {
+  if (!councilRoom.failedTurn) return cloneCouncilRoomState()
+
+  const { ai, promptText } = councilRoom.failedTurn
+  clearFailedCouncilTurn(`Retrying ${AI_DISPLAY_NAMES[ai]}...`)
+  emitCouncilRoomUpdate()
+
+  try {
+    await enqueueCouncilTurn(ai, promptText)
+    clearFailedCouncilTurn(`${AI_DISPLAY_NAMES[ai]} recovered successfully.`)
+    emitCouncilRoomUpdate()
+  } catch (err) {
+    recordCouncilTurnFailure(ai, promptText, err, {
+      kind: 'mention',
+      targetAi: ai,
+      note: `${AI_DISPLAY_NAMES[ai]} failed again.`,
+    })
+  }
+
+  return cloneCouncilRoomState()
+})
+
+ipcMain.handle('skip-council-turn', () => {
+  if (!councilRoom.failedTurn) return cloneCouncilRoomState()
+  const failedAi = councilRoom.failedTurn.ai
+  clearFailedCouncilTurn(`Skipped recovery for ${AI_DISPLAY_NAMES[failedAi]}.`)
+  councilRoom.messages.push(
+    makeCouncilMessage(
+      'system',
+      `Skipped the failed turn for ${AI_DISPLAY_NAMES[failedAi]}. You can continue the discussion or address another AI.`,
+    )
+  )
+  emitCouncilRoomUpdate()
+  return cloneCouncilRoomState()
+})
+
+ipcMain.handle('send-council-message', async (_e, payload: { text: string; participants: AiName[]; primaryAi: AiName }) => {
+  const text = typeof payload?.text === 'string' ? payload.text.trim() : ''
+  if (!text) return cloneCouncilRoomState()
+
+  syncCouncilRoomContext(payload.participants, payload.primaryAi)
+  clearFailedCouncilTurn()
+  const userMessage = makeCouncilMessage('user', text)
+  councilRoom.messages.push(userMessage)
+  councilRoom.lastIntent = parseCouncilIntent(text)
+  emitCouncilRoomUpdate()
+
+  const intent = councilRoom.lastIntent
+  if (!intent || intent.kind === 'none') {
+    councilRoom.messages.push(
+      makeCouncilMessage(
+        'system',
+        'Saved to the shared transcript. Mention one active AI like @Gemini, or use @all for sequential council replies.'
+      )
+    )
+    emitCouncilRoomUpdate()
+    return cloneCouncilRoomState()
+  }
+
+  if (intent.kind === 'unsupported') {
+    councilRoom.messages.push(
+      makeCouncilMessage(
+        'system',
+        intent.note,
+        { error: true }
+      )
+    )
+    emitCouncilRoomUpdate()
+    return cloneCouncilRoomState()
+  }
+
+  const targets = intent.kind === 'all'
+    ? getSequentialCouncilTargets(councilRoom.participants, councilRoom.primaryAi)
+    : intent.targetAi
+      ? [intent.targetAi]
+      : []
+
+  if (targets.length === 0) {
+    councilRoom.messages.push(
+      makeCouncilMessage(
+        'system',
+        'No valid active AI target was found for this message.',
+        { error: true }
+      )
+    )
+    emitCouncilRoomUpdate()
+    return cloneCouncilRoomState()
+  }
+
+  const inactiveTarget = targets.find((ai) => !councilRoom.participants.includes(ai))
+  if (inactiveTarget) {
+    councilRoom.messages.push(
+      makeCouncilMessage(
+        'system',
+        `${AI_DISPLAY_NAMES[inactiveTarget]} is not active right now. Activate that AI first, then try again.`,
+        { error: true }
+      )
+    )
+    emitCouncilRoomUpdate()
+    return cloneCouncilRoomState()
+  }
+
+  if (intent.kind === 'all' && targets.length > 1) {
+    councilRoom.messages.push(
+      makeCouncilMessage(
+        'system',
+        `Queued sequential council replies from ${targets.map((ai) => AI_DISPLAY_NAMES[ai]).join(', ')}.`
+      )
+    )
+    emitCouncilRoomUpdate()
+  }
+
+  for (let index = 0; index < targets.length; index++) {
+    const targetAi = targets[index]
+    if (intent.kind === 'all') {
+      councilRoom.lastIntent = {
+        kind: 'all',
+        targetAis: targets,
+        note: `Sequential council turn ${index + 1}/${targets.length}: ${AI_DISPLAY_NAMES[targetAi]} is up next.`,
+      }
+      emitCouncilRoomUpdate()
+    }
+
+    try {
+      await enqueueCouncilTurn(targetAi, text)
+    } catch (err) {
+      recordCouncilTurnFailure(targetAi, text, err, {
+        kind: intent.kind,
+        targetAi,
+        targetAis: intent.kind === 'all' ? targets : undefined,
+        note: `${AI_DISPLAY_NAMES[targetAi]} failed to reply.`,
+      })
+      if (intent.kind !== 'all') break
+    }
+  }
+
+  if (intent.kind === 'all') {
+    councilRoom.lastIntent = {
+      kind: 'all',
+      targetAis: targets,
+      note: `Sequential council replies finished for ${targets.length} active AI${targets.length > 1 ? 's' : ''}.`,
+    }
+    emitCouncilRoomUpdate()
+  }
+
+  return cloneCouncilRoomState()
 })
 
 ipcMain.handle('get-ai-list', () => AI_NAMES)
@@ -1906,12 +3331,13 @@ ipcMain.handle('set-views-visible', (_e, visible: boolean) => {
   AI_NAMES.forEach((name) => {
     const view = views.get(name)
     if (!view) return
-    if (visible) {
+    if (visible && enabledAiNames.includes(name)) {
       try { mainWindow?.addBrowserView(view) } catch { /* already added */ }
     } else {
       try { mainWindow?.removeBrowserView(view) } catch { /* already removed */ }
     }
   })
+  if (visible) updateViewBounds()
 })
 
 /**
@@ -1930,42 +3356,99 @@ ipcMain.handle(
     attachedFiles?: Array<{ name: string; path: string; ext: string }>
   }) => {
     // ── Input validation ──────────────────────────────────────────────────────
-    if (!query || typeof query !== 'string' || !query.trim()) {
-      return { success: false, error: 'Query is empty.' }
-    }
-    if (query.length > QUERY_MAX_LENGTH) {
+    const trimmedQuery = typeof query === 'string' ? query.trim() : ''
+    const isReviewOnlyRound = trimmedQuery.length === 0
+
+    if (!isReviewOnlyRound && query.length > QUERY_MAX_LENGTH) {
       return { success: false, error: `Query is too long. (Max ${QUERY_MAX_LENGTH} chars)` }
     }
     if (!AI_NAMES.includes(primaryAi)) {
       return { success: false, error: `Invalid AI selection: ${primaryAi}` }
+    }
+    if (isReviewOnlyRound && (!workflowSession || !workflowSession.latestFinalAnswer)) {
+      return { success: false, error: 'There is no active session to continue.' }
+    }
+    if (!isReviewOnlyRound && !trimmedQuery) {
+      return { success: false, error: 'Query is empty.' }
     }
 
     // Use caller-supplied enabled list (falls back to all AIs for backwards compat)
     // currentPrimary is a mutable tracker updated at each pause point when the
     // user reassigns the Primary AI. It starts as the caller-supplied primaryAi.
     let currentPrimary: AiName = primaryAi
-    const reviewers = enabledAiNames.filter((n) => n !== primaryAi)
-    const primaryConfig = getSelectors(primaryAi)
     const hasFiles = Array.isArray(attachedFiles) && attachedFiles.length > 0
 
     try {
       // ── STEP 2.5: Extract attached file content ───────────────────────────
-      let fileContext = ''
+      const normalizedFiles: WorkflowAttachment[] = attachedFiles ? [...attachedFiles] : []
+      let fileContext = workflowSession?.fileContext ?? ''
+      let queryForRound = trimmedQuery || workflowSession?.lastUserQuery || ''
+      let historyQuery = queryForRound
+      let answerUnderReview = workflowSession?.latestFinalAnswer ?? ''
+
+      if (!isReviewOnlyRound) {
+        const relationDecision = await resolveSessionRelationDecision(trimmedQuery, workflowSession)
+        const isNewTopic = !relationDecision.related
+        if (isNewTopic) {
+          sendStatus('Starting a new session...')
+          sendLog(
+            'info',
+            `[session] New topic detected via ${relationDecision.finalSource} (scenario ${relationDecision.scenario}): ${relationDecision.reason} | overlap=${relationDecision.overlapCount} ratio=${relationDecision.overlapRatio.toFixed(2)} | "${trimmedQuery.slice(0, 120)}"`
+          )
+          await resetConversationThreads()
+          workflowSession = null
+          fileContext = ''
+        } else {
+          sendLog(
+            'info',
+            `[session] Related follow-up detected via ${relationDecision.finalSource} (scenario ${relationDecision.scenario}): ${relationDecision.reason} | overlap=${relationDecision.overlapCount} ratio=${relationDecision.overlapRatio.toFixed(2)}`
+          )
+        }
+      } else {
+        sendLog('info', '[session] Starting another reviewer round from the current final answer')
+      }
       if (hasFiles) {
         sendStatus('Extracting attached file contents...')
-        sendLog('info', `[Step 2.5] Extracting ${attachedFiles!.length} file(s)`)
-        fileContext = await buildFileContext(attachedFiles!)
+        sendLog('info', `[Step 2.5] Extracting ${normalizedFiles.length} file(s)`)
+        fileContext = await buildFileContext(normalizedFiles)
         sendLog('info', `[Step 2.5] File context ready (${fileContext.length} chars)`)
       }
 
-      // ── STEP 3: Navigate primary AI to new chat, then inject query ────────
-      const primaryView = views.get(primaryAi)!
-      sendStatus(`Preparing new conversation in ${primaryAi}...`)
-      sendLog('info', `[Step 3] Navigating ${primaryAi} to new chat`)
-      await navigateToNewChat(primaryView, primaryAi)
+      if (!workflowSession && !isReviewOnlyRound) {
+        workflowSession = {
+          topicSeed: trimmedQuery,
+          lastUserQuery: trimmedQuery,
+          currentPrimary,
+          latestDraft: '',
+          latestFinalAnswer: '',
+          latestFeedbacks: [],
+          fileContext,
+          attachedFiles: normalizedFiles,
+          participants: [],
+          roundsCompleted: 0,
+        }
+      }
 
-      sendStatus(MSG.injecting(primaryAi))
-      sendLog('info', `[Step 3] Injecting query into ${primaryAi}`)
+      if (!isReviewOnlyRound) {
+
+      // ── STEP 3: Navigate primary AI to new chat, then inject query ────────
+      const primaryView = views.get(currentPrimary)!
+      const primaryConfig = getSelectors(currentPrimary)
+      const isContinuingPrimaryThread = doesWorkflowOwnThread(currentPrimary)
+      sendStatus(isContinuingPrimaryThread
+        ? `Continuing conversation in ${currentPrimary}...`
+        : `Preparing conversation in ${currentPrimary}...`)
+      sendLog('info', isContinuingPrimaryThread
+        ? `[Step 3] Reusing existing thread for ${currentPrimary}`
+        : `[Step 3] Preparing fresh thread for ${currentPrimary}`)
+
+      if (!isContinuingPrimaryThread) {
+        await navigateToNewChat(primaryView, currentPrimary)
+        markViewThreadOwner(currentPrimary, 'workflow')
+      }
+
+      sendStatus(MSG.injecting(currentPrimary))
+      sendLog('info', `[Step 3] Injecting query into ${currentPrimary}`)
 
       const primaryBaseline = await capturePageBaseline(primaryView)
       sendLog('info', `[Step 3] Pre-injection page baseline captured (${primaryBaseline.length} chars)`)
@@ -1977,38 +3460,48 @@ ipcMain.handle(
       )
 
       if (!inputResult.success) {
-        throw new Error(`Could not find input box in ${primaryAi}. Please check login status.`)
+        throw new Error(`Could not find input box in ${currentPrimary}. Please check login status.`)
       }
 
-      const primaryPrompt = buildPrimaryPrompt(query, fileContext)
+      const needsContextBridge = Boolean(workflowSession?.latestFinalAnswer) && !doesWorkflowOwnThread(currentPrimary)
+      const includeFileContext = normalizedFiles.length > 0 || !isContinuingPrimaryThread
+      const primaryPrompt = needsContextBridge
+        ? buildContextBridgePrompt(trimmedQuery, workflowSession!.latestFinalAnswer, fileContext)
+        : buildPrimaryPrompt(trimmedQuery, includeFileContext ? fileContext : '')
       await pasteText(primaryView, primaryPrompt, inputResult.selector!)
 
       // small pause before send
       await sleep(CLICK_SEND_DELAY_MS)
-      sendStatus(MSG.sending(primaryAi))
+      sendStatus(MSG.sending(currentPrimary))
       await clickSend(primaryView, primaryConfig.sendButtonSelectors)
 
       // ── STEP 4: Wait for Primary AI response ─────────────────────────────
-      sendStatus(MSG.waitingPrimary(primaryAi))
+      sendStatus(MSG.waitingPrimary(currentPrimary))
       sendLog('info', `[Step 4] Waiting ${INITIAL_RESPONSE_WAIT_MS}ms then polling`)
       await sleep(INITIAL_RESPONSE_WAIT_MS)
 
-      const draftAnswer = await waitForStableResponse(
+      answerUnderReview = await waitForStableResponse(
         primaryView,
         primaryConfig.responseContainerSelectors,
         WORKFLOW_TIMEOUT_MS,
         STABLE_RESPONSE_MS,
-        primaryAi,
+        currentPrimary,
         primaryBaseline
       )
 
-      sendLog('info', `[Step 4] Got draft (${draftAnswer.length} chars)`)
+      sendLog('info', `[Step 4] Got draft (${answerUnderReview.length} chars)`)
 
-      if (!draftAnswer || draftAnswer.trim().length === 0) {
-        throw new Error(`No response received from ${primaryAi}. Check login status or response timeout.`)
+      if (!answerUnderReview || answerUnderReview.trim().length === 0) {
+        throw new Error(`No response received from ${currentPrimary}. Check login status or response timeout.`)
       }
 
-      mainWindow?.webContents.send('draft-ready', { ai: primaryAi, draft: draftAnswer })
+      workflowSession!.latestDraft = answerUnderReview
+      workflowSession!.lastUserQuery = trimmedQuery
+      workflowSession!.currentPrimary = currentPrimary
+      workflowSession!.fileContext = fileContext
+      workflowSession!.attachedFiles = normalizedFiles.length > 0 ? normalizedFiles : workflowSession!.attachedFiles
+      markSessionParticipant(currentPrimary)
+      mainWindow?.webContents.send('draft-ready', { ai: currentPrimary, draft: answerUnderReview })
 
       // ── PAUSE POINT 1: Wait for user to click "Next" ──────────────────────
       sendStatus(`✅ ${currentPrimary} has finished. Review the answer above, then click Next to send to reviewers.`)
@@ -2017,23 +3510,39 @@ ipcMain.handle(
       if (pause1Decision.primaryAi && pause1Decision.primaryAi !== currentPrimary) {
         sendLog('info', `[Pause 1] Primary AI reassigned: ${currentPrimary} → ${pause1Decision.primaryAi}`)
         currentPrimary = pause1Decision.primaryAi
+        workflowSession!.currentPrimary = currentPrimary
       }
       sendLog('info', '[Pause 1] User clicked Next — proceeding to reviewer step')
 
       // ── STEP 5: Inject reviewer prompt into all reviewers simultaneously ──
       // Recompute reviewers based on currentPrimary (may have changed at Pause 1)
+      } else {
+        queryForRound = workflowSession!.lastUserQuery
+        historyQuery = workflowSession!.lastUserQuery
+        fileContext = workflowSession!.fileContext
+        answerUnderReview = workflowSession!.latestFinalAnswer
+        workflowSession!.currentPrimary = currentPrimary
+      }
+
       const activeReviewers = enabledAiNames.filter((n) => n !== currentPrimary)
       sendStatus(MSG.sendingReviews())
       sendLog('info', `[Step 5] Injecting review requests to: ${activeReviewers.join(', ')}`)
 
-      const filePaths = hasFiles ? attachedFiles!.map((f) => f.path) : []
+      const effectiveFiles = normalizedFiles.length > 0 ? normalizedFiles : (workflowSession?.attachedFiles ?? [])
+      const filePaths = effectiveFiles.map((f) => f.path)
 
       const reviewPromises = activeReviewers.map(async (reviewerName) => {
         const reviewerView = views.get(reviewerName)!
         const reviewerConfig = getSelectors(reviewerName)
 
-        sendLog('info', `[Step 5] Navigating ${reviewerName} to new chat`)
-        await navigateToNewChat(reviewerView, reviewerName)
+        const reuseReviewerThread = doesWorkflowOwnThread(reviewerName)
+        sendLog('info', reuseReviewerThread
+          ? `[Step 5] Reusing existing thread for ${reviewerName}`
+          : `[Step 5] Preparing fresh thread for ${reviewerName}`)
+        if (!reuseReviewerThread) {
+          await navigateToNewChat(reviewerView, reviewerName)
+          markViewThreadOwner(reviewerName, 'workflow')
+        }
 
         const inputRes = await execWithFallback(
           reviewerView,
@@ -2048,7 +3557,7 @@ ipcMain.handle(
 
         // ── Try to physically attach original files via CDP ────────────────
         let filesAttached = false
-        if (hasFiles && filePaths.length > 0) {
+        if (effectiveFiles.length > 0 && filePaths.length > 0) {
           sendLog('info', `[Step 5] ${reviewerName}: Attempting CDP file attach (${filePaths.length} file(s))`)
           filesAttached = await attachFilesViaCDP(reviewerView, reviewerName, filePaths)
           if (filesAttached) {
@@ -2063,9 +3572,11 @@ ipcMain.handle(
         }
 
         // Build prompt: omit embedded file content when files were physically attached
-        const prompt = buildReviewerPrompt(
-          currentPrimary, query, draftAnswer,
-          filesAttached ? '' : fileContext   // skip text embed if CDP succeeded
+        const prompt = buildReviewerPromptV2(
+          reviewerName,
+          queryForRound,
+          answerUnderReview,
+          filesAttached ? '' : fileContext
         )
 
         sendLog('info', `[Step 5] ${reviewerName}: Starting prompt paste`)
@@ -2113,6 +3624,7 @@ ipcMain.handle(
           sendLog('info', `[Step 5] claude: sanitized feedback ${rawFeedback.length}→${feedback.length} chars`)
         }
 
+        markSessionParticipant(reviewerName)
         mainWindow?.webContents.send('feedback-ready', { ai: reviewerName, feedback })
         return { ai: reviewerName as AiName, feedback }
       })
@@ -2121,6 +3633,7 @@ ipcMain.handle(
       sendStatus(MSG.collectingFeedbacks())
       sendLog('info', '[Step 6] Collecting reviewer feedbacks')
       const feedbackResults = await Promise.all(reviewPromises)
+      workflowSession!.latestFeedbacks = feedbackResults
 
       // ── PAUSE POINT 2: Wait for user to click "Continue" ──────────────────
       sendStatus('✅ All reviewer feedback is ready. Review the panels above, then click Continue to generate the final answer.')
@@ -2129,6 +3642,7 @@ ipcMain.handle(
       if (pause2Decision.primaryAi && pause2Decision.primaryAi !== currentPrimary) {
         sendLog('info', `[Pause 2] Primary AI reassigned: ${currentPrimary} → ${pause2Decision.primaryAi}`)
         currentPrimary = pause2Decision.primaryAi
+        workflowSession!.currentPrimary = currentPrimary
       }
       sendLog('info', '[Pause 2] User clicked Continue — proceeding to final revision')
 
@@ -2139,8 +3653,20 @@ ipcMain.handle(
       sendStatus(MSG.sendingRevision(currentPrimary))
       sendLog('info', `[Step 7] Sending final revision prompt to ${currentPrimary}`)
 
-      const attachedFileNames = hasFiles ? attachedFiles!.map((f) => f.name) : []
-      const finalPrompt = buildFinalRevisionPrompt(feedbackResults, hasFiles, attachedFileNames)
+      if (!doesWorkflowOwnThread(currentPrimary)) {
+        sendLog('info', `[Step 7] Preparing fresh workflow thread for ${currentPrimary}`)
+        await navigateToNewChat(finalPrimaryView, currentPrimary)
+        markViewThreadOwner(currentPrimary, 'workflow')
+      }
+
+      const attachedFileNames = effectiveFiles.map((f) => f.name)
+      const finalPrompt = buildFinalRevisionPromptV2(
+        queryForRound,
+        answerUnderReview,
+        feedbackResults,
+        effectiveFiles.length > 0,
+        attachedFileNames
+      )
 
       const finalInputRes = await execWithFallback(
         finalPrimaryView,
@@ -2178,9 +3704,33 @@ ipcMain.handle(
       )
 
       // Save to history — record the AI that actually produced the final answer
+      workflowSession = {
+        ...(workflowSession ?? {
+          topicSeed: historyQuery,
+          lastUserQuery: historyQuery,
+          currentPrimary,
+          latestDraft: answerUnderReview,
+          latestFinalAnswer: finalAnswer,
+          latestFeedbacks: feedbackResults,
+          fileContext,
+          attachedFiles: effectiveFiles,
+          participants: [],
+          roundsCompleted: 0,
+        }),
+        lastUserQuery: historyQuery,
+        currentPrimary,
+        latestDraft: answerUnderReview,
+        latestFinalAnswer: finalAnswer,
+        latestFeedbacks: feedbackResults,
+        fileContext,
+        attachedFiles: effectiveFiles,
+        roundsCompleted: (workflowSession?.roundsCompleted ?? 0) + 1,
+      }
+      markSessionParticipant(currentPrimary)
+
       const historyEntry = {
         id: `${Date.now()}`,
-        query,
+        query: historyQuery,
         primaryAi: currentPrimary,
         result: finalAnswer,
         timestamp: Date.now(),
@@ -2189,8 +3739,8 @@ ipcMain.handle(
       store.set('chatHistory', [historyEntry, ...history].slice(0, HISTORY_MAX_ITEMS))
 
       // ── Parse per-file modified content from final answer ────────────────
-      const fileContents = hasFiles
-        ? parseFileContents(finalAnswer, attachedFiles!.map((f) => ({ name: f.name, ext: f.ext })))
+      const fileContents = effectiveFiles.length > 0
+        ? parseFileContents(finalAnswer, effectiveFiles.map((f) => ({ name: f.name, ext: f.ext })))
         : []
 
       sendStatus(MSG.done())
@@ -2208,33 +3758,218 @@ ipcMain.handle(
 
 // ─── Prompt Builders ──────────────────────────────────────────────────────────
 function buildPrimaryPrompt(query: string, fileContext: string): string {
-  if (!fileContext) return query
-  return `${query}${fileContext}`
+  const languageDirective = buildResponseLanguageDirective(query)
+  if (!fileContext) return `${languageDirective}\n\n${query}`
+  return `${languageDirective}\n\n${query}${fileContext}`
+}
+
+function buildContextBridgePrompt(
+  query: string,
+  previousFinalAnswer: string,
+  fileContext: string
+): string {
+  const languageDirective = buildResponseLanguageDirective(query)
+
+  return `${languageDirective}
+
+You are joining an ongoing discussion. Read the current context first, then answer the follow-up naturally and directly.
+
+[Previous Final Answer]
+${previousFinalAnswer}
+
+[Follow-up Question]
+${query}${fileContext}`
+}
+
+const AI_REVIEWER_BRIEFS: Record<AiName, { role: string; focus: string; outputGuide: string }> = {
+  gemini: {
+    role: 'Systems Synthesizer',
+    focus: 'Look for missing context, weak framing, audience fit problems, and big-picture gaps that would matter to a thoughtful user.',
+    outputGuide: `Respond with three short sections:
+- Coverage gaps
+- Better framing
+- Upgrade path`,
+  },
+  claude: {
+    role: 'Logic and Precision Auditor',
+    focus: 'Stress-test the reasoning. Focus on contradictions, unsupported leaps, missing assumptions, vague wording, and whether the answer is actually defensible.',
+    outputGuide: `Respond with three short sections:
+- Reasoning issues
+- Missing assumptions
+- Tightened revision advice`,
+  },
+  chatgpt: {
+    role: 'Practical UX and Communication Coach',
+    focus: 'Focus on usefulness, clarity, tone, and whether the answer helps the user act. Flag what is technically okay but not helpful in practice.',
+    outputGuide: `Respond with three short sections:
+- What will land well
+- What feels impractical or vague
+- A stronger version`,
+  },
+  perplexity: {
+    role: 'Fact Checker and Freshness Monitor',
+    focus: 'Prioritize factual accuracy, recency-sensitive claims, unsupported statements, and places where the answer should hedge or verify.',
+    outputGuide: `Respond with three short sections:
+- Likely solid
+- Needs verification
+- Research additions`,
+  },
+  grok: {
+    role: 'Adversarial Critic',
+    focus: 'Take a skeptical stance. Surface hidden risks, edge cases, counterarguments, and what breaks if the assumptions are wrong.',
+    outputGuide: `Respond with three short sections:
+- Hidden risks
+- Strongest objection
+- Stress test fix`,
+  },
+  groq: {
+    role: 'Concise Alternative Solver',
+    focus: 'Optimize for speed and simplicity. Look for a cleaner route, a sharper summary, or a more efficient answer without losing substance.',
+    outputGuide: `Respond with three short sections:
+- What to simplify
+- Faster or cleaner alternative
+- Best condensed recommendation`,
+  },
+}
+
+function buildReviewerPromptV2(
+  reviewerAi: AiName,
+  query: string,
+  draft: string,
+  fileContext: string
+): string {
+  const fileSection = fileContext ? `\n${fileContext}\n` : ''
+  const brief = AI_REVIEWER_BRIEFS[reviewerAi]
+  const languageDirective = buildResponseLanguageDirective(query)
+
+  return `${languageDirective}
+
+You are acting as the ${brief.role}.
+${brief.focus}
+
+Important rules:
+- Stay in your assigned role and do not fall back to a generic checklist
+- Do not mention the source AI name
+- Do not include citations or links
+- Be specific, direct, and actionable
+
+[Original Question]
+${query}
+${fileSection}
+[Answer Under Review]
+${draft}
+
+${brief.outputGuide}`
+}
+
+function buildFinalRevisionPromptV2(
+  query: string,
+  answerUnderReview: string,
+  feedbacks: Array<{ ai: AiName; feedback: string }>,
+  hasFiles: boolean,
+  attachedFileNames: string[] = []
+): string {
+  const languageDirective = buildResponseLanguageDirective(query)
+  const lines = feedbacks
+    .filter((f) => f.feedback && f.feedback.trim().length > 0)
+    .map((f, i) => `[Feedback ${i + 1}]:\n${f.feedback}`)
+
+  const feedbackBlock = lines.length > 0
+    ? lines.join('\n\n\n')
+    : '(No feedback collected; improve the answer using your own self-review.)'
+
+  if (!hasFiles || attachedFileNames.length === 0) {
+    return `${languageDirective}
+
+You are revising an answer after multi-AI review. Do not mention the source reviewers.
+
+[Original Question]
+${query}
+
+[Answer Being Revised]
+${answerUnderReview}
+
+${feedbackBlock}
+
+[FINAL TASK]
+Incorporate the above feedback comprehensively. If you disagree with any part, explain why, and write the strongest final answer possible.`
+  }
+
+  const fileBlocks = attachedFileNames
+    .map((name) => `<<<FILE:${name}>>>\n(Write the complete revised content of this file here)\n<<<END_FILE>>>`)
+    .join('\n\n')
+
+  return `${languageDirective}
+
+You are revising a file-focused answer after multi-AI review. Do not mention the source reviewers.
+
+[Original Question]
+${query}
+
+[Answer Being Revised]
+${answerUnderReview}
+
+${feedbackBlock}
+
+[FINAL TASK]
+Incorporate the above feedback comprehensively. If you disagree with any part, briefly explain why.
+Then output the complete revised content of each file in the following format, without omission.
+(Follow the delimiters around file content exactly)
+
+${fileBlocks}`
 }
 
 // ─── AI Persona Roles ─────────────────────────────────────────────────────────
 // Each AI reviewer gets a role that matches its native strengths so feedback
 // is diverse and complementary rather than echo-chamber repetitions.
-const AI_REVIEWER_PERSONAS: Record<AiName, { role: string; focus: string }> = {
+const AI_REVIEWER_PERSONAS: Record<AiName, { role: string; focus: string; outputGuide: string }> = {
   gemini: {
-    role: 'Holistic Integrator & Accessibility Expert',
-    focus: 'You see the big picture. Focus on whether the overall structure makes sense, whether the content is accessible and readable to a broad audience, and whether key connections between ideas are clearly communicated.',
+    role: 'Systems Synthesizer',
+    focus: 'Look for missing context, weak framing, audience fit problems, and big-picture gaps that would matter to a thoughtful user.',
+    outputGuide: `Respond with three short sections:
+- Coverage gaps
+- Better framing
+- Upgrade path`,
   },
   claude: {
-    role: 'Logic & Structure Analyst',
-    focus: 'You are a rigorous logical analyst. Focus on the internal consistency, structural soundness, argumentation quality, and whether conclusions follow from premises. Identify logical gaps or contradictions.',
+    role: 'Logic and Precision Auditor',
+    focus: 'Stress-test the reasoning. Focus on contradictions, unsupported leaps, missing assumptions, vague wording, and whether the answer is actually defensible.',
+    outputGuide: `Respond with three short sections:
+- Reasoning issues
+- Missing assumptions
+- Tightened revision advice`,
   },
   chatgpt: {
-    role: 'Creative Strategist & Practicality Advisor',
-    focus: 'You are a creative problem-solver. Focus on whether the approach is practical and actionable, suggest creative alternatives or improvements, and evaluate whether the solution can be effectively implemented in the real world.',
+    role: 'Practical UX and Communication Coach',
+    focus: 'Focus on usefulness, clarity, tone, and whether the answer helps the user act. Flag what is technically okay but not helpful in practice.',
+    outputGuide: `Respond with three short sections:
+- What will land well
+- What feels impractical or vague
+- A stronger version`,
   },
   perplexity: {
-    role: 'Fact-Checker & Research Specialist',
-    focus: 'You are a meticulous fact-checker with deep research skills. Focus on factual accuracy, identify any claims that may be outdated or unverified, and flag missing data or references that should be included.',
+    role: 'Fact Checker and Freshness Monitor',
+    focus: 'Prioritize factual accuracy, recency-sensitive claims, unsupported statements, and places where the answer should hedge or verify.',
+    outputGuide: `Respond with three short sections:
+- Likely solid
+- Needs verification
+- Research additions`,
   },
   grok: {
-    role: 'Devil\'s Advocate & Edge Case Explorer',
-    focus: 'You are a bold contrarian thinker. Challenge assumptions, identify edge cases and failure modes, point out what could go wrong, and ensure the analysis holds up under adversarial scrutiny.',
+    role: 'Adversarial Critic',
+    focus: 'Take a skeptical stance. Surface hidden risks, edge cases, counterarguments, and what breaks if the assumptions are wrong.',
+    outputGuide: `Respond with three short sections:
+- Hidden risks
+- Strongest objection
+- Stress test fix`,
+  },
+  groq: {
+    role: 'Concise Alternative Solver',
+    focus: 'Optimize for speed and simplicity. Look for a cleaner route, a sharper summary, or a more efficient answer without losing substance.',
+    outputGuide: `Respond with three short sections:
+- What to simplify
+- Faster or cleaner alternative
+- Best condensed recommendation`,
   },
 }
 
@@ -2346,11 +4081,12 @@ function parseFileContents(
 
 function primaryAiDisplayName(ai: AiName): string {
   const map: Record<AiName, string> = {
-    gemini: 'Gemini',
-    claude: 'Claude',
     chatgpt: 'ChatGPT',
-    perplexity: 'Perplexity',
+    claude: 'Claude',
+    gemini: 'Gemini',
     grok: 'Grok',
+    groq: 'Groq',
+    perplexity: 'Perplexity',
   }
   return map[ai] ?? ai
 }
@@ -2449,26 +4185,27 @@ function ruleBasedRecommendation(query: string): AiRecommendationResult {
  */
 async function analyzeQueryForPrimaryAi(query: string): Promise<AiRecommendationResult> {
   const apiKeys = store.get('apiKeys') as StoreSchema['apiKeys']
-  const defaultOrder = ['gemini', 'claude', 'chatgpt', 'perplexity', 'grok', 'groq']
+  const defaultOrder = ['chatgpt', 'claude', 'gemini', 'grok', 'groq', 'perplexity']
   const apiKeyOrder: string[] = (store.get('apiKeyOrder') as string[] | undefined) ?? defaultOrder
 
   // Shared routing prompt — compact enough for fast/cheap models
   const ROUTING_PROMPT = `You are an AI routing expert. A user submitted this query to a multi-AI review system.
-Analyze the query and recommend the BEST Primary AI from: gemini, claude, chatgpt, perplexity, grok.
+Analyze the query and recommend the BEST Primary AI from: chatgpt, claude, gemini, grok, groq, perplexity.
 
 AI strengths:
 - gemini: Large document analysis, broad knowledge synthesis, accessibility
 - claude: Coding, logic, structure, long-form reasoning, technical writing
 - chatgpt: Creative writing, practical strategies, implementation advice
-- perplexity: Real-time facts, latest news, research & fact-checking
 - grok: Controversial topics, devil's advocate, edge cases, unfiltered analysis
+- groq: Fast multi-model experimentation, concise synthesis, quick second opinions
+- perplexity: Real-time facts, latest news, research & fact-checking
 
 User Query: "${query.slice(0, 500)}"
 
 Respond ONLY with valid JSON (no markdown, no explanation):
 {"recommended":"<ai_name>","reason":"<one sentence>","roundSuggestions":[{"ai":"<ai_name>","reason":"<brief>"},{"ai":"<ai_name>","reason":"<brief>"}]}`
 
-  const validAis: AiName[] = ['gemini', 'claude', 'chatgpt', 'perplexity', 'grok']
+  const validAis: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'groq', 'perplexity']
 
   /** Parse LLM text -> AiRecommendationResult or null */
   const parseResult = (text: string): AiRecommendationResult | null => {
@@ -2607,6 +4344,7 @@ const FILE_UPLOAD_BUTTON_SELECTORS: Partial<Record<AiName, string[]>> = {
     'button[aria-label*="pload"]',
     'button[jsaction*="upload"]',
   ],
+  groq: [],
   perplexity: [],   // no reliable file upload in free tier
 }
 
@@ -2767,6 +4505,538 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms))
 }
 
+const RELATION_STOP_WORDS = new Set([
+  'about', 'after', 'again', 'all', 'also', 'another', 'because', 'before',
+  'being', 'between', 'could', 'does', 'from', 'have', 'into', 'just', 'more',
+  'only', 'over', 'same', 'some', 'than', 'that', 'their', 'them', 'then',
+  'there', 'these', 'they', 'this', 'those', 'through', 'under', 'using',
+  'very', 'want', 'what', 'when', 'where', 'which', 'while', 'with', 'would',
+  'your', 'into', 'onto', 'need', 'make', 'made',
+])
+
+interface SessionRelationDecision {
+  related: boolean
+  scenario: 1 | 2 | 3 | 4 | 5
+  reason: string
+  overlapCount: number
+  overlapRatio: number
+}
+
+interface AiSessionRelationResult {
+  related: boolean
+  confidence: number
+  reason: string
+}
+
+function tokenizeForRelation(text: string, limit = 1600): string[] {
+  return text
+    .slice(0, limit)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length >= 3 && !RELATION_STOP_WORDS.has(token))
+}
+
+function hasFollowUpLanguage(query: string): boolean {
+  return /^(and|also|then|next|follow up|follow-up|what about|how about|can you|could you|please|based on|using that|in that case)\b/i.test(query.trim())
+    || /\b(this|that|it|they|them|those|these|above|previous|earlier)\b/i.test(query)
+}
+
+function hasMetaContinuationLanguage(query: string): boolean {
+  return /\b(shorter|longer|expand|deeper|clarify|rewrite|rephrase|improve|refine|polish|summarize|summarise|translate|compare|critique|review|fix|continue|elaborate|examples|turn this into|based on your answer|from your answer|using the answer)\b/i.test(query)
+    || /\b(answer|response|draft|feedback|final answer|that explanation|that summary)\b/i.test(query)
+}
+
+function tokenizeSessionFileNames(currentSession: WorkflowSessionState): string[] {
+  return currentSession.attachedFiles.flatMap((file) =>
+    tokenizeForRelation(file.name.replace(/\.[^.]+$/, ''), 120)
+  )
+}
+
+function classifySessionRelation(query: string, currentSession: WorkflowSessionState | null): SessionRelationDecision {
+  if (!currentSession) {
+    return {
+      related: false,
+      scenario: 5,
+      reason: 'No active session exists',
+      overlapCount: 0,
+      overlapRatio: 0,
+    }
+  }
+
+  const trimmed = query.trim()
+  if (!trimmed) {
+    return {
+      related: true,
+      scenario: 1,
+      reason: 'Empty prompt means continue the current round',
+      overlapCount: 0,
+      overlapRatio: 0,
+    }
+  }
+
+  const queryTokens = tokenizeForRelation(trimmed)
+  if (queryTokens.length === 0) {
+    return {
+      related: true,
+      scenario: 1,
+      reason: 'Short prompt is treated as a continuation',
+      overlapCount: 0,
+      overlapRatio: 0,
+    }
+  }
+
+  const contextTokens = new Set([
+    ...tokenizeForRelation(currentSession.topicSeed),
+    ...tokenizeForRelation(currentSession.lastUserQuery),
+    ...tokenizeForRelation(currentSession.latestFinalAnswer),
+    ...tokenizeSessionFileNames(currentSession),
+  ])
+
+  let overlapCount = 0
+  for (const token of queryTokens) {
+    if (contextTokens.has(token)) overlapCount++
+  }
+
+  const overlapRatio = overlapCount / Math.max(queryTokens.length, 1)
+  const hasFollowUpCue = hasFollowUpLanguage(trimmed)
+  const hasMetaCue = hasMetaContinuationLanguage(trimmed)
+  const sessionFileTokens = new Set(tokenizeSessionFileNames(currentSession))
+  const hasFileCue = queryTokens.some((token) => sessionFileTokens.has(token))
+
+  // Scenario 1: explicit conversational follow-up markers
+  if (hasFollowUpCue) {
+    return {
+      related: true,
+      scenario: 1,
+      reason: 'Explicit follow-up wording or pronoun reference to prior context',
+      overlapCount,
+      overlapRatio,
+    }
+  }
+
+  // Scenario 2: refinement/meta request about the prior answer
+  if (hasMetaCue && (currentSession.latestFinalAnswer.length > 0 || overlapCount >= 1)) {
+    return {
+      related: true,
+      scenario: 2,
+      reason: 'Meta request to revise, expand, compare, or improve the current answer',
+      overlapCount,
+      overlapRatio,
+    }
+  }
+
+  // Scenario 3: topical continuity through shared anchor keywords
+  if (overlapCount >= 2 && overlapRatio >= 0.25) {
+    return {
+      related: true,
+      scenario: 3,
+      reason: 'Shared topic keywords strongly overlap with the active session',
+      overlapCount,
+      overlapRatio,
+    }
+  }
+
+  // Scenario 4: same project/file/artifact context even if phrasing changes
+  if (hasFileCue || (currentSession.attachedFiles.length > 0 && overlapCount >= 1 && queryTokens.length <= 8)) {
+    return {
+      related: true,
+      scenario: 4,
+      reason: 'Query refers to the same file, artifact, or working context',
+      overlapCount,
+      overlapRatio,
+    }
+  }
+
+  // Scenario 5: insufficient continuity, treat as a new topic
+  return {
+    related: false,
+    scenario: 5,
+    reason: 'Low continuity with the active session, so start a new conversation',
+    overlapCount,
+    overlapRatio,
+  }
+}
+
+async function classifySessionRelationWithAi(
+  query: string,
+  currentSession: WorkflowSessionState | null,
+  heuristicDecision: SessionRelationDecision
+): Promise<AiSessionRelationResult | null> {
+  if (!currentSession || !query.trim()) return null
+
+  const apiKeys = store.get('apiKeys') as StoreSchema['apiKeys']
+  const defaultOrder = ['chatgpt', 'claude', 'gemini', 'grok', 'groq', 'perplexity']
+  const apiKeyOrder: string[] = (store.get('apiKeyOrder') as string[] | undefined) ?? defaultOrder
+
+  const RELATION_PROMPT = `You are classifying whether a user's new message should continue the current AI conversation or start a brand-new session.
+
+Return ONLY valid JSON:
+{"related":true|false,"confidence":0.00-1.00,"reason":"one short sentence"}
+
+Decision rules:
+- related=true when the new message is a follow-up, refinement, continuation, same file/project/artifact, or clearly the same topic.
+- related=false when it is a genuinely different topic and should reset the conversation.
+- Be conservative about switching to a new session unless topic continuity is weak.
+
+[Current Session Topic Seed]
+${currentSession.topicSeed.slice(0, 500)}
+
+[Last User Query]
+${currentSession.lastUserQuery.slice(0, 500)}
+
+[Latest Final Answer Excerpt]
+${currentSession.latestFinalAnswer.slice(0, 1200)}
+
+[Attached Files]
+${currentSession.attachedFiles.map((file) => file.name).join(', ') || '(none)'}
+
+[Heuristic Precheck]
+related=${heuristicDecision.related}
+scenario=${heuristicDecision.scenario}
+reason=${heuristicDecision.reason}
+overlapCount=${heuristicDecision.overlapCount}
+overlapRatio=${heuristicDecision.overlapRatio.toFixed(2)}
+
+[New User Message]
+${query.slice(0, 500)}`
+
+  const parseResult = (text: string): AiSessionRelationResult | null => {
+    try {
+      const jsonText = text.replace(/```json?\s*/g, '').replace(/```\s*/g, '').trim()
+      const parsed = JSON.parse(jsonText) as Partial<AiSessionRelationResult>
+      if (typeof parsed.related !== 'boolean') return null
+      const confidence = Math.max(0, Math.min(1, Number(parsed.confidence ?? 0.5)))
+      const reason = String(parsed.reason ?? '').trim() || 'AI relation check'
+      return { related: parsed.related, confidence, reason }
+    } catch {
+      return null
+    }
+  }
+
+  for (const provider of apiKeyOrder) {
+    const key = (apiKeys as Record<string, string | undefined>)?.[provider]
+    if (!key) continue
+
+    try {
+      let responseText = ''
+
+      if (provider === 'gemini') {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: RELATION_PROMPT }] }],
+              generationConfig: { temperature: 0.1, maxOutputTokens: 200 },
+            }),
+          }
+        )
+        if (res.ok) {
+          const data = await res.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
+          responseText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+        }
+      } else if (provider === 'claude') {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': key,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-3-haiku-20240307',
+            max_tokens: 200,
+            messages: [{ role: 'user', content: RELATION_PROMPT }],
+          }),
+        })
+        if (res.ok) {
+          const data = await res.json() as { content?: Array<{ text?: string }> }
+          responseText = data?.content?.[0]?.text ?? ''
+        }
+      } else if (provider === 'chatgpt') {
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${key}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            max_tokens: 200,
+            temperature: 0.1,
+            messages: [{ role: 'user', content: RELATION_PROMPT }],
+          }),
+        })
+        if (res.ok) {
+          const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> }
+          responseText = data?.choices?.[0]?.message?.content ?? ''
+        }
+      } else if (provider === 'groq') {
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${key}`,
+          },
+          body: JSON.stringify({
+            model: 'llama3-8b-8192',
+            max_tokens: 200,
+            temperature: 0.1,
+            messages: [{ role: 'user', content: RELATION_PROMPT }],
+          }),
+        })
+        if (res.ok) {
+          const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> }
+          responseText = data?.choices?.[0]?.message?.content ?? ''
+        }
+      } else {
+        continue
+      }
+
+      const parsed = responseText ? parseResult(responseText) : null
+      if (parsed) {
+        sendLog('info', `[session-ai] ${provider} -> related=${parsed.related} confidence=${parsed.confidence.toFixed(2)} reason=${parsed.reason}`)
+        return parsed
+      }
+    } catch (err) {
+      sendLog('warn', `[session-ai] ${provider} failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  return null
+}
+
+async function resolveSessionRelationDecision(
+  query: string,
+  currentSession: WorkflowSessionState | null
+): Promise<SessionRelationDecision & { aiVerification?: AiSessionRelationResult | null; finalSource: 'heuristic' | 'ai-confirmed' | 'ai-overrode' }> {
+  const heuristicDecision = classifySessionRelation(query, currentSession)
+  const aiVerification = await classifySessionRelationWithAi(query, currentSession, heuristicDecision)
+
+  if (!aiVerification) {
+    return { ...heuristicDecision, aiVerification: null, finalSource: 'heuristic' }
+  }
+
+  if (aiVerification.related === heuristicDecision.related) {
+    return {
+      ...heuristicDecision,
+      reason: `${heuristicDecision.reason}; AI agreed: ${aiVerification.reason}`,
+      aiVerification,
+      finalSource: 'ai-confirmed',
+    }
+  }
+
+  const shouldAiOverride = aiVerification.confidence >= 0.88
+  if (shouldAiOverride) {
+    return {
+      ...heuristicDecision,
+      related: aiVerification.related,
+      scenario: aiVerification.related ? heuristicDecision.scenario : 5,
+      reason: `${heuristicDecision.reason}; AI override: ${aiVerification.reason}`,
+      aiVerification,
+      finalSource: 'ai-overrode',
+    }
+  }
+
+  return {
+    ...heuristicDecision,
+    reason: `${heuristicDecision.reason}; AI disagreed with low confidence: ${aiVerification.reason}`,
+    aiVerification,
+    finalSource: 'ai-confirmed',
+  }
+}
+
+async function resetConversationThreads(targetAis: AiName[] = AI_NAMES): Promise<void> {
+  for (const ai of targetAis) {
+    const view = views.get(ai)
+    if (!view) continue
+    try {
+      await navigateToNewChat(view, ai)
+      markViewThreadOwner(ai, null)
+      delete councilRoom.threadPrepared[ai]
+    } catch (err) {
+      sendLog('warn', `[session] Failed to reset ${ai}: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+}
+
+function markSessionParticipant(ai: AiName): void {
+  if (!workflowSession) return
+  if (!workflowSession.participants.includes(ai)) {
+    workflowSession.participants.push(ai)
+  }
+}
+
+async function collectReviewerFeedbacksForAnswer(params: {
+  currentPrimary: AiName
+  query: string
+  answerUnderReview: string
+  hasFiles: boolean
+  attachedFiles: WorkflowAttachment[]
+  fileContext: string
+}): Promise<Array<{ ai: AiName; feedback: string }>> {
+  const { currentPrimary, query, answerUnderReview, hasFiles, attachedFiles, fileContext } = params
+  const activeReviewers = enabledAiNames.filter((n) => n !== currentPrimary)
+
+  sendStatus(MSG.sendingReviews())
+  sendLog('info', `[Step 5] Injecting review requests to: ${activeReviewers.join(', ')}`)
+
+  const filePaths = hasFiles ? attachedFiles.map((f) => f.path) : []
+
+  const reviewPromises = activeReviewers.map(async (reviewerName) => {
+    const reviewerView = views.get(reviewerName)!
+    const reviewerConfig = getSelectors(reviewerName)
+
+    const needsReset = !doesWorkflowOwnThread(reviewerName)
+    if (needsReset) {
+      sendLog('info', `[Step 5] Preparing fresh reviewer thread for ${reviewerName}`)
+      await navigateToNewChat(reviewerView, reviewerName)
+      markViewThreadOwner(reviewerName, 'workflow')
+    } else {
+      sendLog('info', `[Step 5] Reusing existing reviewer thread for ${reviewerName}`)
+    }
+
+    const inputRes = await execWithFallback(
+      reviewerView,
+      reviewerConfig.inputSelectors,
+      (sel) => `!!document.querySelector(\`${sel}\`)`
+    )
+
+    if (!inputRes.success) {
+      sendLog('error', `[Step 5] ${reviewerName}: Input box not found, skipping feedback`)
+      return { ai: reviewerName as AiName, feedback: '' }
+    }
+
+    let filesAttached = false
+    if (hasFiles && filePaths.length > 0) {
+      sendLog('info', `[Step 5] ${reviewerName}: Attempting CDP file attach (${filePaths.length} file(s))`)
+      filesAttached = await attachFilesViaCDP(reviewerView, reviewerName, filePaths)
+      if (!filesAttached) {
+        sendLog('warn', `[Step 5] ${reviewerName}: File attach failed, falling back to text method`)
+        reviewerView.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+        reviewerView.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+        await sleep(400)
+      }
+    }
+
+    const prompt = buildReviewerPromptV2(
+      reviewerName,
+      query,
+      answerUnderReview,
+      filesAttached ? '' : fileContext
+    )
+
+    sendLog('info', `[Step 5] ${reviewerName}: Starting prompt paste`)
+    await pasteText(reviewerView, prompt, inputRes.selector!)
+
+    const reviewerBaseline = await captureCurrentText(
+      reviewerView,
+      reviewerConfig.responseContainerSelectors
+    )
+    sendLog('info', `[Step 5] ${reviewerName}: Pre-send baseline captured (${reviewerBaseline.length} chars)`)
+
+    await sleep(REVIEWER_SEND_DELAY_MS)
+
+    const sent = await clickSend(reviewerView, reviewerConfig.sendButtonSelectors)
+    sendLog('info', `[Step 5] ${reviewerName}: Send ${sent ? 'succeeded' : 'failed'}`)
+
+    sendStatus(MSG.waitingReviewer(reviewerName))
+    await sleep(INITIAL_RESPONSE_WAIT_MS)
+    const rawFeedback = await waitForStableResponse(
+      reviewerView,
+      reviewerConfig.responseContainerSelectors,
+      WORKFLOW_TIMEOUT_MS,
+      STABLE_RESPONSE_MS,
+      reviewerName,
+      reviewerBaseline
+    ).catch((err) => {
+      sendLog('warn', `${reviewerName} timeout: ${err.message}`)
+      return ''
+    })
+
+    const feedback = reviewerName === 'claude'
+      ? sanitizeClaudeFeedback(rawFeedback)
+      : rawFeedback
+
+    markSessionParticipant(reviewerName)
+    mainWindow?.webContents.send('feedback-ready', { ai: reviewerName, feedback })
+    return { ai: reviewerName as AiName, feedback }
+  })
+
+  sendStatus(MSG.collectingFeedbacks())
+  sendLog('info', '[Step 6] Collecting reviewer feedbacks')
+  return Promise.all(reviewPromises)
+}
+
+async function requestFinalRevisionFromPrimary(params: {
+  currentPrimary: AiName
+  query: string
+  answerUnderReview: string
+  feedbackResults: Array<{ ai: AiName; feedback: string }>
+  hasFiles: boolean
+  attachedFiles: WorkflowAttachment[]
+}): Promise<string> {
+  const { currentPrimary, query, answerUnderReview, feedbackResults, hasFiles, attachedFiles } = params
+  const finalPrimaryConfig = getSelectors(currentPrimary)
+  const finalPrimaryView = views.get(currentPrimary)!
+
+  sendStatus(MSG.sendingRevision(currentPrimary))
+  sendLog('info', `[Step 7] Sending final revision prompt to ${currentPrimary}`)
+
+  if (!doesWorkflowOwnThread(currentPrimary)) {
+    sendLog('info', `[Step 7] Preparing fresh workflow thread for ${currentPrimary}`)
+    await navigateToNewChat(finalPrimaryView, currentPrimary)
+    markViewThreadOwner(currentPrimary, 'workflow')
+  }
+
+  const attachedFileNames = hasFiles ? attachedFiles.map((f) => f.name) : []
+  const finalPrompt = buildFinalRevisionPromptV2(
+    query,
+    answerUnderReview,
+    feedbackResults,
+    hasFiles,
+    attachedFileNames
+  )
+
+  const finalInputRes = await execWithFallback(
+    finalPrimaryView,
+    finalPrimaryConfig.inputSelectors,
+    (sel) => `!!document.querySelector(\`${sel}\`)`
+  )
+
+  if (!finalInputRes.success) {
+    throw new Error(`Could not find ${currentPrimary} input box for final revision request.`)
+  }
+
+  const finalBaseline = await captureCurrentText(
+    finalPrimaryView,
+    finalPrimaryConfig.responseContainerSelectors
+  )
+  sendLog('info', `[Step 7] Final baseline captured (${finalBaseline.length} chars)`)
+
+  await pasteText(finalPrimaryView, finalPrompt, finalInputRes.selector!)
+  await sleep(CLICK_SEND_DELAY_MS)
+  await clickSend(finalPrimaryView, finalPrimaryConfig.sendButtonSelectors)
+
+  sendStatus(MSG.waitingFinal(currentPrimary))
+  sendLog('info', `[Step 8] Waiting ${INITIAL_RESPONSE_WAIT_MS}ms before polling...`)
+  await sleep(INITIAL_RESPONSE_WAIT_MS)
+
+  const finalAnswer = await waitForStableResponse(
+    finalPrimaryView,
+    finalPrimaryConfig.responseContainerSelectors,
+    WORKFLOW_TIMEOUT_MS,
+    STABLE_RESPONSE_MS,
+    currentPrimary,
+    finalBaseline
+  )
+
+  markSessionParticipant(currentPrimary)
+  return finalAnswer
+}
+
 // ─── App Lifecycle ─────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
   // Clear HTTP cache + service workers for all AI sessions on every startup.
@@ -2816,6 +5086,7 @@ const OAUTH_ALLOWED_DOMAINS = [
   'auth.openai.com',
   'perplexity.ai',             // Perplexity OAuth return
   'grok.com',                  // Grok OAuth return
+  'console.groq.com',          // Groq chat / login
   'x.com',                     // X (Twitter) SSO for Grok login
   'api.x.com',
   'abs.twimg.com',             // X/Twitter static assets (login UI)

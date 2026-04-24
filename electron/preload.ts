@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
-export type AiName = 'gemini' | 'claude' | 'chatgpt' | 'perplexity' | 'grok'
+export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'groq' | 'perplexity'
 
 export interface WorkflowResult {
   success: boolean
@@ -14,32 +14,102 @@ export interface LogEntry {
   msg: string
 }
 
-// Expose a safe, typed API to the renderer via window.electronAPI
+export interface CouncilMessage {
+  id: string
+  kind: 'user' | 'assistant' | 'system'
+  text: string
+  createdAt: number
+  source?: 'chat' | 'workflow-bridge'
+  ai?: AiName
+  pending?: boolean
+  error?: boolean
+}
+
+export interface CouncilRoomState {
+  participants: AiName[]
+  primaryAi: AiName
+  status: 'idle' | 'running'
+  pendingAi: AiName | null
+  messages: CouncilMessage[]
+  lastIntent: {
+    kind: 'mention' | 'all' | 'none' | 'unsupported'
+    targetAi?: AiName
+    targetAis?: AiName[]
+    note: string
+  } | null
+  failedTurn: {
+    ai: AiName
+    promptText: string
+    errorMessage: string
+  } | null
+}
+
+export interface CouncilUiState {
+  pinnedCandidateIds: string[]
+  selectedCandidateId: string | null
+}
+
+export interface WorkflowCouncilBridgeResult {
+  room: CouncilRoomState
+  bridged: boolean
+  note: string
+}
+
+export interface CouncilSnapshotInsight {
+  workflowReady: boolean
+  workflowPreview: string | null
+  moderatorConsensus: string | null
+  moderatorNextSpeaker: AiName | null
+  moderatorNextPrompt: string | null
+}
+
+export type CouncilSnapshotLifecycle = 'in-progress' | 'completed'
+
+export interface CouncilSnapshotSummary {
+  id: string
+  title: string
+  label: string | null
+  note: string | null
+  savedAt: number
+  lastOpenedAt: number
+  messageCount: number
+  isActive: boolean
+  isDirty: boolean
+  isFavorite: boolean
+  isArchived: boolean
+  lifecycle: CouncilSnapshotLifecycle
+  primaryAi: AiName
+  participants: AiName[]
+  insight: CouncilSnapshotInsight
+}
+
+export interface CouncilSnapshotTransferResult {
+  ok: boolean
+  title?: string
+  filePath?: string
+  reason?: string
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Queries
   getAiList: (): Promise<AiName[]> => ipcRenderer.invoke('get-ai-list'),
   getHistory: () => ipcRenderer.invoke('get-history'),
   clearHistory: () => ipcRenderer.invoke('clear-history'),
   reloadAi: (ai: AiName) => ipcRenderer.invoke('reload-ai', ai),
   openViewDevTools: (ai: AiName) => ipcRenderer.invoke('open-view-devtools', ai),
 
-  // Workflow
   startWorkflow: (params: {
     primaryAi: AiName
     query: string
     attachedFiles?: Array<{ name: string; path: string; ext: string }>
   }): Promise<WorkflowResult> => ipcRenderer.invoke('start-workflow', params),
 
-  // Proceed past a workflow pause point (Next / Continue buttons).
-  // Optionally pass a new primaryAi to reassign the Primary AI at the pause point.
   workflowProceed: (decision?: { primaryAi?: AiName }): Promise<void> =>
     ipcRenderer.invoke('workflow-proceed', decision),
 
-  // File attachment
   openFileDialog: () => ipcRenderer.invoke('open-file-dialog'),
   saveFile: (params: { content: string; defaultName: string; ext: string }) =>
     ipcRenderer.invoke('save-file', params),
-  // Accounts
+
   getLoginStatus: (): Promise<Record<AiName, boolean>> =>
     ipcRenderer.invoke('get-login-status'),
   openLoginWindow: (ai: AiName) =>
@@ -54,7 +124,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('login-status-changed', handler)
   },
 
-  // API Keys — stored in electron-store (never sent anywhere except the designated AI API)
   getApiKeys: (): Promise<Partial<Record<AiName, string>> & { groq?: string }> =>
     ipcRenderer.invoke('get-api-keys'),
   setApiKeys: (keys: Partial<Record<AiName, string>> & { groq?: string }): Promise<boolean> =>
@@ -65,7 +134,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setApiKeyOrder: (order: string[]): Promise<boolean> =>
     ipcRenderer.invoke('set-api-key-order', order),
 
-  // Real-time query analysis → Primary AI recommendation
   analyzeQuery: (query: string): Promise<{
     recommended: AiName
     reason: string
@@ -79,13 +147,52 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setFinalPanelExpanded: (expanded: boolean) =>
     ipcRenderer.invoke('set-final-panel-expanded', expanded),
 
-  // Window controls
+  getCouncilRoom: (): Promise<CouncilRoomState> => ipcRenderer.invoke('get-council-room'),
+  getCouncilUiState: (): Promise<CouncilUiState> => ipcRenderer.invoke('get-council-ui-state'),
+  setCouncilUiState: (state: CouncilUiState): Promise<CouncilUiState> => ipcRenderer.invoke('set-council-ui-state', state),
+  getCouncilSnapshots: (): Promise<CouncilSnapshotSummary[]> => ipcRenderer.invoke('get-council-snapshots'),
+  saveCouncilSnapshot: (payload: { room: CouncilRoomState; uiState: CouncilUiState; title?: string; insight?: Partial<CouncilSnapshotInsight> }): Promise<CouncilSnapshotSummary[]> =>
+    ipcRenderer.invoke('save-council-snapshot', payload),
+  loadCouncilSnapshot: (snapshotId: string): Promise<{ room: CouncilRoomState; uiState: CouncilUiState } | null> =>
+    ipcRenderer.invoke('load-council-snapshot', snapshotId),
+  toggleCouncilSnapshotFavorite: (snapshotId: string): Promise<CouncilSnapshotSummary[]> =>
+    ipcRenderer.invoke('toggle-council-snapshot-favorite', snapshotId),
+  renameCouncilSnapshot: (snapshotId: string, title: string): Promise<CouncilSnapshotSummary[]> =>
+    ipcRenderer.invoke('rename-council-snapshot', snapshotId, title),
+  annotateCouncilSnapshot: (snapshotId: string, meta: { label?: string | null; note?: string | null }): Promise<CouncilSnapshotSummary[]> =>
+    ipcRenderer.invoke('annotate-council-snapshot', snapshotId, meta),
+  toggleCouncilSnapshotLifecycle: (snapshotId: string): Promise<CouncilSnapshotSummary[]> =>
+    ipcRenderer.invoke('toggle-council-snapshot-lifecycle', snapshotId),
+  toggleCouncilSnapshotArchived: (snapshotId: string): Promise<CouncilSnapshotSummary[]> =>
+    ipcRenderer.invoke('toggle-council-snapshot-archived', snapshotId),
+  exportCouncilSnapshot: (snapshotId: string): Promise<CouncilSnapshotTransferResult> =>
+    ipcRenderer.invoke('export-council-snapshot', snapshotId),
+  importCouncilSnapshot: (): Promise<{ snapshots: CouncilSnapshotSummary[]; importedTitle?: string }> =>
+    ipcRenderer.invoke('import-council-snapshot'),
+  duplicateCouncilSnapshot: (snapshotId: string): Promise<CouncilSnapshotSummary[]> =>
+    ipcRenderer.invoke('duplicate-council-snapshot', snapshotId),
+  deleteCouncilSnapshot: (snapshotId: string): Promise<CouncilSnapshotSummary[]> =>
+    ipcRenderer.invoke('delete-council-snapshot', snapshotId),
+  syncCouncilRoomContext: (payload: { participants: AiName[]; primaryAi: AiName }): Promise<CouncilRoomState> =>
+    ipcRenderer.invoke('sync-council-room-context', payload),
+  sendCouncilMessage: (payload: { text: string; participants: AiName[]; primaryAi: AiName }): Promise<CouncilRoomState> =>
+    ipcRenderer.invoke('send-council-message', payload),
+  bridgeWorkflowToCouncil: (payload: { participants: AiName[]; primaryAi: AiName }): Promise<WorkflowCouncilBridgeResult> =>
+    ipcRenderer.invoke('bridge-workflow-to-council', payload),
+  resetCouncilRoom: (payload?: { participants?: AiName[]; primaryAi?: AiName }): Promise<CouncilRoomState> =>
+    ipcRenderer.invoke('reset-council-room', payload),
+  retryCouncilTurn: (): Promise<CouncilRoomState> => ipcRenderer.invoke('retry-council-turn'),
+  skipCouncilTurn: (): Promise<CouncilRoomState> => ipcRenderer.invoke('skip-council-turn'),
+  setCouncilChatVisible: (visible: boolean) =>
+    ipcRenderer.invoke('set-council-chat-visible', visible),
+  switchInteractionMode: (payload: { mode: 'workflow' | 'chat'; participants: AiName[]; primaryAi: AiName }): Promise<CouncilRoomState> =>
+    ipcRenderer.invoke('switch-interaction-mode', payload),
+
   minimize: () => ipcRenderer.invoke('window-minimize'),
   maximize: () => ipcRenderer.invoke('window-maximize'),
   close: () => ipcRenderer.invoke('window-close'),
   setViewsVisible: (v: boolean) => ipcRenderer.invoke('set-views-visible', v),
 
-  // Event listeners (return cleanup function)
   onStatusUpdate: (cb: (msg: string) => void) => {
     const handler = (_: unknown, msg: string) => cb(msg)
     ipcRenderer.on('status-update', handler)
@@ -116,13 +223,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('feedback-ready', handler)
     return () => ipcRenderer.removeListener('feedback-ready', handler)
   },
-
-  // Fired when the workflow pauses and waits for the user to click Next/Continue
-  // stage: 'after-draft'   → Primary AI answered; waiting for Next
-  //        'after-reviews' → Reviewers done; waiting for Continue
   onWaitingForUser: (cb: (data: { stage: 'after-draft' | 'after-reviews' }) => void) => {
     const handler = (_: unknown, data: { stage: 'after-draft' | 'after-reviews' }) => cb(data)
     ipcRenderer.on('workflow-waiting', handler)
     return () => ipcRenderer.removeListener('workflow-waiting', handler)
+  },
+  onCouncilRoomUpdate: (cb: (room: CouncilRoomState) => void) => {
+    const handler = (_: unknown, room: CouncilRoomState) => cb(room)
+    ipcRenderer.on('council-room-updated', handler)
+    return () => ipcRenderer.removeListener('council-room-updated', handler)
+  },
+  onCouncilStreamChunk: (cb: (data: { ai: AiName; messageId: string; text: string }) => void) => {
+    const handler = (_: unknown, data: { ai: AiName; messageId: string; text: string }) => cb(data)
+    ipcRenderer.on('council-stream-chunk', handler)
+    return () => ipcRenderer.removeListener('council-stream-chunk', handler)
   },
 })

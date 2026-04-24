@@ -1,8 +1,9 @@
 /**
- * Gemini / Google Login Session Script
+ * Groq Login Session Script
  *
- * Opens a standalone Google login window in the persist:gemini partition so
- * OAuth can finish without parent-window WebAuthn/passkey interference.
+ * Opens a standalone login window in the persist:groq partition so that
+ * Google OAuth can complete without the parent-window WebAuthn/passkey
+ * interference seen in the embedded flow.
  */
 
 import { app, BrowserWindow, session } from 'electron'
@@ -14,7 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const CHROME_FULL = process.versions.chrome
 const CHROME_MAJOR = CHROME_FULL.split('.')[0]
 const DESKTOP_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_MAJOR}.0.0.0 Safari/537.36`
-const PARTITION = 'persist:gemini'
+const PARTITION = 'persist:groq'
 
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled')
 app.commandLine.appendSwitch('disable-quic')
@@ -57,8 +58,8 @@ app.whenReady().then(async () => {
 
   const win = new BrowserWindow({
     width: 520,
-    height: 700,
-    title: 'Google Login - AI Council Session Setup',
+    height: 720,
+    title: 'Groq Login - AI Council Session Setup',
     webPreferences: {
       partition: PARTITION,
       preload: SPOOF_PRELOAD,
@@ -74,8 +75,9 @@ app.whenReady().then(async () => {
     'accounts.google.com',
     'oauth2.googleapis.com',
     'accounts.youtube.com',
-    'google.com',
-    'gemini.google.com',
+    'groq.com',
+    'console.groq.com',
+    'github.com',
   ]
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -104,14 +106,17 @@ app.whenReady().then(async () => {
 
   let finished = false
 
-  async function hasGoogleSession() {
-    const cookies = await ses.cookies.get({ domain: '.google.com' })
-    return cookies.some((c) => c.name === 'SID' || c.name === '__Secure-1PSID')
+  async function hasGroqSession() {
+    const cookies = await ses.cookies.get({})
+    return cookies.some((c) =>
+      c.domain.includes('groq.com') &&
+      (c.name === 'stytch_session' || c.name === 'stytch_session_jwt')
+    )
   }
 
   async function checkAndFinish() {
     if (finished) return
-    const loginDone = await hasGoogleSession()
+    const loginDone = await hasGroqSession()
     if (!loginDone) return
 
     finished = true
@@ -122,10 +127,10 @@ app.whenReady().then(async () => {
     win.setTitle('Login complete - closing in 3 s')
     win.webContents.executeJavaScript(`
       document.body.innerHTML =
-        '<div style="font-family:sans-serif;text-align:center;padding:60px 30px;background:#f0fdf4">' +
+        '<div style="font-family:sans-serif;text-align:center;padding:60px 30px;background:#fff7ed">' +
         '<div style="font-size:64px">&#x2705;</div>' +
-        '<h2 style="color:#166534;margin:16px 0">Google login complete!</h2>' +
-        '<p style="color:#15803d">Gemini will now load correctly in AI Council.</p>' +
+        '<h2 style="color:#9a3412;margin:16px 0">Groq login complete!</h2>' +
+        '<p style="color:#c2410c">The Groq panel will reload automatically.</p>' +
         '<p style="color:#6b7280;font-size:13px;margin-top:24px">Closing in 3 seconds...</p>' +
         '</div>'
     `).catch(() => {})
@@ -152,7 +157,7 @@ app.whenReady().then(async () => {
   win.webContents.on('did-navigate-in-page', () => setTimeout(() => checkAndFinish(), 500))
   win.webContents.on('did-finish-load', () => setTimeout(() => checkAndFinish(), 500))
 
-  win.loadURL('https://accounts.google.com/signin', { userAgent: DESKTOP_UA })
+  win.loadURL('https://console.groq.com/chat', { userAgent: DESKTOP_UA })
   win.on('closed', () => app.quit())
 })
 

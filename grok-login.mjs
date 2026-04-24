@@ -1,13 +1,8 @@
 /**
- * grok-login.mjs
+ * Grok Login Session Script
  *
- * Opens an isolated Electron window so you can log in to Grok (grok.com)
- * via X (Twitter) or Google SSO.  Once the login is detected the window
- * closes automatically and the session cookies are stored in the
- * "persist:grok" partition — the same one used by the AI Council panel.
- *
- * Usage:
- *   node grok-login.mjs        (via grok-login.bat)
+ * Opens a standalone Grok login window in the persist:grok partition so
+ * Google/X auth can finish without parent-window WebAuthn/passkey interference.
  */
 
 import { app, BrowserWindow, session } from 'electron'
@@ -16,106 +11,178 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// ── Config ────────────────────────────────────────────────────────────────────
-const PARTITION   = 'persist:grok'
-const START_URL   = 'https://grok.com'
-const WIN_TITLE   = 'Grok Login — AI Council'
-const GRACE_MS    = 6_000   // ignore navigation events for the first 6 s
-
-// Chrome identity spoof — prevents X/Grok from detecting Electron
-const CHROME_FULL  = process.versions.chrome
+const CHROME_FULL = process.versions.chrome
 const CHROME_MAJOR = CHROME_FULL.split('.')[0]
-const USER_AGENT   =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
-  'AppleWebKit/537.36 (KHTML, like Gecko) ' +
-  `Chrome/${CHROME_MAJOR}.0.0.0 Safari/537.36`
+const DESKTOP_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_MAJOR}.0.0.0 Safari/537.36`
+const PARTITION = 'persist:grok'
 
-const CLIENT_HINTS = {
-  'sec-ch-ua':
-    `"Chromium";v="${CHROME_MAJOR}", "Google Chrome";v="${CHROME_MAJOR}", "Not-A.Brand";v="24"`,
-  'sec-ch-ua-mobile':   '?0',
-  'sec-ch-ua-platform': '"Windows"',
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/** Return true when Grok session cookies indicate a logged-in user. */
-async function isLoggedIn(ses) {
-  const all = await ses.cookies.get({})
-  // X (Twitter) auth cookies — used for Grok SSO
-  const xCookies   = all.filter((c) => c.domain.includes('x.com') || c.domain.includes('twitter.com'))
-  const grokCookies = all.filter((c) => c.domain.includes('grok.com'))
-  const hasXAuth    = xCookies.some(
-    (c) => c.name === 'auth_token' || c.name === 'ct0' || c.name === 'sso' || c.name === 'sso-rw'
-  )
-  const hasGrokSes  = grokCookies.length >= 2
-  return hasXAuth || hasGrokSes
-}
-
-// ── App lifecycle ─────────────────────────────────────────────────────────────
-app.commandLine.appendSwitch('disable-quic')
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled')
+app.commandLine.appendSwitch('disable-quic')
+app.commandLine.appendSwitch('disable-features', 'WebAuthentication,WebAuthenticationCable,WebAuthenticationConditionalUI')
+
+if (process.env.AI_COUNCIL_USERDATA) {
+  app.setPath('userData', process.env.AI_COUNCIL_USERDATA)
+}
 
 app.whenReady().then(async () => {
-  const loginSes = session.fromPartition(PARTITION)
+  const ses = session.fromPartition(PARTITION)
 
-  // Spoof Chrome client-hint headers and force English locale for all requests
-  loginSes.webRequest.onBeforeSendHeaders({ urls: ['*://*/*'] }, (details, callback) => {
-    const headers = { ...details.requestHeaders }
-    headers['User-Agent'] = USER_AGENT
+  ses.setPermissionRequestHandler((_wc, permission, callback) => {
+    if (permission === 'publickey-credentials-get' || permission === 'publickey-credentials-create') {
+      callback(false)
+      return
+    }
+    callback(true)
+  })
+  ses.setUserAgent(DESKTOP_UA)
+
+  ses.webRequest.onBeforeSendHeaders({ urls: ['*://*/*'] }, (details, callback) => {
+    const headers = {}
+    const skip = new Set([
+      'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform',
+      'sec-ch-ua-full-version-list', 'user-agent', 'x-client-data',
+    ])
+    for (const [k, v] of Object.entries(details.requestHeaders)) {
+      if (!skip.has(k.toLowerCase())) headers[k] = v
+    }
+    headers['user-agent'] = DESKTOP_UA
+    headers['sec-ch-ua'] = `"Chromium";v="${CHROME_MAJOR}", "Google Chrome";v="${CHROME_MAJOR}", "Not-A.Brand";v="24"`
+    headers['sec-ch-ua-mobile'] = '?0'
+    headers['sec-ch-ua-platform'] = '"Windows"'
+    headers['sec-ch-ua-full-version-list'] = `"Chromium";v="${CHROME_FULL}", "Google Chrome";v="${CHROME_FULL}", "Not-A.Brand";v="24.0.0.0"`
     headers['Accept-Language'] = 'en-US,en;q=0.9'
-    Object.assign(headers, CLIENT_HINTS)
     callback({ requestHeaders: headers })
   })
 
+  const SPOOF_PRELOAD = path.join(__dirname, 'electron', 'preload-chrome-spoof.js')
+
   const win = new BrowserWindow({
-    width:  520,
+    width: 520,
     height: 720,
-    title:  WIN_TITLE,
+    title: 'Grok Login - AI Council Session Setup',
     webPreferences: {
-      partition:        PARTITION,
-      contextIsolation: true,
-      nodeIntegration:  false,
+      partition: PARTITION,
+      preload: SPOOF_PRELOAD,
+      contextIsolation: false,
+      nodeIntegration: false,
     },
   })
 
-  // Allow X/Google OAuth popups
-  const ALLOWED = [
-    'x.com', 'api.x.com', 'twitter.com', 'api.twitter.com',
-    'accounts.google.com', 'oauth2.googleapis.com',
+  win.setMenuBarVisibility(false)
+  win.webContents.setUserAgent(DESKTOP_UA)
+
+  const OAUTH_ALLOWED = [
+    'x.com',
+    'api.x.com',
+    'twitter.com',
+    'api.twitter.com',
+    'accounts.google.com',
+    'oauth2.googleapis.com',
     'grok.com',
   ]
+
   win.webContents.setWindowOpenHandler(({ url }) => {
     try {
-      const host = new URL(url).hostname.replace(/^www\./, '')
-      if (ALLOWED.some((d) => host === d || host.endsWith('.' + d))) {
-        return { action: 'allow', overrideBrowserWindowOptions: { webPreferences: { partition: PARTITION } } }
-      }
-    } catch { /* ignore */ }
-    return { action: 'deny' }
+      const hostname = new URL(url).hostname.replace(/^www\./, '')
+      const allowed = OAUTH_ALLOWED.some((d) => hostname === d || hostname.endsWith('.' + d))
+      if (!allowed) return { action: 'deny' }
+    } catch {
+      return { action: 'deny' }
+    }
+    return {
+      action: 'allow',
+      overrideBrowserWindowOptions: {
+        width: 500,
+        height: 660,
+        title: 'Sign in',
+        webPreferences: {
+          partition: PARTITION,
+          preload: SPOOF_PRELOAD,
+          contextIsolation: false,
+          nodeIntegration: false,
+        },
+      },
+    }
   })
 
-  let done = false
-  const START = Date.now()
+  let finished = false
 
-  async function checkAndFinish(url) {
-    if (done) return
-    if (Date.now() - START < GRACE_MS) return
-    if (!(await isLoggedIn(loginSes))) return
-    done = true
-    console.log('Grok login detected — cookies saved to persist:grok session.')
-    console.log('You can close this window or it will close automatically.')
-    setTimeout(() => { if (!win.isDestroyed()) win.close() }, 1_500)
+  async function hasGrokSession() {
+    const all = await ses.cookies.get({})
+    const grokCookies = all.filter((c) => c.domain.includes('grok.com'))
+    const hasGrokSSO = grokCookies.some((c) => c.name === 'sso' || c.name === 'sso-rw')
+    return hasGrokSSO
   }
 
-  win.webContents.on('did-navigate',         (_e, url) => checkAndFinish(url))
-  win.webContents.on('did-finish-load',       ()        => checkAndFinish(win.webContents.getURL()))
-  win.webContents.on('did-navigate-in-page',  (_e, url) => checkAndFinish(url))
+  async function hasReadyComposer(webContents) {
+    try {
+      const url = webContents.getURL()
+      if (!/^https:\/\/([^.]+\.)?grok\.com\//.test(url)) return false
+      return await webContents.executeJavaScript(`
+        (() => {
+          const selectors = [
+            'textarea[placeholder*="Ask"]',
+            'textarea[placeholder*="Grok"]',
+            'textarea[placeholder*="Message"]',
+            'div[contenteditable="true"][aria-label]',
+            'div[contenteditable="true"]',
+            'textarea'
+          ];
+          return selectors.some((sel) => !!document.querySelector(sel));
+        })()
+      `)
+    } catch {
+      return false
+    }
+  }
 
-  win.loadURL(START_URL, { userAgent: USER_AGENT })
+  async function checkAndFinish(webContents = win.webContents) {
+    if (finished) return
+    const loginDone = await hasGrokSession()
+    if (!loginDone) return
+    const composerReady = await hasReadyComposer(webContents)
+    if (!composerReady) return
 
-  win.on('closed', () => {
-    console.log('Login window closed.')
-    app.quit()
-  })
+    finished = true
+    const allCookies = await ses.cookies.get({})
+    process.stdout.write(JSON.stringify(allCookies) + '\n')
+    await ses.cookies.flushStore()
+
+    win.setTitle('Login complete - closing in 3 s')
+    win.webContents.executeJavaScript(`
+      document.body.innerHTML =
+        '<div style="font-family:sans-serif;text-align:center;padding:60px 30px;background:#eef2ff">' +
+        '<div style="font-size:64px">&#x2705;</div>' +
+        '<h2 style="color:#4338ca;margin:16px 0">Grok login complete!</h2>' +
+        '<p style="color:#4f46e5">Grok will now load correctly in AI Council.</p>' +
+        '<p style="color:#6b7280;font-size:13px;margin-top:24px">Closing in 3 seconds...</p>' +
+        '</div>'
+    `).catch(() => {})
+    setTimeout(() => app.quit(), 3000)
+  }
+
+  const attachPopupHandlers = (popup) => {
+    popup.setMenuBarVisibility(false)
+    popup.webContents.setUserAgent(DESKTOP_UA)
+    popup.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => {
+      if (permission === 'publickey-credentials-get' || permission === 'publickey-credentials-create') {
+        callback(false)
+        return
+      }
+      callback(true)
+    })
+    popup.webContents.on('did-navigate', () => setTimeout(() => checkAndFinish(popup.webContents), 500))
+    popup.webContents.on('did-navigate-in-page', () => setTimeout(() => checkAndFinish(popup.webContents), 500))
+    popup.webContents.on('did-finish-load', () => setTimeout(() => checkAndFinish(popup.webContents), 500))
+  }
+
+  win.webContents.on('did-create-window', attachPopupHandlers)
+  win.webContents.on('did-navigate', () => setTimeout(() => checkAndFinish(win.webContents), 500))
+  win.webContents.on('did-navigate-in-page', () => setTimeout(() => checkAndFinish(win.webContents), 500))
+  win.webContents.on('did-finish-load', () => setTimeout(() => checkAndFinish(win.webContents), 500))
+
+  win.loadURL('https://grok.com', { userAgent: DESKTOP_UA })
+  win.on('closed', () => app.quit())
 })
+
+app.on('window-all-closed', () => app.quit())

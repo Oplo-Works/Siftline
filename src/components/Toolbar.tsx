@@ -1,7 +1,19 @@
-import { useRef, KeyboardEvent } from 'react'
-import { AiName, AI_DISPLAY_NAMES, AI_COLORS, AI_ICONS, AiRecommendation, AttachedFile, WorkflowStage } from '../types'
+import { useRef, type CSSProperties, type KeyboardEvent } from 'react'
+import {
+  AiName,
+  AI_NAMES,
+  AI_DISPLAY_NAMES,
+  AI_COLORS,
+  AI_ICONS,
+  AI_ROLE_PRESETS,
+  AiRecommendation,
+  AttachedFile,
+  InteractionMode,
+  WorkflowStage,
+} from '../types'
 
 interface ToolbarProps {
+  interactionMode: InteractionMode
   primaryAi: AiName
   enabledAis: AiName[]
   query: string
@@ -19,20 +31,19 @@ interface ToolbarProps {
   onProceed: () => void
 }
 
-const AI_NAMES: AiName[] = ['gemini', 'claude', 'chatgpt', 'perplexity', 'grok']
-
 const EXT_ICONS: Record<string, string> = {
-  pdf:  '📄',
-  docx: '📝',
-  doc:  '📝',
-  xlsx: '📊',
-  xls:  '📊',
-  csv:  '📋',
-  txt:  '📃',
-  md:   '📃',
+  pdf: 'PDF',
+  docx: 'DOC',
+  doc: 'DOC',
+  xlsx: 'XLS',
+  xls: 'XLS',
+  csv: 'CSV',
+  txt: 'TXT',
+  md: 'MD',
 }
 
 export default function Toolbar({
+  interactionMode,
   primaryAi,
   enabledAis,
   query,
@@ -50,10 +61,18 @@ export default function Toolbar({
   onProceed,
 }: ToolbarProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const trimmedQuery = query.trim()
+  const hasQuery = trimmedQuery.length > 0
+
+  const isWaitingNext = workflowStage === 'waiting-next'
+  const isWaitingContinue = workflowStage === 'waiting-continue'
+  const isReadyNextRound = workflowStage === 'ready-next-round'
+  const isAtPausePoint = isWaitingNext || isWaitingContinue
+  const isWorkflowMode = interactionMode === 'workflow'
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    // Enter (without Shift) = submit  /  Shift+Enter = new line
-    if (e.key === 'Enter' && !e.shiftKey && !isRunning) {
+    if (!isWorkflowMode) return
+    if (e.key === 'Enter' && !e.shiftKey && !isRunning && !isAtPausePoint) {
       e.preventDefault()
       onStart()
     }
@@ -61,64 +80,61 @@ export default function Toolbar({
 
   const toggleAi = (ai: AiName) => {
     if (isRunning) return
-    // Primary AI cannot be toggled off
     if (ai === primaryAi) return
+
     const isEnabled = enabledAis.includes(ai)
-    if (isEnabled && enabledAis.length <= 1) return // must keep at least 1
+    if (isEnabled && enabledAis.length <= 1) return
+
     const next = isEnabled
       ? enabledAis.filter((a) => a !== ai)
       : [...enabledAis, ai]
+
     onEnabledAisChange(next)
   }
 
   const selectedColor = AI_COLORS[primaryAi]
-
-  // ── Derive action button appearance from workflowStage ───────────────────
-  const isWaitingNext     = workflowStage === 'waiting-next'
-  const isWaitingContinue = workflowStage === 'waiting-continue'
-  const isAtPausePoint    = isWaitingNext || isWaitingContinue
-
-  // Button is clickable when idle (Start) or at a pause point (Next/Continue)
-  const btnDisabled = isRunning && !isAtPausePoint
+  const canStart = isReadyNextRound || hasQuery
+  const btnDisabled = isRunning || (!isAtPausePoint && !canStart)
+  const reviewerAis = AI_NAMES.filter((ai) => ai !== primaryAi && enabledAis.includes(ai))
 
   const btnLabel = isWaitingNext
     ? 'Next'
     : isWaitingContinue
-    ? 'Continue'
-    : isRunning
-    ? 'Running...'
-    : 'Start'
+      ? 'Continue'
+      : isRunning
+        ? 'Running...'
+        : isReadyNextRound
+          ? hasQuery
+            ? 'Send Follow-up'
+            : 'Next'
+          : 'Start'
 
-  const btnIcon = isWaitingNext
-    ? '▶▶'
-    : isWaitingContinue
-    ? '✓'
-    : isRunning
-    ? null
-    : '▶'
-
-  // Color overrides for pause-point states
   const btnColor = isWaitingNext
-    ? { primary: '#f59e0b', glow: 'rgba(245,158,11,0.35)' }   // amber
+    ? { primary: '#f59e0b', glow: 'rgba(245,158,11,0.35)' }
     : isWaitingContinue
-    ? { primary: '#10b981', glow: 'rgba(16,185,129,0.35)' }   // green
-    : selectedColor
+      ? { primary: '#10b981', glow: 'rgba(16,185,129,0.35)' }
+      : isReadyNextRound
+        ? hasQuery
+          ? { primary: '#3b82f6', glow: 'rgba(59,130,246,0.35)' }
+          : { primary: '#f59e0b', glow: 'rgba(245,158,11,0.35)' }
+        : selectedColor
 
   const handleBtnClick = isAtPausePoint ? onProceed : onStart
+  const queryPlaceholder = isReadyNextRound
+    ? 'Press Next for another review round, or type a related follow-up question.'
+    : 'Enter your question...\n(Enter to send / Shift+Enter for new line)'
 
   return (
     <div className="toolbar-container">
-      {/* ── Row 1: AI selectors ── */}
       <div className="toolbar toolbar-row-selectors">
-        {/* Primary AI */}
         <div className="toolbar-section">
           <label className="toolbar-label">Primary AI</label>
           <div className="ai-selector">
             {AI_NAMES.map((ai) => {
               const color = AI_COLORS[ai]
               const isSelected = primaryAi === ai
-              // Chip is interactive when: workflow not running, OR at a pause point
               const chipDisabled = isRunning && !isAtPausePoint
+
               return (
                 <button
                   key={ai}
@@ -132,7 +148,7 @@ export default function Toolbar({
                           borderColor: color.primary,
                           backgroundColor: `${color.primary}18`,
                           boxShadow: `0 0 12px ${color.glow}`,
-                        } as React.CSSProperties
+                        } as CSSProperties
                       : {}
                   }
                   onClick={() => !chipDisabled && onPrimaryAiChange(ai)}
@@ -154,10 +170,8 @@ export default function Toolbar({
           </div>
         </div>
 
-        {/* Divider */}
         <div className="toolbar-divider" />
 
-        {/* Active panels */}
         <div className="toolbar-section">
           <label className="toolbar-label">Active</label>
           <div className="ai-selector">
@@ -165,6 +179,7 @@ export default function Toolbar({
               const color = AI_COLORS[ai]
               const isActive = enabledAis.includes(ai)
               const isPrimary = ai === primaryAi
+
               return (
                 <button
                   key={ai}
@@ -175,20 +190,19 @@ export default function Toolbar({
                           '--chip-color': color.primary,
                           borderColor: `${color.primary}88`,
                           color: color.primary,
-                        } as React.CSSProperties
+                        } as CSSProperties
                       : {}
                   }
                   onClick={() => toggleAi(ai)}
                   disabled={isRunning || isPrimary}
                   title={
                     isPrimary
-                      ? `${AI_DISPLAY_NAMES[ai]} (Primary — always active)`
+                      ? `${AI_DISPLAY_NAMES[ai]} (Primary, always active)`
                       : isActive
-                      ? `Hide ${AI_DISPLAY_NAMES[ai]} panel`
-                      : `Show ${AI_DISPLAY_NAMES[ai]} panel`
+                        ? `Hide ${AI_DISPLAY_NAMES[ai]} panel`
+                        : `Show ${AI_DISPLAY_NAMES[ai]} panel`
                   }
                 >
-                  <span className="ai-toggle-check">{isActive ? '✓' : '○'}</span>
                   <span className="ai-chip-name">{AI_DISPLAY_NAMES[ai]}</span>
                 </button>
               )
@@ -197,80 +211,118 @@ export default function Toolbar({
         </div>
       </div>
 
-      {/* ── Row 2: Query input + buttons ── */}
-      <div className="toolbar toolbar-row-input">
-        <div className="toolbar-query">
-          <div
-            className="query-input-wrapper"
-            style={{ '--query-color': selectedColor.primary } as React.CSSProperties}
-          >
-            <textarea
-              ref={inputRef}
-              id="input-query"
-              className="query-input"
-              rows={3}
-              placeholder={"Enter your question...\n(Enter to send  /  Shift+Enter for new line)"}
-              value={query}
-              onChange={(e) => onQueryChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isRunning}
-            />
+      {reviewerAis.length > 0 && (
+        <div className="reviewer-role-bar">
+          <span className="reviewer-role-label">
+            {isWorkflowMode ? 'Reviewer focus' : 'Council roles'}
+          </span>
+          <div className="reviewer-role-chips">
+            {reviewerAis.map((ai) => {
+              const color = AI_COLORS[ai]
+              const role = AI_ROLE_PRESETS[ai]
+              return (
+                <div
+                  key={ai}
+                  className="reviewer-role-chip"
+                  style={{
+                    borderColor: `${color.primary}55`,
+                    background: `${color.primary}10`,
+                  }}
+                  title={role.detail}
+                >
+                  <span className="reviewer-role-ai" style={{ color: color.primary }}>
+                    {AI_ICONS[ai]} {AI_DISPLAY_NAMES[ai]}
+                  </span>
+                  <span className="reviewer-role-name">{role.title}</span>
+                  <span className="reviewer-role-detail">{role.detail}</span>
+                </div>
+              )
+            })}
           </div>
         </div>
+      )}
 
-        {/* Attach button */}
-        <button
-          id="btn-attach"
-          className={`attach-btn ${attachedFiles.length > 0 ? 'has-files' : ''}`}
-          onClick={onAttach}
-          disabled={isRunning}
-          title="Attach file (PDF, DOCX, XLSX, TXT, CSV, MD)"
-        >
-          <span className="attach-icon">📎</span>
-          {attachedFiles.length > 0 && (
-            <span className="attach-badge">{attachedFiles.length}</span>
-          )}
-        </button>
+      {isWorkflowMode ? (
+        <div className="toolbar toolbar-row-input">
+          <div className="toolbar-query">
+            <div
+              className="query-input-wrapper"
+              style={{ '--query-color': selectedColor.primary } as CSSProperties}
+            >
+              <textarea
+                ref={inputRef}
+                id="input-query"
+                className="query-input"
+                rows={3}
+                placeholder={queryPlaceholder}
+                value={query}
+                onChange={(e) => onQueryChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isRunning}
+              />
+            </div>
+          </div>
 
-        {/* Action button: Start / Next / Continue */}
-        <button
-          id="btn-start"
-          className={`start-btn ${isRunning && !isAtPausePoint ? 'running' : ''} ${isWaitingNext ? 'waiting-next' : ''} ${isWaitingContinue ? 'waiting-continue' : ''}`}
-          style={
-            {
-              '--btn-color': btnColor.primary,
-              '--btn-glow': btnColor.glow,
-            } as React.CSSProperties
-          }
-          onClick={handleBtnClick}
-          disabled={btnDisabled}
-        >
-          {isRunning && !isAtPausePoint ? (
-            <>
-              <span className="spinner" />
-              <span>Running...</span>
-            </>
-          ) : (
-            <>
-              {btnIcon && <span>{btnIcon}</span>}
+          <button
+            id="btn-attach"
+            className={`attach-btn ${attachedFiles.length > 0 ? 'has-files' : ''}`}
+            onClick={onAttach}
+            disabled={isRunning}
+            title="Attach file (PDF, DOCX, XLSX, TXT, CSV, MD)"
+          >
+            <span className="attach-icon">+</span>
+            {attachedFiles.length > 0 && (
+              <span className="attach-badge">{attachedFiles.length}</span>
+            )}
+          </button>
+
+          <button
+            id="btn-start"
+            className={`start-btn ${isRunning ? 'running' : ''} ${isWaitingNext ? 'waiting-next' : ''} ${isWaitingContinue ? 'waiting-continue' : ''}`}
+            style={
+              {
+                '--btn-color': btnColor.primary,
+                '--btn-glow': btnColor.glow,
+              } as CSSProperties
+            }
+            onClick={handleBtnClick}
+            disabled={btnDisabled}
+          >
+            {isRunning ? (
+              <>
+                <span className="spinner" />
+                <span>Running...</span>
+              </>
+            ) : (
               <span>{btnLabel}</span>
-            </>
-          )}
-        </button>
-      </div>
+            )}
+          </button>
+        </div>
+      ) : (
+        <div className="toolbar toolbar-row-input toolbar-chat-mode-row">
+          <div className="chat-mode-banner">
+            <span className="chat-mode-banner-kicker">Council Chat is on</span>
+            <strong className="chat-mode-banner-title">
+              Use the docked chat panel to the right.
+            </strong>
+            <span className="chat-mode-banner-detail">
+              First MVP supports one mentioned AI at a time, such as `@Gemini` or `@Claude`.
+            </span>
+          </div>
+        </div>
+      )}
 
-      {/* ── AI Recommendation Banner — shown while typing query ── */}
-      {!isRunning && (analysisLoading || recommendation) && (
+      {isWorkflowMode && !isRunning && (analysisLoading || recommendation) && (
         <div className="recommendation-bar">
           {analysisLoading ? (
             <div className="recommendation-loading">
               <span className="rec-spinner" />
-              <span>Analyzing query…</span>
+              <span>Analyzing query...</span>
             </div>
           ) : recommendation ? (
             <div className="recommendation-content">
               <div className="recommendation-left">
-                <span className="rec-icon">⚡</span>
+                <span className="rec-icon">AI</span>
                 <span className="rec-label">Recommended Primary AI:</span>
                 <span
                   className="rec-ai-badge"
@@ -280,47 +332,42 @@ export default function Toolbar({
                     background: `${AI_COLORS[recommendation.recommended].primary}18`,
                   }}
                 >
-                  {AI_ICONS[recommendation.recommended]}&nbsp;{AI_DISPLAY_NAMES[recommendation.recommended]}
+                  {AI_ICONS[recommendation.recommended]} {AI_DISPLAY_NAMES[recommendation.recommended]}
                 </span>
                 <span className="rec-reason">{recommendation.reason}</span>
               </div>
               <button
                 id="btn-apply-recommendation"
                 className="rec-apply-btn"
-                style={{
-                  '--rec-color': AI_COLORS[recommendation.recommended].primary,
-                } as React.CSSProperties}
+                style={{ '--rec-color': AI_COLORS[recommendation.recommended].primary } as CSSProperties}
                 onClick={() => onPrimaryAiChange(recommendation.recommended)}
                 disabled={primaryAi === recommendation.recommended}
                 title="Apply this recommendation"
               >
-                {primaryAi === recommendation.recommended ? '✓ Applied' : 'Apply'}
+                {primaryAi === recommendation.recommended ? 'Applied' : 'Apply'}
               </button>
             </div>
           ) : null}
         </div>
       )}
 
-      {/* ── Attachment bar — only rendered when files are attached ── */}
-      {attachedFiles.length > 0 && (
+      {isWorkflowMode && attachedFiles.length > 0 && (
         <div className="attachment-bar">
           <span className="attachment-bar-label">Attached:</span>
           <div className="attachment-chips">
-            {attachedFiles.map((file, i) => (
-              <span key={i} className="attachment-chip">
-                <span className="attachment-chip-icon">
-                  {EXT_ICONS[file.ext] ?? '📄'}
-                </span>
+            {attachedFiles.map((file, index) => (
+              <span key={index} className="attachment-chip">
+                <span className="attachment-chip-icon">{EXT_ICONS[file.ext] ?? 'FILE'}</span>
                 <span className="attachment-chip-name" title={file.path}>
                   {file.name}
                 </span>
                 {!isRunning && (
                   <button
                     className="attachment-chip-remove"
-                    onClick={() => onRemoveFile(i)}
+                    onClick={() => onRemoveFile(index)}
                     title="Remove file"
                   >
-                    ×
+                    x
                   </button>
                 )}
               </span>

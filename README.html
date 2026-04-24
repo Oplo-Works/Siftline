@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Council — Manual Multi-LLM Cross-Verification Workflow</title>
-  <meta name="description" content="Manual cross-verification workflow among up to 5 major LLMs (Gemini, Claude, ChatGPT, Perplexity, Grok) using Electron BrowserViews and UI automation." />
+  <meta name="description" content="Manual cross-verification workflow among up to 6 major LLMs (Gemini, Claude, ChatGPT, Groq, Perplexity, Grok) using Electron BrowserViews and UI automation." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -141,6 +141,7 @@
     .ai-chip.gemini     { border-color: rgba(66,133,244,.5);   color: #4285f4;  background: rgba(66,133,244,.08); }
     .ai-chip.claude     { border-color: rgba(204,120,92,.5);   color: #cc785c;  background: rgba(204,120,92,.08); }
     .ai-chip.chatgpt    { border-color: rgba(16,163,127,.5);   color: #10a37f;  background: rgba(16,163,127,.08); }
+    .ai-chip.groq       { border-color: rgba(251,146,60,.5);   color: #fb923c;  background: rgba(251,146,60,.08); }
     .ai-chip.perplexity { border-color: rgba(32,178,170,.5);   color: #20b2aa;  background: rgba(32,178,170,.08); }
     .ai-chip.grok       { border-color: rgba(124,58,237,.5);   color: #7c3aed;  background: rgba(124,58,237,.08); }
 
@@ -624,12 +625,13 @@
     <div class="hero-badge">Electron · React · TypeScript</div>
     <h1>AI Council</h1>
     <p class="hero-tagline">
-      Manual cross-verification workflow among up to 5 major LLMs using Electron BrowserViews and UI automation.
+      Manual cross-verification workflow <strong style="color:var(--accent-blue)">and</strong> free-form group discussion among up to 6 major LLMs using Electron BrowserViews and UI automation.
     </p>
     <div class="ai-chips">
       <span class="ai-chip gemini">✦ Gemini</span>
       <span class="ai-chip claude">◎ Claude</span>
       <span class="ai-chip chatgpt">⊕ ChatGPT</span>
+      <span class="ai-chip groq">✶ Groq</span>
       <span class="ai-chip perplexity">◈ Perplexity</span>
       <span class="ai-chip grok">⚡ Grok</span>
     </div>
@@ -637,39 +639,112 @@
 
   <!-- ── WHAT'S NEW ── -->
   <div class="whats-new">
-    <div class="whats-new-title">✨ What's New</div>
+    <div class="whats-new-title">✨ What's New in v1.0.7</div>
 
     <div class="new-feature">
-      <div class="new-feature-icon">⚡</div>
+      <div class="new-feature-icon">💬</div>
       <div>
-        <div class="new-feature-title">API Keys Tab</div>
+        <div class="new-feature-title">Council Chat Mode</div>
         <div class="new-feature-desc">
-          New tab inside the Accounts panel — store API keys for all 5 AI providers plus Groq (ultra-fast Llama inference).
-          Drag-and-drop rows to set the analysis priority. Keys are saved in <code>electron-store</code> and never leave your machine.
+          Brand-new group-chat panel alongside the existing Workflow mode.
+          Send a message to one AI with <code>@Gemini</code> or broadcast to everyone with <code>@all</code>.
+          Bubble-style UI with left/right alignment mirrors modern messaging apps like WhatsApp.
         </div>
       </div>
     </div>
 
     <div class="new-feature">
-      <div class="new-feature-icon">🤖</div>
+      <div class="new-feature-icon">🔀</div>
       <div>
-        <div class="new-feature-title">AI Recommendation Engine</div>
+        <div class="new-feature-title">Dual Interaction Mode</div>
         <div class="new-feature-desc">
-          As you type a query, the app calls your highest-priority configured API to recommend the best Primary AI with a reason.
-          A banner with an <strong style="color:var(--accent-blue)">Apply</strong> button appears below the query box.
-          Falls back to keyword-based rule logic when no API key is set.
+          Switch seamlessly between <strong style="color:var(--accent-blue)">Workflow</strong> (structured 3-step review)
+          and <strong style="color:var(--accent-purple)">Council Chat</strong> (free-form discussion).
+          The toolbar mode toggle carries context and AI selection across both sides.
         </div>
       </div>
     </div>
 
     <div class="new-feature">
-      <div class="new-feature-icon">🔄</div>
+      <div class="new-feature-icon">💾</div>
       <div>
-        <div class="new-feature-title">Mid-Workflow Primary AI Reassignment</div>
+        <div class="new-feature-title">Saved Sessions (Snapshots)</div>
         <div class="new-feature-desc">
-          At both pause points (<strong style="color:#f59e0b">▶▶ Next</strong> and <strong style="color:#10b981">✓ Continue</strong>)
-          the Primary AI chips become interactive — click any chip to switch mid-run.
-          The workflow engine continues with the newly assigned AI for all remaining steps.
+          Save any Council Chat session and reload it later. Full lifecycle management:
+          favorites, labels, notes, archive, bulk-delete, export/import as JSON, and duplicate.
+          Sessions auto-save 3 seconds after any change.
+        </div>
+      </div>
+    </div>
+
+    <div class="new-feature">
+      <div class="new-feature-icon">🎯</div>
+      <div>
+        <div class="new-feature-title">AI Moderator</div>
+        <div class="new-feature-desc">
+          Real-time analysis of the Council Chat conversation — surfaces a consensus summary,
+          identifies who should speak next, and generates a suggested follow-up prompt you can apply
+          or send immediately.
+        </div>
+      </div>
+    </div>
+
+    <div class="new-feature">
+      <div class="new-feature-icon">📌</div>
+      <div>
+        <div class="new-feature-title">Candidate Pinning &amp; Comparison</div>
+        <div class="new-feature-desc">
+          Pin strong AI replies as candidates. The Compare panel shows a side-by-side diff.
+          Pin two or more to generate a <strong style="color:var(--accent-teal)">merged draft</strong>
+          that blends the best ideas before handing off to Workflow.
+        </div>
+      </div>
+    </div>
+
+    <div class="new-feature">
+      <div class="new-feature-icon">🔗</div>
+      <div>
+        <div class="new-feature-title">Workflow Handoff</div>
+        <div class="new-feature-desc">
+          One click moves the entire Council Chat transcript (or a single pinned reply) into the
+          Workflow query box as a structured seed prompt. The selected primary AI and participants carry over.
+        </div>
+      </div>
+    </div>
+
+    <div class="new-feature">
+      <div class="new-feature-icon">🌐</div>
+      <div>
+        <div class="new-feature-title">Response Language Detection</div>
+        <div class="new-feature-desc">
+          The app automatically detects the script of your message (Korean, Japanese, Chinese, Arabic,
+          and more) and instructs every AI to reply in the same language. No manual setting required.
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:22px; padding-top:18px; border-top:1px solid var(--border);">
+      <div style="font-size:.8rem; font-weight:600; color:var(--text-faint); letter-spacing:.08em; text-transform:uppercase; margin-bottom:12px;">v1.0.6 Highlights</div>
+
+      <div class="new-feature" style="padding-top:0;">
+        <div class="new-feature-icon">⚡</div>
+        <div>
+          <div class="new-feature-title" style="font-size:.88rem;">API Keys Tab</div>
+          <div class="new-feature-desc">Store API keys for all 6 providers in the Accounts panel. Drag-and-drop to set priority.</div>
+        </div>
+      </div>
+      <div class="new-feature">
+        <div class="new-feature-icon">🤖</div>
+        <div>
+          <div class="new-feature-title" style="font-size:.88rem;">AI Recommendation Engine</div>
+          <div class="new-feature-desc">Recommends the best Primary AI as you type. Falls back to keyword rules with no key.</div>
+        </div>
+      </div>
+      <div class="new-feature">
+        <div class="new-feature-icon">🔄</div>
+        <div>
+          <div class="new-feature-title" style="font-size:.88rem;">Mid-Workflow Primary AI Reassignment</div>
+          <div class="new-feature-desc">Switch Primary AI at ▶▶ Next or ✓ Continue — the workflow continues with the new choice.</div>
         </div>
       </div>
     </div>
@@ -742,24 +817,35 @@
     <div class="panel">
       <pre><code>ai-council/
 ├── electron/
-│   ├── main.ts                  # Main process: BrowserViews, IPC, workflow engine, recommendation engine
-│   ├── preload.ts               # Context-isolated API bridge (contextBridge)
-│   ├── preload-chrome-spoof.js  # Chrome identity spoof for OAuth popups
-│   ├── preload-google-login.js  # Google login flow helper
-│   └── selectors.json           # External DOM selector config (updatable without rebuild)
+│   ├── main.ts                       # Main process: BrowserViews, IPC, workflow + council engine
+│   ├── preload.ts                    # Context-isolated API bridge (contextBridge)
+│   ├── councilPrompt.ts              # Council Chat prompt builder (system prompts, role injection)
+│   ├── preload-chrome-spoof.js       # Chrome identity spoof for OAuth popups
+│   ├── preload-en-locale.js          # Locale spoof so AI UIs load in English
+│   ├── preload-google-login.js       # Google login flow helper
+│   ├── preload-oauth-google-spoof.js # Google OAuth identity masking
+│   └── selectors.json               # External DOM selector config (updatable without rebuild)
 ├── src/
-│   ├── App.tsx                  # Root component: state, IPC subscriptions, orchestration
-│   ├── types.ts                 # Shared types, constants, global window declarations
-│   ├── index.css                # Dark glassmorphism design system
+│   ├── App.tsx                       # Root component: state, IPC, dual-mode orchestration
+│   ├── types.ts                      # Shared types, constants, global window declarations
+│   ├── index.css                     # Dark glassmorphism design system
+│   ├── responseLanguage.ts           # User language detection → per-prompt language directive
+│   ├── councilCandidateCompare.ts    # Candidate pinning, comparison, and merge logic
+│   ├── councilModerator.ts           # AI Moderator: consensus + next-speaker + follow-up prompt
+│   ├── councilMentions.ts            # @mention parsing and autocomplete logic
+│   ├── councilWorkflowHandoff.ts     # Council → Workflow transcript bridging
 │   └── components/
-│       ├── TitleBar.tsx         # Frameless window bar with 🔑 Accounts, 📋 History, 📊 Logs
-│       ├── Toolbar.tsx          # Primary AI selector + Active toggles + query input + recommendation banner
-│       ├── StatusBar.tsx        # Live status text with animated progress bar
-│       ├── PanelGrid.tsx        # Panel headers above embedded BrowserViews (only enabled AIs shown)
-│       ├── AccountsPanel.tsx    # Two-tab panel: Accounts (login/logout) + API Keys (storage & ordering)
-│       ├── FinalResultPanel.tsx # Collapsible final answer panel + per-file download
-│       ├── LogDrawer.tsx        # Real-time execution logs side drawer
-│       └── HistoryDrawer.tsx    # Persistent chat history side drawer
+│       ├── TitleBar.tsx              # Frameless window bar with 🔑 Accounts, 📋 History, 📊 Logs
+│       ├── Toolbar.tsx               # Mode toggle + Primary AI selector + query + recommendation banner
+│       ├── StatusBar.tsx             # Live status text with animated progress bar
+│       ├── PanelGrid.tsx             # Panel headers above embedded BrowserViews
+│       ├── AccountsPanel.tsx         # Two-tab panel: Accounts + API Keys
+│       ├── CouncilChatPanel.tsx      # Group-chat panel: messages, sessions, moderator, candidates
+│       ├── CouncilMessageBubble.tsx  # Bubble-style message component with preview + expand + actions
+│       ├── FinalResultPanel.tsx      # Collapsible final answer panel + per-file download
+│       ├── LogDrawer.tsx             # Real-time execution logs side drawer
+│       ├── HistoryDrawer.tsx         # Persistent chat history side drawer
+│       └── UiErrorBoundary.tsx       # React error boundary for graceful UI error isolation
 ├── google-login.mjs             # Standalone Google account login helper
 ├── google-login.bat             # Launcher for google-login.mjs
 ├── claude-login.mjs             # Standalone Claude (claude.ai) login helper
@@ -852,7 +938,7 @@ grok-login.bat         # Grok (X / Twitter account)</code></pre>
         </div>
         <div class="toolbar-row" style="margin-bottom:0">
           <div class="toolbar-row-title">Active</div>
-          <div class="toolbar-row-desc">Toggle which AI panels are visible and participate in the workflow. Run with <strong>2, 3, 4, or all 5 AIs</strong> simultaneously. Click any chip to show/hide that AI's panel.</div>
+          <div class="toolbar-row-desc">Toggle which AI panels are visible and participate in the workflow. Run with <strong>2, 3, 4, 5, or 6 AIs</strong> simultaneously. Click any chip to show/hide that AI's panel.</div>
         </div>
       </div>
 
@@ -935,13 +1021,15 @@ npx electron-builder --mac dmg --x64 --arm64</code></pre>
 
     <div class="steps-grid" style="margin-bottom:28px;">
       <div class="step-card"><div class="step-num">1</div><div class="step-text">App loads all selected AI websites in BrowserViews — log in via the <strong>🔑 Accounts panel</strong> or standalone login scripts</div></div>
-      <div class="step-card"><div class="step-num">2</div><div class="step-text">Select <strong>Primary AI</strong> and configure <strong>Active</strong> panels (choose 2–5 AIs)</div></div>
+      <div class="step-card"><div class="step-num">2</div><div class="step-text">Select <strong>Primary AI</strong> and configure <strong>Active</strong> panels (choose 2–6 AIs)</div></div>
       <div class="step-card"><div class="step-num">3</div><div class="step-text">Type your question, optionally attach files (PDF / DOCX / XLSX / TXT / MD / CSV), click <strong>▶ Start</strong></div></div>
       <div class="step-card"><div class="step-num">4</div><div class="step-text">MutationObserver-based stability detection waits for Primary AI's draft response — button turns amber <strong>▶▶ Next</strong></div></div>
       <div class="step-card"><div class="step-num">5</div><div class="step-text">Click <strong>▶▶ Next</strong>: review prompt (draft + file context) injected simultaneously into all active Reviewer AIs. <em>You may reassign the Primary AI here.</em></div></div>
       <div class="step-card"><div class="step-num">6</div><div class="step-text">Wait for all reviewer feedback responses (parallel, with per-AI stability detection) — button turns green <strong>✓ Continue</strong></div></div>
       <div class="step-card"><div class="step-num">7</div><div class="step-text">Click <strong>✓ Continue</strong>: combined feedback + final revision prompt injected back into Primary AI. <em>You may reassign the Primary AI here.</em></div></div>
       <div class="step-card"><div class="step-num">8</div><div class="step-text">Final revised answer extracted, parsed into per-file blocks, displayed in collapsible <strong>Final Result Panel</strong> with individual download buttons</div></div>
+      <div class="step-card"><div class="step-num">9</div><div class="step-text">If you press <strong>Next</strong> again after the final answer, the app can send that answer through another reviewer round</div></div>
+      <div class="step-card"><div class="step-num">10</div><div class="step-text">If you type a follow-up question, the app keeps the same session when the new question is related — unrelated questions automatically reset to a fresh session</div></div>
     </div>
 
     <div class="reassign-box">
@@ -951,6 +1039,29 @@ npx electron-builder --mac dmg --x64 --arm64</code></pre>
       <br/><br/>
       &nbsp;&nbsp;● Reassign at <strong>▶▶ Next</strong> → reviewers and final revision both run under the new Primary AI<br/>
       &nbsp;&nbsp;● Reassign at <strong>✓ Continue</strong> → only the final revision step uses the new Primary AI
+    </div>
+
+    <div class="panel" style="margin-top:20px;">
+      <div class="sub-heading">Reviewer Roles</div>
+      <p style="color:var(--text-muted); font-size:.93rem; margin-bottom:16px;">
+        Each reviewer can focus on a different strength instead of repeating the same generic checklist.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>AI</th><th>Reviewer focus</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Claude</strong></td><td>Logic, precision, and argument structure</td></tr>
+            <tr><td><strong>Perplexity</strong></td><td>Fact-checking, freshness, and source-minded validation</td></tr>
+            <tr><td><strong>Grok</strong></td><td>Adversarial critique, edge cases, and hidden risk</td></tr>
+            <tr><td><strong>ChatGPT</strong></td><td>Practicality, clarity, and user-facing polish</td></tr>
+            <tr><td><strong>Gemini</strong></td><td>Systems-level synthesis and overall framing</td></tr>
+            <tr><td><strong>Groq</strong></td><td>Concise alternative paths and speed-oriented simplification</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="green-box" style="margin-top:16px;">
+        <strong>Preview bar:</strong> the toolbar shows these roles before review begins, so you can immediately see why each AI is being asked to respond.
+      </div>
     </div>
   </section>
 
@@ -972,7 +1083,7 @@ npx electron-builder --mac dmg --x64 --arm64</code></pre>
             <tr><td><strong>Login</strong></td><td>Opens a dedicated mini browser window for that AI's login page. Session is saved to the <code>persist:</code> partition automatically on window close.</td></tr>
             <tr><td><strong>Re-login</strong></td><td>Re-authenticates an already-logged-in account (useful when a session expires).</td></tr>
             <tr><td><strong>Logout</strong></td><td>Clears the session cookies for that specific AI only.</td></tr>
-            <tr><td><strong>Logout All</strong></td><td>Logs out all 5 AIs simultaneously.</td></tr>
+            <tr><td><strong>Logout All</strong></td><td>Logs out all 6 AIs simultaneously.</td></tr>
           </tbody>
         </table>
       </div>
@@ -1120,12 +1231,15 @@ Question: {query}
       </div>
 
       <div class="prompt-block">
-        <div class="prompt-label">Reviewer Prompt</div>
-        <pre><code>Below is what [{Primary AI}] answered to the following question.
+        <div class="prompt-label">Reviewer Prompt (role-based)</div>
+        <pre><code>You are acting as {Reviewer AI} in AI Council.
+Your reviewer focus is: {role focus}.
+
 Question: {query}
 [Attached file content]: {fileContext}   ← include only when files are attached
-[{Primary AI}]'s answer: {draft}
-Review the answer above: 1) accuracy 2) completeness 3) clarity 4) improvement suggestions</code></pre>
+Primary answer: {draft}
+
+Give feedback from your role only. Be specific and avoid repeating the same generic checklist for every AI.</code></pre>
       </div>
 
       <div class="prompt-block" style="margin-bottom:0">
@@ -1163,6 +1277,7 @@ Incorporate the feedback and output the revised version of each file in the foll
             <tr><td>File parsing</td><td>pdf-parse · mammoth · xlsx</td></tr>
             <tr><td>File generation</td><td>docx · xlsx</td></tr>
             <tr><td>OAuth compatibility</td><td>preload-chrome-spoof.js (Chrome identity masking)</td></tr>
+            <tr><td>Language detection</td><td>Unicode script analysis (responseLanguage.ts)</td></tr>
             <tr><td>AI inference (recommendation)</td><td>Gemini · Claude · OpenAI · Perplexity · Grok · Groq APIs</td></tr>
           </tbody>
         </table>
@@ -1171,7 +1286,7 @@ Incorporate the feedback and output the revised version of each file in the foll
   </section>
 
   <footer>
-    <p>AI Council &mdash; README &nbsp;·&nbsp; Last updated 2026-04-21 &nbsp;·&nbsp; <a href="https://github.com/MinkyuTheBuilder/ai-council" target="_blank">GitHub</a></p>
+    <p>AI Council &mdash; README &nbsp;·&nbsp; Last updated 2026-04-24 &nbsp;·&nbsp; v1.0.7 &nbsp;·&nbsp; <a href="https://github.com/MinkyuTheBuilder/ai-council" target="_blank">GitHub</a></p>
   </footer>
 
 </div>

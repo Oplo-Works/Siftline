@@ -1,4 +1,10 @@
+import type { CSSProperties } from 'react'
+import type { InteractionMode } from '../types'
+
 interface TitleBarProps {
+  mode: InteractionMode
+  modeSwitchDisabled: boolean
+  onModeChange: (mode: InteractionMode) => void
   onMinimize: () => void
   onMaximize: () => void
   onClose: () => void
@@ -11,6 +17,9 @@ interface TitleBarProps {
 }
 
 export default function TitleBar({
+  mode,
+  modeSwitchDisabled,
+  onModeChange,
   onMinimize,
   onMaximize,
   onClose,
@@ -22,21 +31,44 @@ export default function TitleBar({
   showAccounts,
 }: TitleBarProps) {
   return (
-    <div className="titlebar" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+    <div className="titlebar" style={{ WebkitAppRegion: 'drag' } as CSSProperties}>
       <div className="titlebar-logo">
-        <span className="titlebar-icon">⚡</span>
+        <span className="titlebar-icon">AI</span>
         <span className="titlebar-name">AI Council</span>
         <span className="titlebar-tagline">Multi-LLM Cross-Verification</span>
       </div>
 
-      <div className="titlebar-actions" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      <div className="titlebar-center" style={{ WebkitAppRegion: 'drag' } as CSSProperties}>
+        <div className="titlebar-drag-spacer" />
+        <div className="mode-toggle" aria-label="Interaction mode" style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}>
+          <button
+            className={`mode-toggle-btn ${mode === 'workflow' ? 'active' : ''}`}
+            onClick={() => onModeChange('workflow')}
+            disabled={modeSwitchDisabled}
+            title="Use the existing primary-review-revise workflow"
+          >
+            Workflow
+          </button>
+          <button
+            className={`mode-toggle-btn ${mode === 'chat' ? 'active' : ''}`}
+            onClick={() => onModeChange('chat')}
+            disabled={modeSwitchDisabled}
+            title="Use the new Council Chat mode"
+          >
+            Council Chat
+          </button>
+        </div>
+        <div className="titlebar-drag-spacer" />
+      </div>
+
+      <div className="titlebar-actions" style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}>
         <button
           className={`titlebar-action-btn ${showAccounts ? 'active' : ''}`}
           onClick={onToggleAccounts}
-          title="Accounts — login / logout"
+          title="Accounts"
           id="btn-toggle-accounts"
         >
-          <span>🔑</span>
+          <span>Acct</span>
         </button>
         <button
           className="titlebar-action-btn"
@@ -44,7 +76,7 @@ export default function TitleBar({
           title="History"
           id="btn-toggle-history"
         >
-          <span>📋</span>
+          <span>Hist</span>
           {historyCount > 0 && <span className="badge">{historyCount}</span>}
         </button>
         <button
@@ -53,7 +85,7 @@ export default function TitleBar({
           title="Logs"
           id="btn-toggle-logs"
         >
-          <span>📊</span>
+          <span>Logs</span>
           {logCount > 0 && <span className="badge">{Math.min(logCount, 99)}</span>}
         </button>
 

@@ -10,7 +10,6 @@ function extractPreview(text: string): { preview: string; hasMore: boolean } {
     return { preview: trimmed, hasMore: false }
   }
 
-  // Try to break at sentence boundary within the limit
   const sentenceEnd = /[.!?]\s+/g
   let lastBreak = -1
   let sentenceCount = 0
@@ -27,7 +26,6 @@ function extractPreview(text: string): { preview: string; hasMore: boolean } {
     return { preview: trimmed.slice(0, lastBreak).trimEnd(), hasMore: true }
   }
 
-  // Fallback: hard cut at PREVIEW_CHAR_LIMIT on word boundary
   const hardCut = trimmed.slice(0, PREVIEW_CHAR_LIMIT)
   const wordEnd = hardCut.lastIndexOf(' ')
   return {
@@ -58,7 +56,6 @@ export function CouncilMessageBubble({
 }: CouncilMessageBubbleProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
-  // ── System messages ───────────────────────────────────────────
   if (message.kind === 'system') {
     return (
       <div className={`cmsg-system ${message.error ? 'error' : ''}`}>
@@ -67,7 +64,6 @@ export function CouncilMessageBubble({
     )
   }
 
-  // ── User / Assistant bubbles ──────────────────────────────────
   const ai = message.ai
   const isUser = message.kind === 'user'
   const color = ai ? AI_COLORS[ai].primary : '#7dd3fc'
@@ -81,8 +77,6 @@ export function CouncilMessageBubble({
 
   return (
     <div className={`cmsg-row ${isUser ? 'cmsg-row-user' : 'cmsg-row-ai'}`}>
-
-      {/* AI avatar (left side) */}
       {!isUser && (
         <div
           className="cmsg-avatar"
@@ -93,10 +87,7 @@ export function CouncilMessageBubble({
         </div>
       )}
 
-      {/* Bubble */}
       <div className={`cmsg-bubble-wrap ${isUser ? 'user' : 'ai'}`}>
-
-        {/* Sender name (AI only, shown above bubble) */}
         {!isUser && ai && (
           <span className="cmsg-sender" style={{ color }}>
             {AI_DISPLAY_NAMES[ai]}
@@ -107,7 +98,6 @@ export function CouncilMessageBubble({
           className={`cmsg-bubble ${isUser ? 'cmsg-bubble-user' : 'cmsg-bubble-ai'} ${isPinned ? 'pinned' : ''}`}
           style={!isUser ? { borderColor: `${colorBg}30` } : undefined}
         >
-          {/* Typing indicator */}
           {message.pending ? (
             <div className="cmsg-typing">
               <span></span><span></span><span></span>
@@ -116,20 +106,19 @@ export function CouncilMessageBubble({
             <>
               <div className="cmsg-text">{displayText}</div>
 
-              {/* Preview toggle */}
               {hasMore && !message.pending && (
                 <button
                   className="cmsg-expand-btn"
                   onClick={() => setIsExpanded((v) => !v)}
+                  title={isExpanded ? 'Collapse reply' : 'View full reply'}
                 >
-                  {isExpanded ? '▲ 접기' : '▼ 전체 답변 보기'}
+                  {isExpanded ? 'Collapse' : 'View Full Reply'}
                 </button>
               )}
             </>
           )}
         </div>
 
-        {/* Footer: timestamp + actions */}
         <div className={`cmsg-footer ${isUser ? 'cmsg-footer-user' : 'cmsg-footer-ai'}`}>
           <span className="cmsg-time">{formatTime(message.createdAt)}</span>
 
@@ -141,7 +130,7 @@ export function CouncilMessageBubble({
                 disabled={modeSwitchPending}
                 title={isPinned ? 'Unpin' : 'Pin as candidate'}
               >
-                {isPinned ? '📌 Pinned' : '📌 Pin'}
+                {isPinned ? 'Pinned' : 'Pin'}
               </button>
               <button
                 className="cmsg-workflow-btn"
@@ -149,7 +138,7 @@ export function CouncilMessageBubble({
                 disabled={modeSwitchPending}
                 title="Use in Workflow"
               >
-                → Workflow
+                Workflow
               </button>
             </div>
           )}

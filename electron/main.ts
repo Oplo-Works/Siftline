@@ -4669,7 +4669,7 @@ async function extractFileContent(filePath: string, ext: string): Promise<string
   }
 }
 
-async function buildFileContext(
+export async function buildFileContext(
   files: Array<{ name: string; path: string; ext: string }>
 ): Promise<string> {
   if (!files || files.length === 0) return ''

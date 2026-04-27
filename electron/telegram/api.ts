@@ -27,18 +27,46 @@ export interface TgChat {
   last_name?: string
 }
 
+export interface TgPhotoSize {
+  file_id: string
+  file_unique_id: string
+  width: number
+  height: number
+  file_size?: number
+}
+
+export interface TgDocument {
+  file_id: string
+  file_unique_id: string
+  file_name?: string
+  mime_type?: string
+  file_size?: number
+}
+
 export interface TgMessage {
   message_id: number
   from?: TgUser
   chat: TgChat
   date: number
   text?: string
+  caption?: string
+  /** Photos come as an array of progressively larger sizes; pick the last entry for full resolution. */
+  photo?: TgPhotoSize[]
+  document?: TgDocument
   entities?: Array<{
     type: string
     offset: number
     length: number
   }>
   reply_to_message?: TgMessage
+}
+
+export interface TgFile {
+  file_id: string
+  file_unique_id: string
+  file_size?: number
+  /** Relative path under https://api.telegram.org/file/bot<token>/. Only present when fetched via getFile. */
+  file_path?: string
 }
 
 export interface TgUpdate {
@@ -205,4 +233,27 @@ export function setMyCommands(
   commands: Array<{ command: string; description: string }>
 ): Promise<true> {
   return tgCall<true>(token, 'setMyCommands', { commands })
+}
+
+/**
+ * Resolve a file_id to a downloadable file_path.  The Bot API caps downloads
+ * at 20 MB; larger files require a self-hosted Bot API server.
+ */
+export function getFile(token: string, fileId: string): Promise<TgFile> {
+  return tgCall<TgFile>(token, 'getFile', { file_id: fileId }, { timeoutMs: 15_000 })
+}
+
+/**
+ * Download a file resolved by getFile() into a Buffer.  Throws TgApiError on
+ * non-2xx HTTP responses.  20 MB Bot API ceiling is enforced server-side.
+ */
+export async function downloadFile(token: string, filePath: string): Promise<Buffer> {
+  if (!filePath) throw makeError('downloadFile: file_path is empty')
+  const url = `${TELEGRAM_API_BASE}/file/bot${token}/${filePath}`
+  const res = await fetch(url, { method: 'GET' })
+  if (!res.ok) {
+    throw makeError(`Telegram file download failed: HTTP ${res.status}`, res.status)
+  }
+  const arrayBuf = await res.arrayBuffer()
+  return Buffer.from(arrayBuf)
 }

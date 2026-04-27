@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
-export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'groq' | 'perplexity'
+export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'deepseek' | 'perplexity'
 
 export interface WorkflowResult {
   success: boolean
@@ -124,9 +124,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('login-status-changed', handler)
   },
 
-  getApiKeys: (): Promise<Partial<Record<AiName, string>> & { groq?: string }> =>
+  getApiKeys: (): Promise<Partial<Record<AiName, string>> & { deepseek?: string }> =>
     ipcRenderer.invoke('get-api-keys'),
-  setApiKeys: (keys: Partial<Record<AiName, string>> & { groq?: string }): Promise<boolean> =>
+  setApiKeys: (keys: Partial<Record<AiName, string>> & { deepseek?: string }): Promise<boolean> =>
     ipcRenderer.invoke('set-api-keys', keys),
 
   getApiKeyOrder: (): Promise<string[]> =>
@@ -192,6 +192,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   maximize: () => ipcRenderer.invoke('window-maximize'),
   close: () => ipcRenderer.invoke('window-close'),
   setViewsVisible: (v: boolean) => ipcRenderer.invoke('set-views-visible', v),
+
+  getTelegramConfig: () => ipcRenderer.invoke('get-telegram-config'),
+  setTelegramConfig: (config: any) => ipcRenderer.invoke('set-telegram-config', config),
 
   onStatusUpdate: (cb: (msg: string) => void) => {
     const handler = (_: unknown, msg: string) => cb(msg)

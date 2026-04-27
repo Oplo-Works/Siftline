@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Council — Manual Multi-LLM Cross-Verification Workflow</title>
-  <meta name="description" content="Manual cross-verification workflow among up to 6 major LLMs (Gemini, Claude, ChatGPT, Groq, Perplexity, Grok) using Electron BrowserViews and UI automation." />
+  <title>AI Council v1.0.8 — Multi-LLM Cross-Verification + Telegram</title>
+  <meta name="description" content="AI Council v1.0.8 — cross-verification workflow and group discussion among 6 LLMs (Gemini, Claude, ChatGPT, DeepSeek, Perplexity, Grok) with Telegram remote control." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -25,6 +25,7 @@
       --accent-teal:   #4fd1c5;
       --accent-orange: #f6ad55;
       --accent-green:  #68d391;
+      --accent-telegram: #2aabee;
       --glow-blue:     rgba(99,179,237,0.15);
       --glow-purple:   rgba(183,148,244,0.12);
       --radius:        12px;
@@ -79,1216 +80,525 @@
       font-size: 12px;
       font-weight: 500;
       color: var(--accent-blue);
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      margin-bottom: 28px;
-    }
-
-    .hero-badge::before {
-      content: '';
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      background: var(--accent-blue);
-      box-shadow: 0 0 8px var(--accent-blue);
-      animation: pulse 2s ease infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50%       { opacity: .6; transform: scale(1.3); }
+      margin-bottom: 24px;
+      letter-spacing: .04em;
     }
 
     .hero h1 {
-      font-size: clamp(2.4rem, 6vw, 3.8rem);
+      font-size: clamp(2rem, 5vw, 3.5rem);
       font-weight: 700;
-      letter-spacing: -0.03em;
-      background: linear-gradient(135deg, #e2e8f0 0%, var(--accent-blue) 50%, var(--accent-purple) 100%);
+      background: linear-gradient(135deg, #e2e8f0 30%, var(--accent-blue) 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
+      line-height: 1.15;
       margin-bottom: 16px;
     }
 
-    .hero-tagline {
-      font-size: 1.05rem;
+    .hero p {
+      font-size: 1.1rem;
       color: var(--text-muted);
       max-width: 600px;
-      margin: 0 auto;
+      margin: 0 auto 32px;
     }
 
-    /* ── AI chips row ── */
-    .ai-chips {
+    .hero-actions {
       display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
+      gap: 12px;
       justify-content: center;
-      margin-top: 28px;
+      flex-wrap: wrap;
     }
 
-    .ai-chip {
+    .btn {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 7px 18px;
-      border-radius: 999px;
-      border: 1px solid;
-      font-size: .85rem;
-      font-weight: 600;
-      letter-spacing: .02em;
-      backdrop-filter: blur(8px);
+      padding: 10px 22px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all .2s;
+      cursor: pointer;
     }
 
-    .ai-chip.gemini     { border-color: rgba(66,133,244,.5);   color: #4285f4;  background: rgba(66,133,244,.08); }
-    .ai-chip.claude     { border-color: rgba(204,120,92,.5);   color: #cc785c;  background: rgba(204,120,92,.08); }
-    .ai-chip.chatgpt    { border-color: rgba(16,163,127,.5);   color: #10a37f;  background: rgba(16,163,127,.08); }
-    .ai-chip.groq       { border-color: rgba(251,146,60,.5);   color: #fb923c;  background: rgba(251,146,60,.08); }
-    .ai-chip.perplexity { border-color: rgba(32,178,170,.5);   color: #20b2aa;  background: rgba(32,178,170,.08); }
-    .ai-chip.grok       { border-color: rgba(124,58,237,.5);   color: #7c3aed;  background: rgba(124,58,237,.08); }
-
-    /* ── What's New banner ── */
-    .whats-new {
-      background: linear-gradient(135deg, rgba(99,179,237,0.06) 0%, rgba(183,148,244,0.06) 100%);
-      border: 1px solid rgba(99,179,237,0.2);
-      border-radius: var(--radius);
-      padding: 28px 32px;
-      margin-bottom: 56px;
-      animation: fadeUp .65s ease both;
+    .btn-primary {
+      background: var(--accent-blue);
+      color: #0a0c14;
     }
+    .btn-primary:hover { background: #90cdf4; }
 
-    .whats-new-title {
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: var(--accent-blue);
-      margin-bottom: 18px;
-      letter-spacing: -0.01em;
-    }
-
-    .new-feature {
-      display: flex;
-      align-items: flex-start;
-      gap: 14px;
-      padding: 14px 0;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .new-feature:last-child { border-bottom: none; padding-bottom: 0; }
-    .new-feature:first-of-type { padding-top: 0; }
-
-    .new-feature-icon {
-      font-size: 1.3rem;
-      min-width: 32px;
-      text-align: center;
-      margin-top: 2px;
-    }
-
-    .new-feature-title {
-      font-size: .95rem;
-      font-weight: 600;
+    .btn-secondary {
+      background: var(--bg-card);
       color: var(--text-primary);
-      margin-bottom: 4px;
+      border: 1px solid var(--border);
     }
-
-    .new-feature-desc {
-      font-size: .875rem;
-      color: var(--text-muted);
-      line-height: 1.6;
-    }
+    .btn-secondary:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
 
     /* ── Section ── */
-    section {
-      margin-bottom: 56px;
-      animation: fadeUp .6s ease both;
-    }
-
-    section:nth-child(2)  { animation-delay: .10s; }
-    section:nth-child(3)  { animation-delay: .15s; }
-    section:nth-child(4)  { animation-delay: .20s; }
-    section:nth-child(5)  { animation-delay: .25s; }
-    section:nth-child(6)  { animation-delay: .30s; }
-    section:nth-child(7)  { animation-delay: .35s; }
-    section:nth-child(8)  { animation-delay: .40s; }
-    section:nth-child(9)  { animation-delay: .45s; }
-    section:nth-child(10) { animation-delay: .50s; }
-    section:nth-child(11) { animation-delay: .55s; }
-    section:nth-child(12) { animation-delay: .60s; }
-
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(22px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .section-label {
+    .section { margin-bottom: 56px; animation: fadeUp .5s ease both; }
+    .section-title {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 20px;
       display: flex;
       align-items: center;
-      gap: 12px;
-      font-size: .7rem;
-      font-weight: 600;
-      letter-spacing: .12em;
-      text-transform: uppercase;
-      color: var(--text-faint);
-      margin-bottom: 20px;
+      gap: 10px;
     }
-
-    .section-label::after {
+    .section-title::after {
       content: '';
       flex: 1;
       height: 1px;
       background: var(--border);
     }
 
-    h2 {
-      font-size: 1.55rem;
-      font-weight: 700;
-      color: var(--text-primary);
-      margin-bottom: 20px;
-      letter-spacing: -0.02em;
-    }
+    /* ── Tables ── */
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px; }
+    thead tr { background: rgba(255,255,255,0.04); }
+    th { text-align: left; padding: 10px 14px; color: var(--text-muted); font-weight: 500; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+    td { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    code { font-family: 'JetBrains Mono', monospace; font-size: 12px; background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; color: var(--accent-teal); }
 
-    h3 {
-      font-size: 1.05rem;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin: 22px 0 10px;
-    }
-
-    /* ── Panel / Card ── */
-    .panel {
-      background: var(--bg-panel);
+    /* ── Cards ── */
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-bottom: 20px; }
+    .card {
+      background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
+      padding: 20px;
+      transition: border-color .2s, transform .2s;
+    }
+    .card:hover { border-color: var(--border-accent); transform: translateY(-2px); }
+    .card-icon { font-size: 1.6rem; margin-bottom: 12px; }
+    .card-title { font-weight: 600; font-size: 15px; margin-bottom: 6px; }
+    .card-desc { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+    /* ── New-feature badge ── */
+    .new-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      background: var(--accent-green);
+      color: #0a0c14;
+      border-radius: 4px;
+      padding: 1px 6px;
+      margin-left: 6px;
+      letter-spacing: .04em;
+      vertical-align: middle;
+    }
+
+    /* ── Telegram section ── */
+    .tg-box {
+      background: linear-gradient(135deg, rgba(42,171,238,0.08) 0%, rgba(42,171,238,0.03) 100%);
+      border: 1px solid rgba(42,171,238,0.3);
+      border-radius: var(--radius);
       padding: 28px 32px;
-      backdrop-filter: blur(12px);
-      transition: border-color .25s, box-shadow .25s;
+      margin-bottom: 28px;
     }
+    .tg-box h3 { color: var(--accent-telegram); margin-bottom: 10px; font-size: 1.1rem; }
+    .tg-box p { color: var(--text-muted); font-size: 14px; line-height: 1.7; }
 
-    .panel:hover {
-      border-color: var(--border-accent);
-      box-shadow: 0 0 24px var(--glow-blue);
+    .steps { counter-reset: step; list-style: none; padding: 0; margin: 20px 0; }
+    .steps li {
+      counter-increment: step;
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
     }
+    .steps li::before {
+      content: counter(step);
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      background: var(--accent-telegram);
+      color: #0a0c14;
+      border-radius: 50%;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 2px;
+    }
+    .steps li .step-body { flex: 1; }
+    .steps li .step-body strong { display: block; margin-bottom: 4px; color: var(--text-primary); font-size: 15px; }
+    .steps li .step-body p { color: var(--text-muted); font-size: 14px; margin: 0; }
 
-    /* ── Code blocks ── */
+    /* ── Pre / Code block ── */
     pre {
-      background: rgba(0,0,0,0.4);
+      background: rgba(0,0,0,0.35);
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
-      padding: 20px 24px;
+      padding: 16px 20px;
       overflow-x: auto;
       font-family: 'JetBrains Mono', monospace;
-      font-size: .82rem;
-      line-height: 1.65;
-      color: #a0aec0;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #c9d1d9;
+      margin: 12px 0 20px;
     }
+    pre .cm { color: var(--text-faint); }
+    pre .kw { color: var(--accent-blue); }
+    pre .st { color: var(--accent-green); }
 
-    code {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: .85em;
-      background: rgba(255,255,255,0.07);
-      padding: 2px 6px;
-      border-radius: 4px;
+    /* ── Callout ── */
+    .callout {
+      display: flex;
+      gap: 12px;
+      background: rgba(246,173,85,0.07);
+      border: 1px solid rgba(246,173,85,0.25);
+      border-radius: var(--radius-sm);
+      padding: 14px 18px;
+      font-size: 14px;
+      color: #f6c87a;
+      margin: 16px 0;
+      line-height: 1.6;
+    }
+    .callout-icon { flex-shrink: 0; }
+
+    .callout-teal {
+      background: rgba(79,209,197,0.07);
+      border-color: rgba(79,209,197,0.25);
       color: var(--accent-teal);
     }
 
-    pre code {
-      background: none;
-      padding: 0;
-      color: inherit;
-    }
-
-    /* ── Step cards ── */
-    .steps-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-
-    .step-card {
-      display: flex;
-      align-items: flex-start;
-      gap: 18px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 18px 22px;
-      transition: transform .2s, border-color .2s, box-shadow .2s;
-      cursor: default;
-    }
-
-    .step-card:hover {
-      transform: translateX(6px);
-      border-color: var(--border-accent);
-      box-shadow: -4px 0 16px var(--glow-blue);
-    }
-
-    .step-num {
-      min-width: 36px; height: 36px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
-      display: flex; align-items: center; justify-content: center;
-      font-size: .8rem; font-weight: 700;
-      color: #0a0c14;
-      box-shadow: 0 0 12px var(--glow-blue);
-      flex-shrink: 0;
-    }
-
-    .step-text { font-size: .93rem; color: var(--text-primary); line-height: 1.5; padding-top: 6px; }
-
-    /* ── Workflow stage cards ── */
-    .stage-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
-    }
-
-    .stage-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 20px;
-      text-align: center;
-      transition: border-color .25s, box-shadow .25s;
-    }
-
-    .stage-card:hover {
-      border-color: var(--border-accent);
-      box-shadow: 0 0 20px var(--glow-blue);
-    }
-
-    .stage-btn {
-      display: inline-block;
-      padding: 8px 20px;
-      border-radius: 8px;
-      font-weight: 700;
-      font-size: .95rem;
-      margin-bottom: 10px;
-    }
-
-    .stage-btn.start    { background: rgba(99,179,237,0.15); color: var(--accent-blue); border: 1px solid rgba(99,179,237,0.35); }
-    .stage-btn.next     { background: rgba(245,158,11,0.15); color: #f59e0b;            border: 1px solid rgba(245,158,11,0.35); }
-    .stage-btn.continue { background: rgba(16,185,129,0.15); color: #10b981;            border: 1px solid rgba(16,185,129,0.35); }
-
-    .stage-label { font-size: .82rem; color: var(--text-muted); line-height: 1.5; }
-
-    /* ── Quick-start steps ── */
-    .qs-step {
-      margin-bottom: 28px;
-    }
-
-    .qs-step-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-
-    .qs-badge { font-size: 1.1rem; }
-
-    .qs-title {
-      font-size: 1rem;
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-
-    .qs-note {
-      background: rgba(246,173,85,0.08);
-      border: 1px solid rgba(246,173,85,0.2);
-      border-radius: var(--radius-sm);
-      padding: 12px 16px;
-      font-size: .85rem;
-      color: var(--accent-orange);
-      margin-bottom: 12px;
-      line-height: 1.6;
-    }
-
-    .qs-note strong { color: var(--accent-orange); }
-
-    .qs-desc {
-      font-size: .9rem;
-      color: var(--text-muted);
-      margin-top: 10px;
-    }
-
-    /* ── Tables ── */
-    .table-wrap { overflow-x: auto; border-radius: var(--radius-sm); }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: .9rem;
-    }
-
-    thead tr { background: rgba(99,179,237,0.08); }
-
-    th {
-      text-align: left;
-      padding: 12px 18px;
-      font-weight: 600;
-      font-size: .8rem;
-      letter-spacing: .06em;
-      text-transform: uppercase;
-      color: var(--accent-blue);
-      border-bottom: 1px solid var(--border-accent);
-    }
-
-    td {
-      padding: 12px 18px;
-      border-bottom: 1px solid var(--border);
-      color: var(--text-primary);
-      vertical-align: top;
-    }
-
-    td a { color: var(--accent-blue); text-decoration: none; }
-    td a:hover { text-decoration: underline; }
-
-    tbody tr:last-child td { border-bottom: none; }
-    tbody tr:hover td { background: rgba(255,255,255,0.025); }
-
-    /* ── Prompt blocks ── */
-    .prompt-block { margin-bottom: 20px; }
-
-    .prompt-label {
-      font-size: .78rem;
-      font-weight: 600;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      color: var(--accent-purple);
-      margin-bottom: 8px;
-    }
-
-    /* ── Info / note boxes ── */
-    .info-box {
-      background: rgba(99,179,237,0.06);
-      border: 1px solid rgba(99,179,237,0.18);
-      border-radius: var(--radius-sm);
-      padding: 16px 20px;
-      font-size: .9rem;
-      color: var(--text-muted);
-      line-height: 1.6;
-    }
-
-    .info-box strong { color: var(--accent-blue); }
-
-    .green-box {
-      background: rgba(104,211,145,0.06);
-      border: 1px solid rgba(104,211,145,0.2);
-      border-radius: var(--radius-sm);
-      padding: 16px 20px;
-      font-size: .9rem;
-      color: var(--text-muted);
-      line-height: 1.6;
-      margin-top: 16px;
-    }
-
-    .green-box strong { color: var(--accent-green); }
-
-    .purple-box {
-      background: rgba(183,148,244,0.06);
-      border: 1px solid rgba(183,148,244,0.2);
-      border-radius: var(--radius-sm);
-      padding: 16px 20px;
-      font-size: .9rem;
-      color: var(--text-muted);
-      line-height: 1.7;
-      margin-top: 16px;
-    }
-
-    .purple-box strong { color: var(--accent-purple); }
-
-    /* ── Key icon highlight box ── */
-    .key-box {
-      background: rgba(183,148,244,0.06);
-      border: 1px solid rgba(183,148,244,0.2);
-      border-radius: var(--radius-sm);
-      padding: 16px 20px;
-      font-size: .9rem;
-      color: var(--text-muted);
-      line-height: 1.7;
-      margin-top: 16px;
-    }
-
-    .key-box strong { color: var(--accent-purple); }
-
-    /* ── Feature chips ── */
-    .chip-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 14px;
-    }
-
+    /* ── AI chips ── */
+    .ai-chips { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
     .chip {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: rgba(79,209,197,0.08);
-      border: 1px solid rgba(79,209,197,0.2);
-      border-radius: 999px;
-      padding: 5px 14px;
-      font-size: .8rem;
-      font-weight: 500;
-      color: var(--accent-teal);
-    }
-
-    /* ── Req tag ── */
-    .req-tag {
-      display: inline-block;
-      background: rgba(79,209,197,0.1);
-      border: 1px solid rgba(79,209,197,0.25);
-      border-radius: 999px;
-      padding: 4px 14px;
-      font-size: .8rem;
-      font-weight: 500;
-      color: var(--accent-teal);
-      margin-top: 12px;
-    }
-
-    /* ── Active row table highlight ── */
-    .toolbar-row {
       background: var(--bg-card);
       border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 16px 20px;
-      margin-bottom: 14px;
+      border-radius: 999px;
+      padding: 5px 14px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .chip-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* ── Animations ── */
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .container { padding: 32px 16px 60px; }
+      .card-grid { grid-template-columns: 1fr; }
     }
 
-    .toolbar-row-title {
-      font-size: .8rem;
-      font-weight: 700;
-      letter-spacing: .06em;
-      text-transform: uppercase;
-      color: var(--accent-blue);
-      margin-bottom: 6px;
-    }
-
-    .toolbar-row-desc {
-      font-size: .88rem;
-      color: var(--text-muted);
-      line-height: 1.55;
-    }
-
-    /* ── Sub-section heading ── */
-    .sub-heading {
-      font-size: .9rem;
-      font-weight: 700;
-      letter-spacing: .04em;
-      color: var(--accent-blue);
-      margin: 22px 0 10px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .sub-heading::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: var(--border);
-    }
-
-    /* ── Reassign highlight box ── */
-    .reassign-box {
-      background: rgba(245,158,11,0.06);
-      border: 1px solid rgba(245,158,11,0.22);
-      border-radius: var(--radius-sm);
-      padding: 16px 20px;
-      font-size: .9rem;
-      color: var(--text-muted);
-      line-height: 1.65;
-      margin-top: 20px;
-    }
-
-    .reassign-box strong { color: #f59e0b; }
-
-    /* ── Divider ── */
-    hr {
-      border: none;
-      border-top: 1px solid var(--border);
-      margin: 0;
-    }
-
-    /* ── Footer ── */
-    footer {
-      text-align: center;
-      padding: 40px 0 0;
-      color: var(--text-faint);
-      font-size: .78rem;
-    }
-
-    footer a { color: var(--accent-blue); text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    p { margin-bottom: 12px; }
+    ul, ol { padding-left: 20px; margin-bottom: 16px; }
+    li { margin-bottom: 6px; color: var(--text-muted); font-size: 14px; line-height: 1.6; }
+    strong { color: var(--text-primary); font-weight: 600; }
+    h3 { font-size: 1.05rem; font-weight: 600; margin: 24px 0 10px; color: var(--text-primary); }
+    h4 { font-size: .95rem; font-weight: 600; margin: 20px 0 8px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
   </style>
 </head>
 <body>
 <div class="container">
 
-  <!-- ── HERO ── -->
+  <!-- ══ HERO ══ -->
   <header class="hero">
-    <div class="hero-badge">Electron · React · TypeScript</div>
-    <h1>AI Council</h1>
-    <p class="hero-tagline">
-      Manual cross-verification workflow <strong style="color:var(--accent-blue)">and</strong> free-form group discussion among up to 6 major LLMs using Electron BrowserViews and UI automation.
-    </p>
-    <div class="ai-chips">
-      <span class="ai-chip gemini">✦ Gemini</span>
-      <span class="ai-chip claude">◎ Claude</span>
-      <span class="ai-chip chatgpt">⊕ ChatGPT</span>
-      <span class="ai-chip groq">✶ Groq</span>
-      <span class="ai-chip perplexity">◈ Perplexity</span>
-      <span class="ai-chip grok">⚡ Grok</span>
+    <div class="hero-badge">⚖ AI Council · v1.0.8</div>
+    <h1>Multi-LLM Cross-Verification<br>+ Telegram Remote Control</h1>
+    <p>Manual workflow and free-form group discussion among 6 major LLMs — now accessible from your smartphone via Telegram.</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="https://github.com/MinkyuTheBuilder/ai-council/releases/latest">⬇ Download Latest</a>
+      <a class="btn btn-secondary" href="https://github.com/MinkyuTheBuilder/ai-council">GitHub →</a>
     </div>
   </header>
 
-  <!-- ── WHAT'S NEW ── -->
-  <div class="whats-new">
-    <div class="whats-new-title">✨ What's New in v1.0.7</div>
-
-    <div class="new-feature">
-      <div class="new-feature-icon">💬</div>
-      <div>
-        <div class="new-feature-title">Council Chat Mode</div>
-        <div class="new-feature-desc">
-          Brand-new group-chat panel alongside the existing Workflow mode.
-          Send a message to one AI with <code>@Gemini</code> or broadcast to everyone with <code>@all</code>.
-          Bubble-style UI with left/right alignment mirrors modern messaging apps like WhatsApp.
-        </div>
+  <!-- ══ WHAT'S NEW ══ -->
+  <section class="section">
+    <div class="section-title">✨ What's New in v1.0.8</div>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">📱</div>
+        <div class="card-title">Telegram Integration <span class="new-badge">NEW</span></div>
+        <div class="card-desc">Control AI Council from your smartphone. Send messages, @mention AIs, and manage sessions via Telegram — no server or open ports needed.</div>
       </div>
-    </div>
-
-    <div class="new-feature">
-      <div class="new-feature-icon">🔀</div>
-      <div>
-        <div class="new-feature-title">Dual Interaction Mode</div>
-        <div class="new-feature-desc">
-          Switch seamlessly between <strong style="color:var(--accent-blue)">Workflow</strong> (structured 3-step review)
-          and <strong style="color:var(--accent-purple)">Council Chat</strong> (free-form discussion).
-          The toolbar mode toggle carries context and AI selection across both sides.
-        </div>
+      <div class="card">
+        <div class="card-icon">🔵</div>
+        <div class="card-title">DeepSeek Support <span class="new-badge">NEW</span></div>
+        <div class="card-desc">DeepSeek (<code>chat.deepseek.com</code>) replaces Groq as the 6th AI panel. Optimized for reasoning, coding, and concise synthesis.</div>
       </div>
-    </div>
-
-    <div class="new-feature">
-      <div class="new-feature-icon">💾</div>
-      <div>
-        <div class="new-feature-title">Saved Sessions (Snapshots)</div>
-        <div class="new-feature-desc">
-          Save any Council Chat session and reload it later. Full lifecycle management:
-          favorites, labels, notes, archive, bulk-delete, export/import as JSON, and duplicate.
-          Sessions auto-save 3 seconds after any change.
-        </div>
+      <div class="card">
+        <div class="card-icon">🤖</div>
+        <div class="card-title">Telegram Slash Commands <span class="new-badge">NEW</span></div>
+        <div class="card-desc"><code>/new</code> · <code>/save</code> · <code>/save_and_new</code> · <code>/sessions</code> · <code>/load</code> · <code>/workflow</code> · <code>/status</code> · <code>/help</code></div>
       </div>
-    </div>
-
-    <div class="new-feature">
-      <div class="new-feature-icon">🎯</div>
-      <div>
-        <div class="new-feature-title">AI Moderator</div>
-        <div class="new-feature-desc">
-          Real-time analysis of the Council Chat conversation — surfaces a consensus summary,
-          identifies who should speak next, and generates a suggested follow-up prompt you can apply
-          or send immediately.
-        </div>
+      <div class="card">
+        <div class="card-icon">🔒</div>
+        <div class="card-title">Secure Token Storage <span class="new-badge">NEW</span></div>
+        <div class="card-desc">Bot token and chat ID stored in an encrypted <code>electron-store</code> file — never leaves your machine, never appears in logs.</div>
       </div>
-    </div>
-
-    <div class="new-feature">
-      <div class="new-feature-icon">📌</div>
-      <div>
-        <div class="new-feature-title">Candidate Pinning &amp; Comparison</div>
-        <div class="new-feature-desc">
-          Pin strong AI replies as candidates. The Compare panel shows a side-by-side diff.
-          Pin two or more to generate a <strong style="color:var(--accent-teal)">merged draft</strong>
-          that blends the best ideas before handing off to Workflow.
-        </div>
-      </div>
-    </div>
-
-    <div class="new-feature">
-      <div class="new-feature-icon">🔗</div>
-      <div>
-        <div class="new-feature-title">Workflow Handoff</div>
-        <div class="new-feature-desc">
-          One click moves the entire Council Chat transcript (or a single pinned reply) into the
-          Workflow query box as a structured seed prompt. The selected primary AI and participants carry over.
-        </div>
-      </div>
-    </div>
-
-    <div class="new-feature">
-      <div class="new-feature-icon">🌐</div>
-      <div>
-        <div class="new-feature-title">Response Language Detection</div>
-        <div class="new-feature-desc">
-          The app automatically detects the script of your message (Korean, Japanese, Chinese, Arabic,
-          and more) and instructs every AI to reply in the same language. No manual setting required.
-        </div>
-      </div>
-    </div>
-
-    <div style="margin-top:22px; padding-top:18px; border-top:1px solid var(--border);">
-      <div style="font-size:.8rem; font-weight:600; color:var(--text-faint); letter-spacing:.08em; text-transform:uppercase; margin-bottom:12px;">v1.0.6 Highlights</div>
-
-      <div class="new-feature" style="padding-top:0;">
-        <div class="new-feature-icon">⚡</div>
-        <div>
-          <div class="new-feature-title" style="font-size:.88rem;">API Keys Tab</div>
-          <div class="new-feature-desc">Store API keys for all 6 providers in the Accounts panel. Drag-and-drop to set priority.</div>
-        </div>
-      </div>
-      <div class="new-feature">
-        <div class="new-feature-icon">🤖</div>
-        <div>
-          <div class="new-feature-title" style="font-size:.88rem;">AI Recommendation Engine</div>
-          <div class="new-feature-desc">Recommends the best Primary AI as you type. Falls back to keyword rules with no key.</div>
-        </div>
-      </div>
-      <div class="new-feature">
-        <div class="new-feature-icon">🔄</div>
-        <div>
-          <div class="new-feature-title" style="font-size:.88rem;">Mid-Workflow Primary AI Reassignment</div>
-          <div class="new-feature-desc">Switch Primary AI at ▶▶ Next or ✓ Continue — the workflow continues with the new choice.</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── DOWNLOAD & INSTALL ── -->
-  <section>
-    <div class="section-label">Download &amp; Install</div>
-    <h2>📥 Download &amp; Install</h2>
-    <div class="panel">
-      <p style="color:var(--text-muted); font-size:.93rem; margin-bottom:20px;">
-        No build required. Download the latest installer from
-        <a href="https://github.com/MinkyuTheBuilder/ai-council/releases/latest" style="color:var(--accent-blue);">GitHub Releases</a>.
-      </p>
-
-      <div class="table-wrap" style="margin-bottom:28px;">
-        <table>
-          <thead>
-            <tr><th>Platform</th><th>File</th><th>Target</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>🍎 macOS (Intel)</td><td><code>AI-Council-*-x64.dmg</code></td><td>Intel Mac (pre-2020 models)</td></tr>
-            <tr><td>🍎 macOS (Apple Silicon)</td><td><code>AI-Council-*-arm64.dmg</code></td><td>M1 / M2 / M3 / M4 Mac</td></tr>
-            <tr><td>🪟 Windows</td><td><code>AI-Council-Setup.exe</code></td><td>Windows 10 / 11 (x64)</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="qs-step">
-        <div class="qs-step-header">
-          <span class="qs-badge">🍎</span>
-          <span class="qs-title">macOS — Install from DMG</span>
-        </div>
-        <pre><code>1. Check your Mac chip:  Apple menu → About This Mac → Chip
-     "Apple M..."      → download the arm64 build
-     "Intel Core..."   → download the x64 build
-
-2. Double-click the downloaded .dmg file to mount it.
-
-3. Drag the AI Council icon into the Applications folder.
-
-4. Launch AI Council from Launchpad or Finder → Applications.</code></pre>
-
-        <div class="qs-note" style="margin-top:14px;">
-          <strong>⚠️ macOS Gatekeeper warning ("cannot verify the developer")</strong><br/>
-          The app is not code-signed, so macOS may block it on first launch. Use either method below:<br/><br/>
-          <strong>Method 1 (GUI):</strong> System Settings → Privacy &amp; Security → scroll down → click <em>"Open Anyway"</em><br/>
-          <strong>Method 2 (Terminal):</strong>
-          <pre style="margin-top:8px;"><code>xattr -cr "/Applications/AI Council.app"</code></pre>
-        </div>
-      </div>
-
-      <div class="qs-step" style="margin-bottom:0">
-        <div class="qs-step-header">
-          <span class="qs-badge">🪟</span>
-          <span class="qs-title">Windows — Install from EXE</span>
-        </div>
-        <pre><code>1. Download AI-Council-Setup.exe.
-2. Double-click to run the setup wizard.
-3. Launch AI Council from the desktop shortcut or Start Menu.</code></pre>
-        <p class="qs-desc">If Windows Defender SmartScreen appears, click <em>"More info"</em> → <em>"Run anyway"</em>.</p>
+      <div class="card">
+        <div class="card-icon">◉</div>
+        <div class="card-title">Status Bar Indicator <span class="new-badge">NEW</span></div>
+        <div class="card-desc">A green <strong>◉ Telegram</strong> indicator lights up in the status bar whenever the bot polling loop is active.</div>
       </div>
     </div>
   </section>
 
-  <!-- ── ARCHITECTURE ── -->
-  <section>
-    <div class="section-label">Project Layout</div>
-    <h2>Architecture</h2>
-    <div class="panel">
-      <pre><code>ai-council/
-├── electron/
-│   ├── main.ts                       # Main process: BrowserViews, IPC, workflow + council engine
-│   ├── preload.ts                    # Context-isolated API bridge (contextBridge)
-│   ├── councilPrompt.ts              # Council Chat prompt builder (system prompts, role injection)
-│   ├── preload-chrome-spoof.js       # Chrome identity spoof for OAuth popups
-│   ├── preload-en-locale.js          # Locale spoof so AI UIs load in English
-│   ├── preload-google-login.js       # Google login flow helper
-│   ├── preload-oauth-google-spoof.js # Google OAuth identity masking
-│   └── selectors.json               # External DOM selector config (updatable without rebuild)
-├── src/
-│   ├── App.tsx                       # Root component: state, IPC, dual-mode orchestration
-│   ├── types.ts                      # Shared types, constants, global window declarations
-│   ├── index.css                     # Dark glassmorphism design system
-│   ├── responseLanguage.ts           # User language detection → per-prompt language directive
-│   ├── councilCandidateCompare.ts    # Candidate pinning, comparison, and merge logic
-│   ├── councilModerator.ts           # AI Moderator: consensus + next-speaker + follow-up prompt
-│   ├── councilMentions.ts            # @mention parsing and autocomplete logic
-│   ├── councilWorkflowHandoff.ts     # Council → Workflow transcript bridging
-│   └── components/
-│       ├── TitleBar.tsx              # Frameless window bar with 🔑 Accounts, 📋 History, 📊 Logs
-│       ├── Toolbar.tsx               # Mode toggle + Primary AI selector + query + recommendation banner
-│       ├── StatusBar.tsx             # Live status text with animated progress bar
-│       ├── PanelGrid.tsx             # Panel headers above embedded BrowserViews
-│       ├── AccountsPanel.tsx         # Two-tab panel: Accounts + API Keys
-│       ├── CouncilChatPanel.tsx      # Group-chat panel: messages, sessions, moderator, candidates
-│       ├── CouncilMessageBubble.tsx  # Bubble-style message component with preview + expand + actions
-│       ├── FinalResultPanel.tsx      # Collapsible final answer panel + per-file download
-│       ├── LogDrawer.tsx             # Real-time execution logs side drawer
-│       ├── HistoryDrawer.tsx         # Persistent chat history side drawer
-│       └── UiErrorBoundary.tsx       # React error boundary for graceful UI error isolation
-├── google-login.mjs             # Standalone Google account login helper
-├── google-login.bat             # Launcher for google-login.mjs
-├── claude-login.mjs             # Standalone Claude (claude.ai) login helper
-├── claude-login.bat             # Launcher for claude-login.mjs
-├── chatgpt-login.mjs            # Standalone ChatGPT login helper
-├── chatgpt-login.bat            # Launcher for chatgpt-login.mjs
-├── perplexity-login.mjs         # Standalone Perplexity login helper
-├── perplexity-login.bat         # Launcher for perplexity-login.mjs
-├── grok-login.mjs               # Standalone Grok (X/Twitter) login helper
-└── grok-login.bat               # Launcher for grok-login.mjs</code></pre>
+  <!-- ══ SUPPORTED AIs ══ -->
+  <section class="section">
+    <div class="section-title">🤖 Supported AI Services</div>
+    <div class="ai-chips">
+      <div class="chip"><span class="chip-dot" style="background:#4285f4"></span>Gemini</div>
+      <div class="chip"><span class="chip-dot" style="background:#d4a27f"></span>Claude</div>
+      <div class="chip"><span class="chip-dot" style="background:#10a37f"></span>ChatGPT</div>
+      <div class="chip"><span class="chip-dot" style="background:#4D6BFE"></span>DeepSeek</div>
+      <div class="chip"><span class="chip-dot" style="background:#20b2aa"></span>Perplexity</div>
+      <div class="chip"><span class="chip-dot" style="background:#e7c76f"></span>Grok</div>
     </div>
   </section>
 
-  <!-- ── QUICK START ── -->
-  <section>
-    <div class="section-label">Setup &amp; Run</div>
-    <h2>Quick Start</h2>
-    <div class="panel">
-
-      <div class="qs-step">
-        <div class="qs-step-header">
-          <span class="qs-badge">1️⃣</span>
-          <span class="qs-title">First-time install (when moving to a new PC)</span>
-        </div>
-        <div class="qs-note">
-          <strong>Note:</strong> <code>node_modules</code> includes binaries that depend on your OS/CPU environment.<br/>
-          If you moved the project to a different PC, delete it and reinstall.
-        </div>
-        <pre><code># Delete node_modules (PowerShell)
-Remove-Item -Recurse -Force node_modules
-
-# Reinstall dependencies
-npm install</code></pre>
-        <p class="qs-desc">If you only replaced source files on the same PC, you can run it right away without <code>npm install</code>.<br/>
-        However, if new packages were added to <code>package.json</code>, run <code>npm install</code> once.</p>
-      </div>
-
-      <div class="qs-step">
-        <div class="qs-step-header">
-          <span class="qs-badge">2️⃣</span>
-          <span class="qs-title">AI service login &amp; API keys — via 🔑 Accounts panel</span>
-        </div>
-
-        <div class="sub-heading">🔑 Accounts tab — session login / logout per AI</div>
-        <div class="key-box">
-          Click the <strong>🔑 key icon</strong> in the top-right corner of the title bar at any time.<br/><br/>
-          &nbsp;&nbsp;● <strong>Login</strong> — opens a dedicated login window; session is saved automatically<br/>
-          &nbsp;&nbsp;● <strong>Re-login</strong> — re-authenticate an already-logged-in account<br/>
-          &nbsp;&nbsp;● <strong>Logout</strong> — clears the session for that AI only<br/>
-          &nbsp;&nbsp;● <strong>Logout All</strong> — clears all sessions at once<br/><br/>
-          Sessions are persisted in the Electron <code>persist:</code> partition and survive app restarts.
-        </div>
-
-        <div class="sub-heading" style="margin-top:20px;">⚡ API Keys tab — store keys for the recommendation engine</div>
-        <div class="table-wrap" style="margin-bottom:14px;">
-          <table>
-            <thead>
-              <tr><th>Provider</th><th>Key prefix</th><th>Get a key</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>Gemini</td><td><code>AIza...</code></td><td><a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com</a></td></tr>
-              <tr><td>Claude (Anthropic)</td><td><code>sk-ant-...</code></td><td><a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a></td></tr>
-              <tr><td>ChatGPT (OpenAI)</td><td><code>sk-...</code></td><td><a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a></td></tr>
-              <tr><td>Perplexity</td><td><code>pplx-...</code></td><td><a href="https://www.perplexity.ai/settings/api" target="_blank">perplexity.ai/settings/api</a></td></tr>
-              <tr><td>Grok (xAI)</td><td><code>xai-...</code></td><td><a href="https://console.x.ai/" target="_blank">console.x.ai</a></td></tr>
-              <tr><td>⚡ Groq (Llama · Ultra-fast)</td><td><code>gsk_...</code></td><td><a href="https://console.groq.com/keys" target="_blank">console.groq.com</a></td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p class="qs-desc">Drag-and-drop rows to set which provider is tried <strong style="color:var(--text-primary)">first</strong> when analyzing a query.
-          Keys are stored in <code>electron-store</code> and never sent anywhere except the provider's own API.</p>
-
-        <p class="qs-desc" style="margin-top:18px; margin-bottom:10px">Alternative — standalone login scripts (run outside the app):</p>
-        <pre><code>google-login.bat       # Gemini (Google account)
-claude-login.bat       # Claude.ai (including Google OAuth popup)
-chatgpt-login.bat      # ChatGPT
-perplexity-login.bat   # Perplexity
-grok-login.bat         # Grok (X / Twitter account)</code></pre>
-      </div>
-
-      <div class="qs-step">
-        <div class="qs-step-header">
-          <span class="qs-badge">3️⃣</span>
-          <span class="qs-title">Select which AIs are active</span>
-        </div>
-        <p class="qs-desc" style="margin-bottom:12px">The toolbar has two rows of AI chip buttons:</p>
-        <div class="toolbar-row">
-          <div class="toolbar-row-title">Primary AI</div>
-          <div class="toolbar-row-desc">Choose which AI answers first (generates the initial draft). Always active — cannot be toggled off.</div>
-        </div>
-        <div class="toolbar-row" style="margin-bottom:0">
-          <div class="toolbar-row-title">Active</div>
-          <div class="toolbar-row-desc">Toggle which AI panels are visible and participate in the workflow. Run with <strong>2, 3, 4, 5, or 6 AIs</strong> simultaneously. Click any chip to show/hide that AI's panel.</div>
-        </div>
-      </div>
-
-      <div class="qs-step">
-        <div class="qs-step-header">
-          <span class="qs-badge">4️⃣</span>
-          <span class="qs-title">Run in dev mode (code changes + hot reload)</span>
-        </div>
-        <pre><code>npm start</code></pre>
-        <p class="qs-desc">The Electron window opens automatically.</p>
-      </div>
-
-      <div class="qs-step">
-        <div class="qs-step-header">
-          <span class="qs-badge">5️⃣</span>
-          <span class="qs-title">Build and run (production mode)</span>
-        </div>
-        <pre><code>npm run build
-npx electron .</code></pre>
-        <p class="qs-desc">The app runs after <code>dist/</code> and <code>dist-electron/</code> are created.</p>
-      </div>
-
-      <div class="qs-step">
-        <div class="qs-step-header">
-          <span class="qs-badge">6️⃣</span>
-          <span class="qs-title">Package portable EXE (distribution)</span>
-        </div>
-        <pre><code>npm run package</code></pre>
-        <p class="qs-desc">After the build, <code>release/AI-Council-Portable.exe</code> is created. It's a single executable that runs without installation.</p>
-      </div>
-
-      <div class="qs-step">
-        <div class="qs-step-header">
-          <span class="qs-badge">7️⃣</span>
-          <span class="qs-title">Create installer EXE — 🪟 Windows (setup program)</span>
-        </div>
-        <pre><code>npm run package:installer</code></pre>
-        <p class="qs-desc">An NSIS-based installer wizard EXE is created in <code>release/</code>.</p>
-      </div>
-
-      <div class="qs-step" style="margin-bottom:0">
-        <div class="qs-step-header">
-          <span class="qs-badge">8️⃣</span>
-          <span class="qs-title">Build DMG — 🍎 macOS (distribution)</span>
-        </div>
-        <pre><code># Builds both Intel (x64) and Apple Silicon (arm64) at once
-npx electron-builder --mac dmg --x64 --arm64</code></pre>
-        <p class="qs-desc">Two files are created in <code>release/</code>: <code>*-x64.dmg</code> for Intel Macs and <code>*-arm64.dmg</code> for Apple Silicon Macs.</p>
-      </div>
-
-      <div style="margin-top:24px">
-        <span class="req-tag">⚙️ Node.js v18+ &nbsp;·&nbsp; npm v9+</span>
-      </div>
+  <!-- ══ DOWNLOAD ══ -->
+  <section class="section">
+    <div class="section-title">📥 Download &amp; Install</div>
+    <p style="color:var(--text-muted);font-size:14px;margin-bottom:16px;">No build required. Download from <a href="https://github.com/MinkyuTheBuilder/ai-council/releases/latest">GitHub Releases</a>.</p>
+    <table>
+      <thead><tr><th>Platform</th><th>File</th><th>Target</th></tr></thead>
+      <tbody>
+        <tr><td>🍎 macOS (Intel)</td><td><code>AI-Council-*-x64.dmg</code></td><td>Intel Mac (pre-2020)</td></tr>
+        <tr><td>🍎 macOS (Apple Silicon)</td><td><code>AI-Council-*-arm64.dmg</code></td><td>M1 / M2 / M3 / M4 Mac</td></tr>
+        <tr><td>🪟 Windows</td><td><code>AI-Council-Setup.exe</code></td><td>Windows 10 / 11 (x64)</td></tr>
+      </tbody>
+    </table>
+    <h3>🍎 macOS — Install from DMG</h3>
+    <ol>
+      <li>Check your chip: <strong>Apple menu → About This Mac → Chip</strong>. "Apple M…" → arm64 build; "Intel Core…" → x64 build.</li>
+      <li>Double-click the <code>.dmg</code> file to mount it.</li>
+      <li>Drag <strong>AI Council</strong> into the <strong>Applications</strong> folder.</li>
+      <li>Launch from Launchpad or Finder → Applications.</li>
+    </ol>
+    <div class="callout">
+      <span class="callout-icon">⚠️</span>
+      <span><strong>macOS Gatekeeper:</strong> The app is not code-signed. Go to <em>System Settings → Privacy &amp; Security → Open Anyway</em>, or run <code>xattr -cr "/Applications/AI Council.app"</code> in Terminal.</span>
+    </div>
+    <h3>🪟 Windows — Install from EXE</h3>
+    <ol>
+      <li>Download <code>AI-Council-Setup.exe</code>.</li>
+      <li>Double-click to run the setup wizard.</li>
+      <li>Launch from the desktop shortcut or Start Menu.</li>
+    </ol>
+    <div class="callout">
+      <span class="callout-icon">⚠️</span>
+      <span><strong>Windows SmartScreen:</strong> Click <em>"More info"</em> → <em>"Run anyway"</em> if prompted.</span>
     </div>
   </section>
 
-  <!-- ── WORKFLOW ── -->
-  <section>
-    <div class="section-label">Execution Flow</div>
-    <h2>Workflow — Manual 3-Step Control</h2>
-    <p style="color:var(--text-muted); font-size:.93rem; margin-bottom:24px;">
-      The workflow is <strong style="color:var(--text-primary)">manual</strong> — you advance each stage by clicking the action button.
-      This lets you review intermediate results before proceeding.
-    </p>
+  <!-- ══ TELEGRAM ══ -->
+  <section class="section">
+    <div class="section-title">📱 Telegram Integration</div>
 
-    <div class="stage-grid" style="margin-bottom:28px">
-      <div class="stage-card">
-        <div class="stage-btn start">▶ Start</div>
-        <div class="stage-label">Sends your query to the <strong style="color:var(--text-primary)">Primary AI</strong> and waits for its draft answer</div>
-      </div>
-      <div class="stage-card">
-        <div class="stage-btn next">▶▶ Next</div>
-        <div class="stage-label">Primary has answered. Sends the draft to all active <strong style="color:var(--text-primary)">Reviewer AIs</strong> in parallel</div>
-      </div>
-      <div class="stage-card">
-        <div class="stage-btn continue">✓ Continue</div>
-        <div class="stage-label">All reviewers done. Sends feedback back to Primary AI for <strong style="color:var(--text-primary)">final revision</strong></div>
-      </div>
+    <div class="tg-box">
+      <h3>Remote-control AI Council from your phone</h3>
+      <p>The Electron main process runs a long-poll loop (<code>getUpdates</code>) that listens for Telegram messages — <strong>no server, no ngrok, no open ports required</strong>. When a message arrives, it's routed to the active Council Chat session exactly as if you typed it on the desktop. AI replies are sent back via <code>sendMessage</code>.</p>
     </div>
 
-    <div class="steps-grid" style="margin-bottom:28px;">
-      <div class="step-card"><div class="step-num">1</div><div class="step-text">App loads all selected AI websites in BrowserViews — log in via the <strong>🔑 Accounts panel</strong> or standalone login scripts</div></div>
-      <div class="step-card"><div class="step-num">2</div><div class="step-text">Select <strong>Primary AI</strong> and configure <strong>Active</strong> panels (choose 2–6 AIs)</div></div>
-      <div class="step-card"><div class="step-num">3</div><div class="step-text">Type your question, optionally attach files (PDF / DOCX / XLSX / TXT / MD / CSV), click <strong>▶ Start</strong></div></div>
-      <div class="step-card"><div class="step-num">4</div><div class="step-text">MutationObserver-based stability detection waits for Primary AI's draft response — button turns amber <strong>▶▶ Next</strong></div></div>
-      <div class="step-card"><div class="step-num">5</div><div class="step-text">Click <strong>▶▶ Next</strong>: review prompt (draft + file context) injected simultaneously into all active Reviewer AIs. <em>You may reassign the Primary AI here.</em></div></div>
-      <div class="step-card"><div class="step-num">6</div><div class="step-text">Wait for all reviewer feedback responses (parallel, with per-AI stability detection) — button turns green <strong>✓ Continue</strong></div></div>
-      <div class="step-card"><div class="step-num">7</div><div class="step-text">Click <strong>✓ Continue</strong>: combined feedback + final revision prompt injected back into Primary AI. <em>You may reassign the Primary AI here.</em></div></div>
-      <div class="step-card"><div class="step-num">8</div><div class="step-text">Final revised answer extracted, parsed into per-file blocks, displayed in collapsible <strong>Final Result Panel</strong> with individual download buttons</div></div>
-      <div class="step-card"><div class="step-num">9</div><div class="step-text">If you press <strong>Next</strong> again after the final answer, the app can send that answer through another reviewer round</div></div>
-      <div class="step-card"><div class="step-num">10</div><div class="step-text">If you type a follow-up question, the app keeps the same session when the new question is related — unrelated questions automatically reset to a fresh session</div></div>
-    </div>
+    <h3>Setup (3 steps)</h3>
+    <ol class="steps">
+      <li>
+        <div class="step-body">
+          <strong>Create a Telegram bot via @BotFather</strong>
+          <p>Open Telegram → search <strong>@BotFather</strong> → send <code>/newbot</code> → follow the prompts. BotFather will give you a <strong>bot token</strong> like <code>123456789:AAH…</code>. Copy it.</p>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <strong>Find your personal Chat ID</strong>
+          <p><strong>Option A:</strong> Open <strong>@userinfobot</strong> in Telegram — it instantly replies with your Chat ID (e.g. <code>987654321</code>).<br>
+          <strong>Option B:</strong> Enable the bot first, send any message, then check the <strong>📊 Logs</strong> drawer in AI Council for a line like <code>Telegram: message from chat_id 987654321</code>.</p>
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <strong>Configure in AI Council</strong>
+          <p>Click the <strong>📱 Telegram</strong> button in the title bar → paste your <strong>Bot Token</strong> and <strong>Chat ID</strong> → toggle <strong>Enable Telegram Bot</strong> ON → click <strong>Save &amp; Apply</strong>.<br>
+          The status bar will show <span style="color:#10b981">◉</span> <strong style="color:#2aabee">Telegram</strong> when the bot is active.</p>
+        </div>
+      </li>
+    </ol>
 
-    <div class="reassign-box">
-      <strong>🔄 Mid-Workflow Primary AI Reassignment</strong><br/>
-      At the <strong>▶▶ Next</strong> and <strong>✓ Continue</strong> pause points the Primary AI chips become interactive and display a <em>"click to reassign"</em> hint.
-      Click any chip to switch the Primary AI on the fly — the workflow engine tracks the change and uses it for all remaining steps.
-      <br/><br/>
-      &nbsp;&nbsp;● Reassign at <strong>▶▶ Next</strong> → reviewers and final revision both run under the new Primary AI<br/>
-      &nbsp;&nbsp;● Reassign at <strong>✓ Continue</strong> → only the final revision step uses the new Primary AI
-    </div>
+    <h3>Slash commands</h3>
+    <table>
+      <thead><tr><th>Command</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>/new</code></td><td>Start a fresh Council Chat session</td></tr>
+        <tr><td><code>/save [title]</code></td><td>Save the current session with an optional title</td></tr>
+        <tr><td><code>/save_and_new [title]</code></td><td>Save and immediately start a new session</td></tr>
+        <tr><td><code>/sessions</code></td><td>List your 10 most recent saved sessions (title, date, ID)</td></tr>
+        <tr><td><code>/load &lt;id&gt;</code></td><td>Reload a saved session by its ID</td></tr>
+        <tr><td><code>/workflow</code></td><td>Switch to Workflow mode using current context</td></tr>
+        <tr><td><code>/status</code></td><td>Show Primary AI, mode, participant count, message count</td></tr>
+        <tr><td><code>/help</code></td><td>List all available commands</td></tr>
+      </tbody>
+    </table>
 
-    <div class="panel" style="margin-top:20px;">
-      <div class="sub-heading">Reviewer Roles</div>
-      <p style="color:var(--text-muted); font-size:.93rem; margin-bottom:16px;">
-        Each reviewer can focus on a different strength instead of repeating the same generic checklist.
-      </p>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>AI</th><th>Reviewer focus</th></tr></thead>
-          <tbody>
-            <tr><td><strong>Claude</strong></td><td>Logic, precision, and argument structure</td></tr>
-            <tr><td><strong>Perplexity</strong></td><td>Fact-checking, freshness, and source-minded validation</td></tr>
-            <tr><td><strong>Grok</strong></td><td>Adversarial critique, edge cases, and hidden risk</td></tr>
-            <tr><td><strong>ChatGPT</strong></td><td>Practicality, clarity, and user-facing polish</td></tr>
-            <tr><td><strong>Gemini</strong></td><td>Systems-level synthesis and overall framing</td></tr>
-            <tr><td><strong>Groq</strong></td><td>Concise alternative paths and speed-oriented simplification</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="green-box" style="margin-top:16px;">
-        <strong>Preview bar:</strong> the toolbar shows these roles before review begins, so you can immediately see why each AI is being asked to respond.
-      </div>
+    <h3>Sending messages and @mentions</h3>
+    <table>
+      <thead><tr><th>Telegram message</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>What are the risks of this?</code></td><td>Routed to active session; Primary AI responds</td></tr>
+        <tr><td><code>@Gemini explain this simply</code></td><td>Only Gemini responds</td></tr>
+        <tr><td><code>@Claude review my logic</code></td><td>Only Claude responds</td></tr>
+        <tr><td><code>@all summarize the discussion</code></td><td>All active AIs respond simultaneously</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Security</h3>
+    <ul>
+      <li>Bot token stored in an <strong>encrypted</strong> <code>electron-store</code> file — never in logs, never committed to git.</li>
+      <li>Messages from any Chat ID other than yours are <strong>silently rejected</strong> (no reply, no log of content).</li>
+      <li><code>lastUpdateId</code> is persisted so old messages are never replayed after restart.</li>
+    </ul>
+
+    <h3>Troubleshooting</h3>
+    <table>
+      <thead><tr><th>Problem</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td>Bot doesn't respond</td><td>Confirm the app is running and <strong>◉ Telegram</strong> is lit in the status bar</td></tr>
+        <tr><td>"Unknown command" error</td><td>Type the command with a <code>/</code> prefix exactly as listed above</td></tr>
+        <tr><td>Wrong user receiving replies</td><td>Verify Chat ID in Settings matches your ID from @userinfobot</td></tr>
+        <tr><td>Messages replay on restart</td><td>Prevented automatically via <code>lastUpdateId</code> persistence</td></tr>
+        <tr><td>Multiple app instances open</td><td>Only one polling loop per bot token — close extra instances</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ══ WORKFLOW MODE ══ -->
+  <section class="section">
+    <div class="section-title">⚙️ Workflow Mode</div>
+    <p style="color:var(--text-muted);font-size:14px;margin-bottom:16px;">Structured 3-step cross-review. You advance each stage manually by clicking the action button.</p>
+    <table>
+      <thead><tr><th>Stage</th><th>Button</th><th>What happens</th></tr></thead>
+      <tbody>
+        <tr><td>Idle</td><td><strong>▶ Start</strong></td><td>Sends the query to the Primary AI</td></tr>
+        <tr><td>After Primary answers</td><td><strong>▶▶ Next</strong></td><td>Sends the draft to all active Reviewer AIs simultaneously</td></tr>
+        <tr><td>After Reviewers finish</td><td><strong>✓ Continue</strong></td><td>Sends all feedback back to Primary AI for final revision</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Reviewer Roles</h3>
+    <table>
+      <thead><tr><th>AI</th><th>Reviewer Role</th><th>Focus</th></tr></thead>
+      <tbody>
+        <tr><td>Claude</td><td>Logic and Precision Auditor</td><td>Stress-tests reasoning, contradictions, unsupported leaps</td></tr>
+        <tr><td>Perplexity</td><td>Fact Checker and Freshness Monitor</td><td>Accuracy, recency-sensitive claims, unsupported statements</td></tr>
+        <tr><td>Grok</td><td>Adversarial Critic</td><td>Hidden risks, edge cases, counterarguments</td></tr>
+        <tr><td>ChatGPT</td><td>Practical UX and Communication Coach</td><td>Clarity, tone, and real-world usefulness</td></tr>
+        <tr><td>Gemini</td><td>Systems Synthesizer</td><td>Big-picture gaps, framing, and audience fit</td></tr>
+        <tr><td>DeepSeek</td><td>Concise Alternative Solver</td><td>Cleaner routes, sharper summaries, more efficient answers</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ══ COUNCIL CHAT ══ -->
+  <section class="section">
+    <div class="section-title">💬 Council Chat Mode</div>
+    <p style="color:var(--text-muted);font-size:14px;margin-bottom:16px;">Free-form group messaging interface — think WhatsApp for AI models. Also accessible remotely via Telegram.</p>
+
+    <table>
+      <thead><tr><th>Syntax</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>@Gemini your question</code></td><td>Ask only Gemini</td></tr>
+        <tr><td><code>@Claude your question</code></td><td>Ask only Claude</td></tr>
+        <tr><td><code>@all your question</code></td><td>Broadcast to all active AIs simultaneously</td></tr>
+        <tr><td>Plain text (no mention)</td><td>The app routes to the most relevant AI based on context</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Saved Sessions</h3>
+    <table>
+      <thead><tr><th>Action</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Save Session</strong></td><td>Save the current conversation (auto-saves every 3 s)</td></tr>
+        <tr><td><strong>Favorites</strong></td><td>Star important sessions for quick access</td></tr>
+        <tr><td><strong>Labels &amp; Notes</strong></td><td>Tag sessions and add short notes</td></tr>
+        <tr><td><strong>Archive</strong></td><td>Hide sessions without deleting them</td></tr>
+        <tr><td><strong>Export / Import</strong></td><td>Share sessions as JSON between machines</td></tr>
+        <tr><td><strong>Duplicate</strong></td><td>Clone a session to branch a conversation</td></tr>
+        <tr><td><strong>Bulk Delete</strong></td><td>Delete all sessions matching the current filter</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ══ QUICK START ══ -->
+  <section class="section">
+    <div class="section-title">🚀 Quick Start</div>
+
+    <h3>Login — via 🔑 Accounts panel</h3>
+    <p style="color:var(--text-muted);font-size:14px;">Click the <strong>🔑 key icon</strong> in the top-right corner. Use the <strong>Accounts tab</strong> to log in to each AI service, and the <strong>API Keys tab</strong> to store keys for the recommendation engine.</p>
+
+    <table>
+      <thead><tr><th>Provider</th><th>Key prefix</th><th>Get a key</th></tr></thead>
+      <tbody>
+        <tr><td>Gemini</td><td><code>AIza...</code></td><td><a href="https://aistudio.google.com/app/apikey">aistudio.google.com</a></td></tr>
+        <tr><td>Claude</td><td><code>sk-ant-...</code></td><td><a href="https://console.anthropic.com/settings/keys">console.anthropic.com</a></td></tr>
+        <tr><td>ChatGPT (OpenAI)</td><td><code>sk-...</code></td><td><a href="https://platform.openai.com/api-keys">platform.openai.com</a></td></tr>
+        <tr><td>DeepSeek</td><td><code>sk-...</code></td><td><a href="https://platform.deepseek.com/api_keys">platform.deepseek.com</a></td></tr>
+        <tr><td>Perplexity</td><td><code>pplx-...</code></td><td><a href="https://www.perplexity.ai/settings/api">perplexity.ai</a></td></tr>
+        <tr><td>Grok (xAI)</td><td><code>xai-...</code></td><td><a href="https://console.x.ai">console.x.ai</a></td></tr>
+      </tbody>
+    </table>
+
+    <h3>Standalone login scripts (alternative)</h3>
+    <pre><span class="cm"># Run any of these in the project root to log in outside the app</span>
+google-login.bat      <span class="cm"># Gemini (Google account)</span>
+claude-login.bat      <span class="cm"># Claude.ai</span>
+chatgpt-login.bat     <span class="cm"># ChatGPT</span>
+deepseek-login.bat    <span class="cm"># DeepSeek</span>
+perplexity-login.bat  <span class="cm"># Perplexity</span>
+grok-login.bat        <span class="cm"># Grok (X / Twitter account)</span></pre>
+
+    <h3>Dev &amp; build commands</h3>
+    <pre><span class="kw">npm</span> start                     <span class="cm"># Dev mode with hot reload</span>
+<span class="kw">npm</span> run build                 <span class="cm"># Production Vite build</span>
+<span class="kw">npm</span> run package:installer     <span class="cm"># Windows NSIS installer → release/AI-Council-Setup.exe</span>
+<span class="kw">npm</span> run package:mac           <span class="cm"># macOS DMG (x64 + arm64) → release/*.dmg</span></pre>
+
+    <div class="callout callout-teal">
+      <span class="callout-icon">ℹ️</span>
+      <span><strong>Requirements:</strong> Node.js v18+, npm v9+</span>
     </div>
   </section>
 
-  <!-- ── ACCOUNTS PANEL ── -->
-  <section>
-    <div class="section-label">Account Management</div>
-    <h2>Accounts Panel 🔑</h2>
-    <div class="panel">
-      <p style="color:var(--text-muted); font-size:.93rem; margin-bottom:18px;">
-        Click the <strong style="color:var(--text-primary)">🔑 key icon</strong> in the top-right of the title bar at any time — even while the app is running.
-        The panel has two tabs.
-      </p>
-
-      <div class="sub-heading">🔑 Accounts tab</div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Action</th><th>What it does</th></tr></thead>
-          <tbody>
-            <tr><td><strong>Login</strong></td><td>Opens a dedicated mini browser window for that AI's login page. Session is saved to the <code>persist:</code> partition automatically on window close.</td></tr>
-            <tr><td><strong>Re-login</strong></td><td>Re-authenticates an already-logged-in account (useful when a session expires).</td></tr>
-            <tr><td><strong>Logout</strong></td><td>Clears the session cookies for that specific AI only.</td></tr>
-            <tr><td><strong>Logout All</strong></td><td>Logs out all 6 AIs simultaneously.</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="green-box">
-        <strong>Live status:</strong> The panel shows a real-time ● / ○ indicator for each AI.
-        Status updates instantly via the <code>onLoginStatusChanged</code> IPC event whenever you log in or out.
-      </div>
-
-      <div class="sub-heading" style="margin-top:24px;">⚡ API Keys tab</div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Feature</th><th>Details</th></tr></thead>
-          <tbody>
-            <tr><td>Key entry</td><td>Enter keys for Gemini, Claude, ChatGPT (OpenAI), Perplexity, Grok, and Groq</td></tr>
-            <tr><td>Show / hide</td><td>Toggle visibility per key — masked by default</td></tr>
-            <tr><td>Priority order</td><td>Drag-and-drop rows to control which provider is called first for query analysis</td></tr>
-            <tr><td>Save</td><td>Click <strong>Save</strong> to persist; order is auto-saved immediately on drop</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+  <!-- ══ TECH STACK ══ -->
+  <section class="section">
+    <div class="section-title">🛠 Tech Stack</div>
+    <table>
+      <thead><tr><th>Layer</th><th>Technology</th></tr></thead>
+      <tbody>
+        <tr><td>Shell</td><td>Electron 41</td></tr>
+        <tr><td>UI</td><td>React 18 + TypeScript</td></tr>
+        <tr><td>Build</td><td>Vite 5 + vite-plugin-electron</td></tr>
+        <tr><td>Markdown</td><td>marked 18 (GFM + breaks)</td></tr>
+        <tr><td>Storage</td><td>electron-store (encrypted for Telegram config)</td></tr>
+        <tr><td>Styling</td><td>Vanilla CSS (dark glassmorphism)</td></tr>
+        <tr><td>Browser embeds</td><td>BrowserView (not headless, persistent sessions)</td></tr>
+        <tr><td>DOM automation</td><td>executeJavaScript + CDP DOM.setFileInputFiles</td></tr>
+        <tr><td>File parsing</td><td>pdf-parse · mammoth · xlsx</td></tr>
+        <tr><td>File generation</td><td>docx · xlsx</td></tr>
+        <tr><td>OAuth compatibility</td><td>preload-chrome-spoof.js (Chrome identity masking)</td></tr>
+        <tr><td>Language detection</td><td>Unicode script analysis (responseLanguage.ts)</td></tr>
+        <tr><td>Telegram bridge</td><td>Native fetch long-poll (zero extra dependencies)</td></tr>
+        <tr><td>AI inference (recommendation)</td><td>Gemini · Claude · OpenAI · Perplexity · Grok · DeepSeek APIs</td></tr>
+      </tbody>
+    </table>
   </section>
 
-  <!-- ── AI RECOMMENDATION ENGINE ── -->
-  <section>
-    <div class="section-label">New Feature</div>
-    <h2>AI Recommendation Engine 🤖</h2>
-    <div class="panel">
-      <p style="color:var(--text-muted); font-size:.93rem; margin-bottom:18px;">
-        While you type a query (≥ 8 characters) the app waits 800 ms and then calls the highest-priority available API provider.
-        A banner appears below the query input with the result.
-      </p>
-
-      <div class="table-wrap" style="margin-bottom:20px;">
-        <table>
-          <thead><tr><th>Banner state</th><th>What you see</th></tr></thead>
-          <tbody>
-            <tr><td>Analyzing</td><td>Spinner + "Analyzing query…"</td></tr>
-            <tr><td>Result ready</td><td>Recommended AI badge, reason text, and an <strong>Apply</strong> button</td></tr>
-            <tr><td>Already applied</td><td>Button shows "✓ Applied" and is disabled</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="green-box">
-        <strong>How to use:</strong> Click <strong>Apply</strong> in the banner (or click the chip directly) to set the recommended AI as Primary before starting the workflow.
-      </div>
-
-      <div class="purple-box" style="margin-top:16px;">
-        <strong>Fallback — no API key configured:</strong> The engine uses keyword rules to pick the most suitable AI.
-        For example: analysis / documents → Gemini, creative writing → Claude, real-time news → Perplexity, coding → ChatGPT.
-      </div>
-    </div>
-  </section>
-
-  <!-- ── FILE ATTACHMENT ── -->
-  <section>
-    <div class="section-label">Feature</div>
-    <h2>File Attachment</h2>
-    <div class="panel">
-      <p style="color:var(--text-muted); font-size:.93rem; margin-bottom:20px;">
-        If you attach files with your question, all active AIs analyze the file contents,
-        and you can download the final revised version separated per file.
-      </p>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>Supported formats</th><th>Extraction method</th><th>Saved as</th></tr>
-          </thead>
-          <tbody>
-            <tr><td><code>.pdf</code></td><td>pdf-parse (text extraction)</td><td><code>.txt</code></td></tr>
-            <tr><td><code>.docx</code></td><td>mammoth (body extraction)</td><td><code>.docx</code> (regenerated)</td></tr>
-            <tr><td><code>.xlsx</code></td><td>xlsx (sheets → CSV)</td><td><code>.xlsx</code> (regenerated)</td></tr>
-            <tr><td><code>.txt</code> / <code>.md</code> / <code>.csv</code></td><td>Read UTF-8 directly</td><td>Keep original extension</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="green-box">
-        <strong>How it works:</strong> File content is included as text in the Primary AI prompt.
-        Reviewer AIs receive the same file context.
-        The final answer outputs per-file revisions using <code>&lt;&lt;&lt;FILE:filename&gt;&gt;&gt; … &lt;&lt;&lt;END_FILE&gt;&gt;&gt;</code> delimiters
-        and the panel shows a per-file save button.
-      </div>
-
-      <div class="chip-row">
-        <span class="chip">📎 Attach multiple files at once</span>
-        <span class="chip">⬇ Download each file separately</span>
-        <span class="chip">80,000-character context limit</span>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── FINAL RESULT PANEL ── -->
-  <section>
-    <div class="section-label">UI Component</div>
-    <h2>Final Result Panel</h2>
-    <div class="panel">
-      <p style="color:var(--text-muted); font-size:.93rem; margin-bottom:18px;">
-        This is a collapsible panel pinned to the bottom of the screen. Toggle it by clicking the header or the ▲/▼ button.
-      </p>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>State</th><th>Height</th><th>Displayed</th></tr></thead>
-          <tbody>
-            <tr><td>Collapsed</td><td>36 px</td><td>Title · Primary AI name · complete/in-progress badge</td></tr>
-            <tr><td>Expanded</td><td>260 px</td><td>Preview (Markdown render) / Raw tab · Copy button · Per-file save buttons</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="green-box">
-        <strong>Preview / Markdown tab:</strong> Toggle between rendered HTML and the raw Markdown text.<br/>
-        <strong>Per-file save:</strong> When attachments exist, each revised file can be saved via an individual button.
-      </div>
-    </div>
-  </section>
-
-  <!-- ── SELECTOR MAINTENANCE ── -->
-  <section>
-    <div class="section-label">Maintenance</div>
-    <h2>Selector Maintenance</h2>
-    <div class="info-box">
-      DOM selectors are defined in <code>electron/selectors.json</code> and inlined at build time.<br />
-      To override without rebuilding, place a custom <code>selectors.json</code> in the app's userData directory:<br /><br />
-      <strong>🪟 Windows:</strong> <code>%APPDATA%\ai-council\selectors.json</code><br />
-      <strong>🍎 macOS:</strong> <code>~/Library/Application Support/ai-council/selectors.json</code>
-    </div>
-  </section>
-
-  <!-- ── PROMPT TEMPLATES ── -->
-  <section>
-    <div class="section-label">Prompt Templates</div>
-    <h2>Prompt Templates</h2>
-    <div class="panel">
-      <div class="prompt-block">
-        <div class="prompt-label">Primary Prompt (when files are attached)</div>
-        <pre><code>Please answer the following question.
-Question: {query}
-
-[Attached file content]
---- {filename} ---
-{file content}
----</code></pre>
-      </div>
-
-      <div class="prompt-block">
-        <div class="prompt-label">Reviewer Prompt (role-based)</div>
-        <pre><code>You are acting as {Reviewer AI} in AI Council.
-Your reviewer focus is: {role focus}.
-
-Question: {query}
-[Attached file content]: {fileContext}   ← include only when files are attached
-Primary answer: {draft}
-
-Give feedback from your role only. Be specific and avoid repeating the same generic checklist for every AI.</code></pre>
-      </div>
-
-      <div class="prompt-block" style="margin-bottom:0">
-        <div class="prompt-label">Final Revision Prompt (when files are attached)</div>
-        <pre><code>Other AIs provided feedback on your previous answer.
-[Feedback from each AI] ...
-Incorporate the feedback and output the revised version of each file in the following format:
-
-&lt;&lt;&lt;FILE:filename.ext&gt;&gt;&gt;
-(full revised content)
-&lt;&lt;&lt;END_FILE&gt;&gt;&gt;</code></pre>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── TECH STACK ── -->
-  <section>
-    <div class="section-label">Dependencies</div>
-    <h2>Tech Stack</h2>
-    <div class="panel">
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>Layer</th><th>Technology</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>Shell</td><td>Electron 41</td></tr>
-            <tr><td>UI</td><td>React 18 + TypeScript</td></tr>
-            <tr><td>Build</td><td>Vite 5 + vite-plugin-electron</td></tr>
-            <tr><td>Markdown</td><td>marked 18 (GFM + breaks)</td></tr>
-            <tr><td>Storage</td><td>electron-store</td></tr>
-            <tr><td>Styling</td><td>Vanilla CSS (dark glassmorphism)</td></tr>
-            <tr><td>Browser embeds</td><td><code>BrowserView</code> (not headless, persistent sessions)</td></tr>
-            <tr><td>DOM automation</td><td><code>executeJavaScript</code> + CDP <code>DOM.setFileInputFiles</code></td></tr>
-            <tr><td>File parsing</td><td>pdf-parse · mammoth · xlsx</td></tr>
-            <tr><td>File generation</td><td>docx · xlsx</td></tr>
-            <tr><td>OAuth compatibility</td><td>preload-chrome-spoof.js (Chrome identity masking)</td></tr>
-            <tr><td>Language detection</td><td>Unicode script analysis (responseLanguage.ts)</td></tr>
-            <tr><td>AI inference (recommendation)</td><td>Gemini · Claude · OpenAI · Perplexity · Grok · Groq APIs</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <footer>
-    <p>AI Council &mdash; README &nbsp;·&nbsp; Last updated 2026-04-24 &nbsp;·&nbsp; v1.0.7 &nbsp;·&nbsp; <a href="https://github.com/MinkyuTheBuilder/ai-council" target="_blank">GitHub</a></p>
+  <!-- ══ FOOTER ══ -->
+  <footer style="text-align:center; color:var(--text-faint); font-size:12px; padding-top:32px; border-top:1px solid var(--border);">
+    AI Council v1.0.8 · <a href="https://github.com/MinkyuTheBuilder/ai-council">github.com/MinkyuTheBuilder/ai-council</a>
   </footer>
 
 </div>
 </body>
 </html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        

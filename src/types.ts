@@ -1,4 +1,11 @@
-export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'groq' | 'perplexity'
+export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'deepseek' | 'perplexity'
+
+export interface TelegramConfig {
+  enabled: boolean
+  botToken: string
+  chatId: string
+  lastUpdateId: number
+}
 
 export type InteractionMode = 'workflow' | 'chat'
 
@@ -166,7 +173,7 @@ export interface CouncilSnapshotPayload {
   insight?: Partial<CouncilSnapshotInsight>
 }
 
-export const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'groq', 'perplexity']
+export const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity']
 
 export const DEFAULT_ENABLED_AIS: AiName[] = ['chatgpt', 'claude', 'gemini']
 
@@ -175,7 +182,7 @@ export const AI_DISPLAY_NAMES: Record<AiName, string> = {
   claude: 'Claude',
   gemini: 'Gemini',
   grok: 'Grok',
-  groq: 'Groq',
+  deepseek: 'DeepSeek',
   perplexity: 'Perplexity',
 }
 
@@ -184,7 +191,7 @@ export const AI_COLORS: Record<AiName, { primary: string; glow: string; badge: s
   claude: { primary: '#cc785c', glow: 'rgba(204,120,92,0.35)', badge: '#cc785c' },
   gemini: { primary: '#4285f4', glow: 'rgba(66,133,244,0.35)', badge: '#4285f4' },
   grok: { primary: '#7c3aed', glow: 'rgba(124,58,237,0.35)', badge: '#7c3aed' },
-  groq: { primary: '#f97316', glow: 'rgba(249,115,22,0.35)', badge: '#f97316' },
+  deepseek: { primary: '#4D6BFE', glow: 'rgba(77,107,254,0.35)', badge: '#4D6BFE' },
   perplexity: { primary: '#20b2aa', glow: 'rgba(32,178,170,0.35)', badge: '#20b2aa' },
 }
 
@@ -193,7 +200,7 @@ export const AI_ICONS: Record<AiName, string> = {
   claude: 'A',
   gemini: 'G',
   grok: 'X',
-  groq: 'Q',
+  deepseek: 'D',
   perplexity: 'P',
 }
 
@@ -214,9 +221,9 @@ export const AI_ROLE_PRESETS: Record<AiName, AiRolePreset> = {
     title: 'Adversarial Critic',
     detail: 'Pushes on assumptions and edge cases.',
   },
-  groq: {
-    title: 'Concise Alternative',
-    detail: 'Suggests a shorter, simpler alternative.',
+  deepseek: {
+    title: 'Code / Logic Expert',
+    detail: 'Provides strong analytical and coding perspectives.',
   },
   perplexity: {
     title: 'Fact / Freshness',
@@ -265,8 +272,8 @@ declare global {
       logoutAi: (ai: AiName) => Promise<boolean>
       logoutAll: () => Promise<boolean>
       onLoginStatusChanged: (cb: () => void) => () => void
-      getApiKeys: () => Promise<Partial<Record<AiName, string>> & { groq?: string }>
-      setApiKeys: (keys: Partial<Record<AiName, string>> & { groq?: string }) => Promise<boolean>
+      getApiKeys: () => Promise<Partial<Record<AiName, string>> & { deepseek?: string }>
+      setApiKeys: (keys: Partial<Record<AiName, string>> & { deepseek?: string }) => Promise<boolean>
       getApiKeyOrder: () => Promise<string[]>
       setApiKeyOrder: (order: string[]) => Promise<boolean>
       analyzeQuery: (query: string) => Promise<AiRecommendation | null>
@@ -313,6 +320,8 @@ declare global {
       maximize: () => Promise<void>
       close: () => Promise<void>
       setViewsVisible: (v: boolean) => Promise<void>
+      getTelegramConfig: () => Promise<TelegramConfig>
+      setTelegramConfig: (config: Partial<TelegramConfig>) => Promise<TelegramConfig>
       onStatusUpdate: (cb: (msg: string) => void) => () => void
       onLog: (cb: (entry: LogEntry) => void) => () => void
       onViewLoaded: (cb: (data: { ai: AiName }) => void) => () => void

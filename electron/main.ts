@@ -21,7 +21,7 @@ import {
   renderCouncilTranscript as renderCouncilTranscriptPure,
   buildCouncilPrompt as buildCouncilPromptPure,
 } from './councilPrompt.js'
-import { buildResponseLanguageDirective } from '../src/responseLanguage.js'
+import { buildResponseLanguageDirective, detectPreferredReplyLanguage } from '../src/responseLanguage.js'
 
 const require = createRequire(import.meta.url)
 // electron-store ships CJS
@@ -42,7 +42,7 @@ app.commandLine.appendSwitch('disable-quic')
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled')
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'groq' | 'perplexity'
+export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'deepseek' | 'perplexity'
 type InteractionMode = 'workflow' | 'chat'
 
 interface AiConfig {
@@ -64,7 +64,7 @@ interface StoreSchema {
     timestamp: number
   }>
   windowBounds: Rectangle
-  apiKeys: Partial<Record<AiName, string>> & { groq?: string }
+  apiKeys: Partial<Record<AiName, string>> & { deepseek?: string }
   apiKeyOrder: string[]
   councilRoomSnapshot: CouncilRoomState | null
   councilUiState: {
@@ -82,6 +82,20 @@ interface StoreSchema {
     insight: CouncilSnapshotInsight
   }>
   activeCouncilSnapshotId: string | null
+  /**
+   * Telegram bridge settings.  When `enabled` is true and both `botToken` and
+   * `chatId` are set, the main process starts a long-poll loop on app startup
+   * so the user can chat with Council from their phone.
+   *
+   * `lastUpdateId` is the id of the last Telegram update we processed — used
+   * as the offset in `getUpdates` so old messages don't replay after restart.
+   */
+  telegram: {
+    enabled: boolean
+    botToken: string
+    chatId: string   // stored as string (Telegram chat IDs can exceed JS safe int)
+    lastUpdateId: number
+  }
 }
 
 // ─── Inline Selectors Config ──────────────────────────────────────────────────
@@ -228,30 +242,48 @@ const DEFAULT_SELECTORS: Record<AiName, AiConfig> = {
     ],
     loadedIndicatorSelectors: ['textarea', 'div[contenteditable]'],
   },
-  groq: {
-    url: 'https://console.groq.com/chat',
-    newChatUrl: 'https://console.groq.com/chat',
+  deepseek: {
+    url: 'https://chat.deepseek.com',
+    newChatUrl: 'https://chat.deepseek.com',
     inputSelectors: [
-      'textarea[placeholder*="Ask"]',
-      'textarea[placeholder*="Message"]',
-      'textarea[placeholder*="Prompt"]',
+      '#chat-input',
+      'textarea[placeholder*="Message" i]',
+      'textarea[placeholder*="Ask" i]',
+      'textarea[placeholder*="Send a message" i]',
+      'textarea[placeholder*="DeepSeek" i]',
+      'textarea[placeholder*="向 DeepSeek"]',
+      'textarea[placeholder*="问"]',
       'textarea',
       'div[contenteditable="true"][role="textbox"]',
       'div[contenteditable="true"]',
     ],
     sendButtonSelectors: [
-      'button[aria-label*="Send"]',
-      'button[aria-label*="Submit"]',
+      // CAUTION: do NOT use `div.ds-button:has(svg)` here — DeepSeek's composer
+      // footer has 3 such elements (DeepThink toggle, Search toggle, Send) and
+      // querySelector picks the FIRST one (DeepThink), which silently toggles
+      // DeepThink mode instead of sending.  The smart fallback in clickSend()
+      // handles DeepSeek's send button via DOM heuristics.
+      //
+      // English aria-label variants (rare in DeepSeek but check first)
+      'button[aria-label*="Send" i]',
+      'button[aria-label*="Submit" i]',
+      'div[role="button"][aria-label*="Send" i]',
+      // Chinese aria-label variants (DeepSeek's UI is bilingual)
+      'button[aria-label*="发送"]',
+      'div[role="button"][aria-label*="发送"]',
+      // Generic fallbacks
       'button[type="submit"]',
       'button[data-testid="send-button"]',
     ],
     responseContainerSelectors: [
+      '.ds-markdown',
+      '[class*="ds-markdown"]',
+      '[class*="markdown"]',
       '.prose',
       '[class*="prose"]',
-      '[data-testid*="message"]',
       'article',
     ],
-    loadedIndicatorSelectors: ['textarea', 'div[contenteditable]', '[contenteditable]'],
+    loadedIndicatorSelectors: ['#chat-input', 'textarea', '[contenteditable]'],
   },
 }
 
@@ -275,7 +307,7 @@ const store = new Store<StoreSchema>({
     chatHistory: [],
     windowBounds: { x: 0, y: 0, width: 1280, height: 720 },
     apiKeys: {},
-    apiKeyOrder: ['chatgpt', 'claude', 'gemini', 'grok', 'groq', 'perplexity'],
+    apiKeyOrder: ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity'],
     councilRoomSnapshot: null,
     councilUiState: {
       pinnedCandidateIds: [],
@@ -283,19 +315,25 @@ const store = new Store<StoreSchema>({
     },
     councilSnapshots: [],
     activeCouncilSnapshotId: null,
+    telegram: {
+      enabled: false,
+      botToken: '',
+      chatId: '',
+      lastUpdateId: 0,
+    },
   },
 })
 
 let mainWindow: BrowserWindow | null = null
 const views: Map<AiName, BrowserView> = new Map()
-const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'groq', 'perplexity']
+const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity']
 const DEFAULT_ENABLED_AI_NAMES: AiName[] = ['chatgpt', 'claude', 'gemini']
-const AI_DISPLAY_NAMES: Record<AiName, string> = {
+export const AI_DISPLAY_NAMES: Record<AiName, string> = {
   chatgpt: 'ChatGPT',
   claude: 'Claude',
   gemini: 'Gemini',
   grok: 'Grok',
-  groq: 'Groq',
+  deepseek: 'DeepSeek',
   perplexity: 'Perplexity',
 }
 // Which AIs are currently visible — user can toggle panels on/off
@@ -442,7 +480,7 @@ const _CHROME_MAJOR = _CHROME_FULL.split('.')[0]              // e.g. "146"
 const DESKTOP_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
   'AppleWebKit/537.36 (KHTML, like Gecko) ' +
-  `Chrome/${_CHROME_MAJOR}.0.0.0 Safari/537.36`
+  `Chrome/${_CHROME_FULL} Safari/537.36`
 
 // Chrome spoof preload path — needed both inside createWindow() and in the
 // global web-contents-created handler for OAuth popup windows.
@@ -755,7 +793,7 @@ const STREAMING_INDICATOR_SELECTORS: Partial<Record<AiName, string[]>> = {
     'button[aria-label="Stop generating"]',
     '[data-testid="stop-button"]',
   ],
-  groq: [
+  deepseek: [
     'button[aria-label*="Stop"]',
     '[data-testid="stop-button"]',
   ],
@@ -1362,6 +1400,10 @@ async function processCouncilTurn(aiName: AiName, promptText: string): Promise<v
       councilRoom.messages.push(finalMessage)
     }
 
+    if (telegramAiReplyCallback) {
+      telegramAiReplyCallback(aiName, reply)
+    }
+
     councilRoom.deliveredCount[aiName] = councilRoom.messages.length
     councilRoom.status = 'idle'
     councilRoom.pendingAi = null
@@ -1450,31 +1492,36 @@ async function execWithFallback(
 async function pasteText(view: BrowserView, text: string, selector: string) {
   const jsonSelector = JSON.stringify(selector)
 
-  // Focus the target element first
-  await view.webContents.executeJavaScript(`
+  // Focus the target element first using DOM methods (which might be ignored by anti-bot, but good as a first step)
+  const inputRect = await view.webContents.executeJavaScript(`
     (() => {
       const target = document.querySelector(${jsonSelector});
-      if (!target) return false;
-      if (target.isContentEditable) {
-        // contenteditable: select all then use execCommand so existing text is replaced
-        target.click();
-        target.focus();
-        document.execCommand('selectAll', false, null);
-        document.execCommand('insertText', false, ${JSON.stringify(text)});
-        return true;
-      }
+      if (!target) return null;
       target.click();
       target.focus();
-      // Clear any existing value first
-      target.select?.();
-      return true;
+      // Clear any existing value for textareas using native select()
+      if (typeof target.select === 'function') {
+        target.select();
+      }
+      
+      // Return bounding rect for native click
+      const r = target.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2, isContentEditable: target.isContentEditable };
     })()
   `)
 
+  // CRITICAL: Focus the BrowserView itself before dispatching keyboard/mouse input.
+  try { view.webContents.focus() } catch { /* view may be detached */ }
+  await sleep(30)
+  
+  // NATIVE CLICK on the text area to defeat anti-bot focus restrictions (like DeepSeek)
+  if (inputRect) {
+    view.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(inputRect.x), y: Math.round(inputRect.y), button: 'left', clickCount: 1 })
+    view.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(inputRect.x), y: Math.round(inputRect.y), button: 'left', clickCount: 1 })
+    await sleep(50)
+  }
+
   // Use Electron clipboard + Ctrl+A/Ctrl+V via sendInputEvent.
-  // This is the only approach that reliably triggers React's onChange for
-  // controlled textareas — JS-dispatched events are intercepted by React
-  // before they update internal state, keeping the submit button disabled.
   const { clipboard } = require('electron')
   clipboard.writeText(text)
 
@@ -1484,7 +1531,33 @@ async function pasteText(view: BrowserView, text: string, selector: string) {
   await sleep(50)
   view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'V', modifiers: ['ctrl'] })
   view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'V', modifiers: ['ctrl'] })
-  await sleep(100)
+  await sleep(150)
+
+  // Last-resort fallback: directly set the value via JS and dispatch the
+  // native input event. We DO NOT mutate innerText for contenteditable
+  // because that crashes React apps (like DeepSeek) with unhandled exceptions!
+  await view.webContents.executeJavaScript(`
+    (() => {
+      const target = document.querySelector(${jsonSelector});
+      if (!target) return false;
+      const currentValue = target.value ?? target.innerText ?? '';
+      const expected = ${JSON.stringify(text)};
+      // Already populated by the paste — nothing to do.
+      if (currentValue && currentValue.includes(expected.slice(0, 32))) return 'paste-ok';
+      
+      // Manual injection path ONLY for standard inputs/textareas
+      if ('value' in target && !target.isContentEditable) {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+          || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+        if (setter) setter.call(target, expected);
+        else target.value = expected;
+        target.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: expected }));
+        target.dispatchEvent(new Event('change', { bubbles: true }));
+        return 'fallback-injected';
+      }
+      return 'fallback-skipped-contenteditable';
+    })()
+  `).catch(() => { /* swallow — best-effort fallback */ })
 }
 
 /**
@@ -1793,10 +1866,20 @@ async function waitForStableResponse(
 
 /** Click the send button using fallback selectors */
 async function clickSend(view: BrowserView, selectors: string[]): Promise<boolean> {
+  // Ensure the BrowserView has OS-level focus before any input dispatch.
+  // Without this, when multiple AI panels are visible the synthetic click
+  // can succeed at the DOM level but the page never registers the action
+  // (or, worse, focus events fire on a different panel).
+  try { view.webContents.focus() } catch { /* view may be detached */ }
+
+  // First attempt: try synthetic click using config selectors
   const res = await execWithFallback(view, selectors, (sel) => `
     (() => {
       const btn = document.querySelector(\`${sel}\`);
       if (!btn) return false;
+      // Skip disabled controls — clicking them is a no-op and we'd mistakenly report success
+      if (btn.disabled) return false;
+      if (btn.getAttribute('aria-disabled') === 'true') return false;
       btn.focus();
       btn.click();
       return true;
@@ -1804,34 +1887,99 @@ async function clickSend(view: BrowserView, selectors: string[]): Promise<boolea
   `)
   if (res.success) return true
 
-  // Fallback: find the submit button relative to the active textarea,
-  // then use sendInputEvent for a native Enter as last resort.
+  // Second attempt: DOM heuristic — works for DeepSeek-style composers where
+  // the send button has no aria-label and shares a class (e.g. `ds-button`)
+  // with adjacent toggle buttons (DeepThink, Search).  Strategy:
+  //   1. Find the chat input element
+  //   2. Walk up to the composer container
+  //   3. Among button-like elements in the container, exclude any that have
+  //      visible TEXT content (toggles like "DeepThink"/"Search" have labels;
+  //      the send button is icon-only)
+  //   4. Among the remaining icon-only candidates, pick the rightmost enabled one
   try {
-    await view.webContents.executeJavaScript(`
+    const heuristicResult = await view.webContents.executeJavaScript(`
       (() => {
-        const inputEl = document.activeElement?.tagName === 'TEXTAREA'
-          ? document.activeElement
-          : document.querySelector('textarea');
-        if (inputEl) {
-          // Walk up to find the nearest form or wrapper, then click its submit button
-          let container = inputEl.closest('form') || inputEl.parentElement;
-          for (let i = 0; i < 5 && container; i++) {
-            const btn = container.querySelector('button[type="submit"], button[aria-label="Submit"], button[aria-label="Send"]');
-            if (btn && !btn.disabled) { btn.click(); return 'btn'; }
-            const btns = container.querySelectorAll('button');
-            const last = btns[btns.length - 1];
-            if (last && !last.disabled) { last.click(); return 'last-btn'; }
-            container = container.parentElement;
-          }
-          inputEl.focus();
-          inputEl.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+        const input = document.querySelector('textarea, div[contenteditable="true"]');
+        if (!input) return { ok: false, reason: 'no-input' };
+
+        // Walk up to find the composer container
+        let composer = input.parentElement;
+        for (let i = 0; i < 8 && composer; i++) {
+          const btnLike = composer.querySelectorAll('button, div[role="button"], div.ds-button');
+          if (btnLike.length >= 2) break;  // Found a container with multiple controls — likely composer footer
+          composer = composer.parentElement;
         }
-        return 'enter';
+        if (!composer) return { ok: false, reason: 'no-composer' };
+
+        const candidates = composer.querySelectorAll('button, div[role="button"], div.ds-button');
+        const iconOnly = [];
+        for (const c of candidates) {
+          if (c.disabled) continue;
+          if (c.getAttribute('aria-disabled') === 'true') continue;
+          // Visible text content excludes toggles like DeepThink, Search
+          const textLen = (c.innerText || '').trim().length;
+          if (textLen > 2) continue;  // Allow tiny labels (e.g. "↑") but skip word-labeled toggles
+          // Must contain an icon (svg or img) — paperclip-attach is also OK; we pick rightmost
+          if (!c.querySelector('svg, img')) continue;
+          const rect = c.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) continue;  // Hidden
+          iconOnly.push({ el: c, x: rect.right });
+        }
+        if (iconOnly.length === 0) return { ok: false, reason: 'no-icon-only' };
+
+        // Rightmost icon-only button is almost always Send
+        iconOnly.sort((a, b) => b.x - a.x);
+        const target = iconOnly[0].el;
+        target.focus();
+        target.click();
+        return { ok: true, total: iconOnly.length, tag: target.tagName, cls: target.className };
       })()
     `)
-    view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return' })
-    view.webContents.sendInputEvent({ type: 'char', keyCode: 'Return' })
-    view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return' })
+    if (heuristicResult && heuristicResult.ok) {
+      sendLog('info', '[clickSend] heuristic success: ' + JSON.stringify(heuristicResult))
+      return true
+    } else {
+      sendLog('info', '[clickSend] heuristic failed: ' + JSON.stringify(heuristicResult))
+    }
+  } catch (err) {
+    sendLog('warn', '[clickSend] heuristic error: ' + (err instanceof Error ? err.message : String(err)))
+  }
+
+  // Final fallback: Ultra-robust native input strategy
+  // 1. Focus the webContents
+  // 2. Click the input box natively to ensure active state
+  // 3. Send native Enter key
+  try {
+    view.webContents.focus()
+    const inputRect = await view.webContents.executeJavaScript(`
+      (() => {
+        const inputEl = document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.isContentEditable
+          ? document.activeElement
+          : document.querySelector('textarea, div[contenteditable="true"]');
+        if (inputEl) {
+          inputEl.focus();
+          const r = inputEl.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        }
+        return null;
+      })()
+    `)
+    
+    if (inputRect) {
+      // Native click on the text area to ensure it has physical focus and defeats any transparent masks
+      view.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(inputRect.x), y: Math.round(inputRect.y), button: 'left', clickCount: 1 })
+      view.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(inputRect.x), y: Math.round(inputRect.y), button: 'left', clickCount: 1 })
+      
+      // Wait a tiny bit for UI state to catch up
+      await new Promise(r => setTimeout(r, 50));
+      
+      // Native Enter Key (this is how 99% of chat apps send messages)
+      view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return' })
+      view.webContents.sendInputEvent({ type: 'char', keyCode: 'Return' })
+      view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return' })
+    }
+    
+    return true;
   } catch { /* ignore */ }
   return false
 }
@@ -1953,7 +2101,7 @@ async function createWindow() {
     // Grok has recently started treating the plain Electron BrowserView more
     // aggressively than a normal browser tab, so give it the same stronger
     // renderer spoofing we already use for Gemini.
-    const needsChromeSpoof = name === 'gemini' || name === 'grok'
+    const needsChromeSpoof = name === 'gemini' || name === 'grok' || name === 'chatgpt'
     // ChatGPT / Perplexity: domain-gated OAuth preload.
     // Applies Chrome spoofing ONLY on Google/Microsoft/Apple OAuth pages so that
     // Google login works without breaking React/WebSocket on the AI sites themselves.
@@ -2089,7 +2237,7 @@ async function createWindow() {
     // Fix: cancel the in-view navigation and re-open the URL in a proper
     // BrowserWindow (with full Chrome spoof preload) so Google sees it as a
     // normal browser window — identical to how chatgpt-login.mjs works.
-    if (name === 'chatgpt' || name === 'perplexity') {
+    if (name === 'chatgpt' || name === 'perplexity' || name === 'deepseek') {
       const GOOGLE_OAUTH_RE = /^https?:\/\/(accounts\.google\.com|oauth2\.googleapis\.com|accounts\.youtube\.com|login\.microsoftonline\.com|login\.live\.com|appleid\.apple\.com)/
 
       view.webContents.on('will-navigate', (event, url) => {
@@ -2116,6 +2264,8 @@ async function createWindow() {
         // and reload the BrowserView so it picks up the new session cookies.
         const AI_RETURN_RE = name === 'chatgpt'
           ? /^https?:\/\/(chatgpt\.com|openai\.com|auth\.openai\.com)/
+          : name === 'deepseek'
+          ? /^https?:\/\/(chat\.deepseek\.com|deepseek\.com)/
           : /^https?:\/\/(perplexity\.ai|[^/]*\.perplexity\.ai)/
         let oauthDone = false
         const reloadHomeView = () => {
@@ -2145,6 +2295,57 @@ async function createWindow() {
           if (AI_RETURN_RE.test(redirectUrl)) reloadHomeView()
         })
         popup.on('closed', () => mainWindow?.webContents.send('login-status-changed'))
+      })
+    }
+
+    
+    if (name === 'deepseek') {
+      view.webContents.on('did-finish-load', () => {
+        // DeepSeek defaults to open sidebar or mobile overlay on narrow screens, obscuring the input.
+        view.webContents.executeJavaScript(`
+          const hideDeepSeekSidebar = () => {
+            // 1. Hide generic <aside> which is typically the sidebar
+            document.querySelectorAll('aside').forEach(a => { a.style.display = 'none'; });
+            // 2. Hide overlay masks that appear in mobile mode
+            const masks = document.querySelectorAll('div[class*="mask"], div[class*="overlay"]');
+            masks.forEach(m => { m.style.display = 'none'; m.style.pointerEvents = 'none'; });
+            // 3. "New chat" parent-walk heuristic — DANGEROUS on narrow BrowserViews
+            //    because the width range overlaps with the main chat container
+            //    when 6 AIs share the window width. Guard rails:
+            //    a) Skip entirely until the chat input is rendered.
+            //    b) Never hide an ancestor that contains the chat input.
+            //    c) Candidate must be positioned to the LEFT of the chat input
+            //       (real sidebars are; the main chat container is not).
+            const input = document.querySelector('#chat-input, textarea, div[contenteditable="true"][role="textbox"]');
+            if (!input) return;
+            const inputRect = input.getBoundingClientRect();
+            if (inputRect.width === 0 && inputRect.height === 0) return;
+            const btns = Array.from(document.querySelectorAll('div, button, a'))
+              .filter(e => e.textContent && e.textContent.trim() === 'New chat');
+            for (const btn of btns) {
+              let p = btn.parentElement;
+              for (let i = 0; i < 5; i++) {
+                if (!p) break;
+                if (p.contains(input)) break;
+                const rect = p.getBoundingClientRect();
+                const isLeftSidebar = rect.right <= inputRect.left + 2 && rect.left <= 8;
+                if (
+                  isLeftSidebar &&
+                  rect.width > 100 && rect.width < 400 &&
+                  rect.height > window.innerHeight * 0.5
+                ) {
+                  p.style.display = 'none';
+                  break;
+                }
+                p = p.parentElement;
+              }
+            }
+          };
+          hideDeepSeekSidebar();
+          setTimeout(hideDeepSeekSidebar, 1000);
+          setTimeout(hideDeepSeekSidebar, 2000);
+          setTimeout(hideDeepSeekSidebar, 4000);
+        `).catch(() => {})
       })
     }
 
@@ -2249,7 +2450,7 @@ ipcMain.handle('get-api-keys', () => {
   return store.get('apiKeys') as StoreSchema['apiKeys']
 })
 
-ipcMain.handle('set-api-keys', (_e, keys: Partial<Record<AiName, string>> & { groq?: string }) => {
+ipcMain.handle('set-api-keys', (_e, keys: Partial<Record<AiName, string>> & { deepseek?: string }) => {
   // Trim whitespace and remove empty strings so store stays clean
   const cleaned: Record<string, string> = {}
   for (const [k, v] of Object.entries(keys)) {
@@ -2349,7 +2550,7 @@ const LOGIN_COPY_DOMAINS: Record<AiName, string[]> = {
   claude: ['claude.ai', '.claude.ai'],
   chatgpt: ['.chatgpt.com', '.openai.com', 'auth.openai.com'],
   grok: ['.grok.com', 'grok.com', '.x.com', 'x.com', '.twitter.com', 'twitter.com'],
-  groq: ['.groq.com', 'groq.com', 'console.groq.com'],
+  deepseek: ['.deepseek.com', 'deepseek.com', 'chat.deepseek.com'],
   perplexity: ['.perplexity.ai'],
 }
 
@@ -2358,7 +2559,7 @@ const LOGIN_START_URLS: Record<AiName, string> = {
   claude: 'https://claude.ai/login',
   chatgpt: 'https://chatgpt.com/auth/login',
   grok: 'https://grok.com',
-  groq: 'https://console.groq.com/chat',
+  deepseek: 'https://chat.deepseek.com',
   perplexity: 'https://www.perplexity.ai',
 }
 
@@ -2369,7 +2570,7 @@ const LOGIN_TITLES = {
   perplexity: 'Perplexity Login — AI Council',
   grok: 'Grok Login — AI Council',
 } as Record<AiName, string>
-LOGIN_TITLES.groq = 'Groq Login - AI Council'
+LOGIN_TITLES.deepseek = 'DeepSeek Login - AI Council'
 
 /** Check whether the login session already has valid session cookies.
  *  Uses loginSes.cookies.get({}) (no domain filter) to catch cookies set on
@@ -2408,10 +2609,10 @@ async function isLoginComplete(aiName: AiName, loginSes: Electron.Session, url: 
     const hasGrokSSO = grokCookies.some((c) => c.name === 'sso' || c.name === 'sso-rw')
     return hasGrokSSO
   }
-  if (aiName === 'groq') {
-    const groqCookies = all.filter((c) => c.domain.includes('groq.com'))
-    return groqCookies.some((c) =>
-      c.name === 'stytch_session' || c.name === 'stytch_session_jwt'
+  if (aiName === 'deepseek') {
+    const deepseekCookies = all.filter((c) => c.domain.includes('deepseek.com'))
+    return deepseekCookies.some((c) =>
+      c.name.toLowerCase().includes('session') || c.name.toLowerCase().includes('token') || c.name.toLowerCase().includes('user')
     )
   }
   return false
@@ -2588,13 +2789,13 @@ function openLoginWindow(aiName: AiName): void {
  *  Uses cookies.get({}) (no domain filter) to avoid missing cookies set on
  *  subdomains like www.chatgpt.com or www.perplexity.ai. */
 async function getLoginStatus(): Promise<Record<AiName, boolean>> {
-  const [geminiAll, claudeAll, chatgptAll, perplexityAll, grokAll, groqAll] = await Promise.all([
+  const [geminiAll, claudeAll, chatgptAll, perplexityAll, grokAll, deepseekAll] = await Promise.all([
     session.fromPartition('persist:gemini').cookies.get({}),
     session.fromPartition('persist:claude').cookies.get({}),
     session.fromPartition('persist:chatgpt').cookies.get({}),
     session.fromPartition('persist:perplexity').cookies.get({}),
     session.fromPartition('persist:grok').cookies.get({}),
-    session.fromPartition('persist:groq').cookies.get({}),
+    session.fromPartition('persist:deepseek').cookies.get({}),
   ])
 
   const geminiC = geminiAll.filter((c) => c.domain.includes('google.com'))
@@ -2602,10 +2803,10 @@ async function getLoginStatus(): Promise<Record<AiName, boolean>> {
   const chatgptC = chatgptAll.filter((c) => c.domain.includes('chatgpt.com') || c.domain.includes('openai.com'))
   const perplexityC = perplexityAll.filter((c) => c.domain.includes('perplexity.ai'))
   const grokSiteC = grokAll.filter((c) => c.domain.includes('grok.com'))
-  const groqC = groqAll.filter((c) => c.domain.includes('groq.com'))
+  const deepseekC = deepseekAll.filter((c) => c.domain.includes('deepseek.com'))
   const grokHasSSO = grokSiteC.some((c) => c.name === 'sso' || c.name === 'sso-rw')
-  const groqLoggedIn = groqC.some((c) =>
-    c.name === 'stytch_session' || c.name === 'stytch_session_jwt'
+  const deepseekLoggedIn = deepseekC.some((c) =>
+    c.name.toLowerCase().includes('session') || c.name.toLowerCase().includes('token') || c.name.toLowerCase().includes('user')
   )
 
   // ── ChatGPT ──────────────────────────────────────────────────────────────
@@ -2651,7 +2852,7 @@ async function getLoginStatus(): Promise<Record<AiName, boolean>> {
     claude: claudeC.length > 0,
     chatgpt: chatgptLoggedIn,
     grok: grokHasSSO,
-    groq: groqLoggedIn,
+    deepseek: deepseekLoggedIn,
     perplexity: perplexityLoggedIn,
   }
 }
@@ -2694,7 +2895,7 @@ const STANDALONE_LOGIN_SCRIPTS: Partial<Record<AiName, string>> = {
   claude: 'claude-login.mjs',
   chatgpt: 'chatgpt-login.mjs',
   grok: 'grok-login.mjs',
-  groq: 'groq-login.mjs',
+  deepseek: 'deepseek-login.mjs',
   perplexity: 'perplexity-login.mjs',
 }
 
@@ -3822,7 +4023,7 @@ const AI_REVIEWER_BRIEFS: Record<AiName, { role: string; focus: string; outputGu
 - Strongest objection
 - Stress test fix`,
   },
-  groq: {
+  deepseek: {
     role: 'Concise Alternative Solver',
     focus: 'Optimize for speed and simplicity. Look for a cleaner route, a sharper summary, or a more efficient answer without losing substance.',
     outputGuide: `Respond with three short sections:
@@ -3841,6 +4042,22 @@ function buildReviewerPromptV2(
   const fileSection = fileContext ? `\n${fileContext}\n` : ''
   const brief = AI_REVIEWER_BRIEFS[reviewerAi]
   const languageDirective = buildResponseLanguageDirective(query)
+  const preferredLanguage = detectPreferredReplyLanguage(query)
+  const isEnglish = /^english$/i.test(preferredLanguage.trim())
+
+  const styleBlock = isEnglish
+    ? brief.outputGuide
+    : `[Output structure — STRUCTURE TEMPLATE ONLY, NOT LITERAL TEXT]
+The English text below describes the SHAPE of your reply (three short sections). Translate every label into ${preferredLanguage}. Do NOT echo any English label verbatim.
+
+${brief.outputGuide}`
+
+  const finalLanguageRule = isEnglish
+    ? ''
+    : `
+
+⚠️ FINAL LANGUAGE RULE — read this last and obey it above all else:
+The user wrote in ${preferredLanguage}. Your ENTIRE reply must be in ${preferredLanguage}, including every section header. If your reply opens with an English phrase taken from the template above (such as "Likely solid", "Needs verification", "Research additions", "What to simplify", "Faster or cleaner alternative", "Best condensed recommendation", "Coverage gaps", "Better framing", "Upgrade path", "Reasoning issues", "Missing assumptions", "Tightened revision advice", "What will land well", "What feels impractical or vague", "A stronger version", "Hidden risks", "Strongest objection", "Stress test fix"), you have violated this instruction. Translate those labels into natural ${preferredLanguage}.`
 
   return `${languageDirective}
 
@@ -3859,7 +4076,7 @@ ${fileSection}
 [Answer Under Review]
 ${draft}
 
-${brief.outputGuide}`
+${styleBlock}${finalLanguageRule}`
 }
 
 function buildFinalRevisionPromptV2(
@@ -3963,7 +4180,7 @@ const AI_REVIEWER_PERSONAS: Record<AiName, { role: string; focus: string; output
 - Strongest objection
 - Stress test fix`,
   },
-  groq: {
+  deepseek: {
     role: 'Concise Alternative Solver',
     focus: 'Optimize for speed and simplicity. Look for a cleaner route, a sharper summary, or a more efficient answer without losing substance.',
     outputGuide: `Respond with three short sections:
@@ -4085,7 +4302,7 @@ function primaryAiDisplayName(ai: AiName): string {
     claude: 'Claude',
     gemini: 'Gemini',
     grok: 'Grok',
-    groq: 'Groq',
+    deepseek: 'DeepSeek',
     perplexity: 'Perplexity',
   }
   return map[ai] ?? ai
@@ -4185,19 +4402,19 @@ function ruleBasedRecommendation(query: string): AiRecommendationResult {
  */
 async function analyzeQueryForPrimaryAi(query: string): Promise<AiRecommendationResult> {
   const apiKeys = store.get('apiKeys') as StoreSchema['apiKeys']
-  const defaultOrder = ['chatgpt', 'claude', 'gemini', 'grok', 'groq', 'perplexity']
+  const defaultOrder = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity']
   const apiKeyOrder: string[] = (store.get('apiKeyOrder') as string[] | undefined) ?? defaultOrder
 
   // Shared routing prompt — compact enough for fast/cheap models
   const ROUTING_PROMPT = `You are an AI routing expert. A user submitted this query to a multi-AI review system.
-Analyze the query and recommend the BEST Primary AI from: chatgpt, claude, gemini, grok, groq, perplexity.
+Analyze the query and recommend the BEST Primary AI from: chatgpt, claude, gemini, grok, deepseek, perplexity.
 
 AI strengths:
 - gemini: Large document analysis, broad knowledge synthesis, accessibility
 - claude: Coding, logic, structure, long-form reasoning, technical writing
 - chatgpt: Creative writing, practical strategies, implementation advice
 - grok: Controversial topics, devil's advocate, edge cases, unfiltered analysis
-- groq: Fast multi-model experimentation, concise synthesis, quick second opinions
+- deepseek: Advanced coding logic, strong reasoning
 - perplexity: Real-time facts, latest news, research & fact-checking
 
 User Query: "${query.slice(0, 500)}"
@@ -4205,7 +4422,7 @@ User Query: "${query.slice(0, 500)}"
 Respond ONLY with valid JSON (no markdown, no explanation):
 {"recommended":"<ai_name>","reason":"<one sentence>","roundSuggestions":[{"ai":"<ai_name>","reason":"<brief>"},{"ai":"<ai_name>","reason":"<brief>"}]}`
 
-  const validAis: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'groq', 'perplexity']
+  const validAis: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity']
 
   /** Parse LLM text -> AiRecommendationResult or null */
   const parseResult = (text: string): AiRecommendationResult | null => {
@@ -4281,8 +4498,8 @@ Respond ONLY with valid JSON (no markdown, no explanation):
           responseText = data?.choices?.[0]?.message?.content ?? ''
         }
 
-      } else if (provider === 'groq') {
-        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      } else if (provider === 'deepseek') {
+        const res = await fetch('https://api.deepseek.com/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -4344,7 +4561,7 @@ const FILE_UPLOAD_BUTTON_SELECTORS: Partial<Record<AiName, string[]>> = {
     'button[aria-label*="pload"]',
     'button[jsaction*="upload"]',
   ],
-  groq: [],
+  deepseek: [],
   perplexity: [],   // no reliable file upload in free tier
 }
 
@@ -4666,7 +4883,7 @@ async function classifySessionRelationWithAi(
   if (!currentSession || !query.trim()) return null
 
   const apiKeys = store.get('apiKeys') as StoreSchema['apiKeys']
-  const defaultOrder = ['chatgpt', 'claude', 'gemini', 'grok', 'groq', 'perplexity']
+  const defaultOrder = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity']
   const apiKeyOrder: string[] = (store.get('apiKeyOrder') as string[] | undefined) ?? defaultOrder
 
   const RELATION_PROMPT = `You are classifying whether a user's new message should continue the current AI conversation or start a brand-new session.
@@ -4773,8 +4990,8 @@ ${query.slice(0, 500)}`
           const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> }
           responseText = data?.choices?.[0]?.message?.content ?? ''
         }
-      } else if (provider === 'groq') {
-        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      } else if (provider === 'deepseek') {
+        const res = await fetch('https://api.deepseek.com/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -5086,7 +5303,7 @@ const OAUTH_ALLOWED_DOMAINS = [
   'auth.openai.com',
   'perplexity.ai',             // Perplexity OAuth return
   'grok.com',                  // Grok OAuth return
-  'console.groq.com',          // Groq chat / login
+  'chat.deepseek.com',          // DeepSeek chat / login
   'x.com',                     // X (Twitter) SSO for Grok login
   'api.x.com',
   'abs.twimg.com',             // X/Twitter static assets (login UI)
@@ -5156,3 +5373,234 @@ ipcMain.handle('save-selectors', (_e, config: Record<AiName, AiConfig>) => {
     return { success: false, error: String(err) }
   }
 })
+
+// --- Telegram API exports ---
+export function apiResetCouncilRoom(participants?: AiName[], primaryAi?: AiName) {
+  return resetCouncilRoomContext(participants, primaryAi ?? councilRoom.primaryAi)
+}
+
+export function apiGetCouncilRoom() {
+  if (councilRoom.messages.length === 0) {
+    return resetCouncilRoomContext(councilRoom.participants, councilRoom.primaryAi)
+  }
+  return cloneCouncilRoomState()
+}
+
+export function apiSaveCouncilSnapshot(title?: string) {
+  const baseRoom = loadPersistedCouncilRoomFromSnapshot(councilRoom)
+  const roomState: CouncilRoomState = {
+    participants: [...baseRoom.participants],
+    primaryAi: baseRoom.primaryAi,
+    status: 'idle',
+    pendingAi: null,
+    messages: baseRoom.messages.map((message) => ({ ...message, pending: false })),
+    lastIntent: baseRoom.lastIntent ? { ...baseRoom.lastIntent } : null,
+    failedTurn: baseRoom.failedTurn ? { ...baseRoom.failedTurn } : null,
+  }
+  const uiState = sanitizeCouncilUiState(store.get('councilUiState'))
+  const insight = sanitizeCouncilSnapshotInsight(undefined)
+  const snapshots = getCouncilSnapshots()
+  const activeSnapshotId = getActiveCouncilSnapshotId()
+  const existingActiveSnapshot = activeSnapshotId
+    ? snapshots.find((snapshot) => snapshot.id === activeSnapshotId)
+    : null
+  const nextSnapshot: CouncilSnapshotRecord = sanitizeCouncilSnapshotRecord({
+    id: existingActiveSnapshot?.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title: typeof title === 'string' && title.trim().length > 0
+      ? title.trim()
+      : existingActiveSnapshot?.title ?? defaultCouncilSnapshotTitle(roomState),
+    label: existingActiveSnapshot?.label ?? null,
+    note: existingActiveSnapshot?.note ?? null,
+    savedAt: Date.now(),
+    lastOpenedAt: existingActiveSnapshot?.lastOpenedAt ?? Date.now(),
+    messageCount: roomState.messages.length,
+    isFavorite: existingActiveSnapshot?.isFavorite ?? false,
+    isArchived: existingActiveSnapshot?.isArchived ?? false,
+    lifecycle: existingActiveSnapshot?.lifecycle ?? 'in-progress',
+    room: roomState,
+    uiState,
+    insight,
+  })
+  const nextSnapshots = existingActiveSnapshot
+    ? [nextSnapshot, ...snapshots.filter((snapshot) => snapshot.id !== existingActiveSnapshot.id)].slice(0, 24)
+    : [nextSnapshot, ...snapshots].slice(0, 24)
+  persistCouncilSnapshots(nextSnapshots)
+  setActiveCouncilSnapshotId(nextSnapshot.id)
+  return summarizeCouncilSnapshots(getCouncilSnapshots())
+}
+
+export function apiGetCouncilSnapshots() {
+  return summarizeCouncilSnapshots(getCouncilSnapshots())
+}
+
+export function apiLoadCouncilSnapshot(snapshotId: string) {
+  const snapshots = getCouncilSnapshots()
+  const snapshot = snapshots.find((item) => item.id === snapshotId)
+  if (!snapshot) return null
+
+  const nextSnapshots = snapshots.map((item) =>
+    item.id === snapshotId
+      ? sanitizeCouncilSnapshotRecord({
+          ...item,
+          lastOpenedAt: Date.now(),
+        })
+      : item
+  )
+  persistCouncilSnapshots(nextSnapshots)
+  const hydratedSnapshot = nextSnapshots.find((item) => item.id === snapshotId) ?? snapshot
+
+  const runtime = loadPersistedCouncilRoomFromSnapshot(hydratedSnapshot.room)
+  councilRoom = runtime
+  enabledAiNames = [...runtime.participants]
+  setActiveCouncilSnapshotId(hydratedSnapshot.id)
+  store.set('councilRoomSnapshot', cloneCouncilRoomState())
+  store.set('councilUiState', sanitizeCouncilUiState(hydratedSnapshot.uiState))
+  updateViewBounds()
+  emitCouncilRoomUpdate()
+
+  return {
+    room: cloneCouncilRoomState(),
+    uiState: sanitizeCouncilUiState(hydratedSnapshot.uiState),
+  }
+}
+
+export async function apiSendCouncilMessage(text: string) {
+  const payload = { text, participants: councilRoom.participants, primaryAi: councilRoom.primaryAi }
+  const trimmedText = typeof payload?.text === 'string' ? payload.text.trim() : ''
+  if (!trimmedText) return cloneCouncilRoomState()
+
+  syncCouncilRoomContext(payload.participants, payload.primaryAi)
+  clearFailedCouncilTurn()
+  const userMessage = makeCouncilMessage('user', trimmedText)
+  councilRoom.messages.push(userMessage)
+  councilRoom.lastIntent = parseCouncilIntent(trimmedText)
+  emitCouncilRoomUpdate()
+
+  const intent = councilRoom.lastIntent
+  if (!intent || intent.kind === 'none') {
+    councilRoom.messages.push(
+      makeCouncilMessage(
+        'system',
+        'Saved to the shared transcript. Mention one active AI like @Gemini, or use @all for sequential council replies.'
+      )
+    )
+    emitCouncilRoomUpdate()
+    return cloneCouncilRoomState()
+  }
+
+  if (intent.kind === 'unsupported') {
+    councilRoom.messages.push(
+      makeCouncilMessage(
+        'system',
+        intent.note,
+        { error: true }
+      )
+    )
+    emitCouncilRoomUpdate()
+    return cloneCouncilRoomState()
+  }
+
+  const targets = intent.kind === 'all'
+    ? getSequentialCouncilTargets(councilRoom.participants, councilRoom.primaryAi)
+    : intent.targetAi
+      ? [intent.targetAi]
+      : []
+
+  if (targets.length === 0) {
+    councilRoom.messages.push(
+      makeCouncilMessage(
+        'system',
+        'No valid active AI target was found for this message.',
+        { error: true }
+      )
+    )
+    emitCouncilRoomUpdate()
+    return cloneCouncilRoomState()
+  }
+
+  const inactiveTarget = targets.find((ai) => !councilRoom.participants.includes(ai))
+  if (inactiveTarget) {
+    councilRoom.messages.push(
+      makeCouncilMessage(
+        'system',
+        `${AI_DISPLAY_NAMES[inactiveTarget]} is not active right now. Activate that AI first, then try again.`,
+        { error: true }
+      )
+    )
+    emitCouncilRoomUpdate()
+    return cloneCouncilRoomState()
+  }
+
+  if (intent.kind === 'all' && targets.length > 1) {
+    councilRoom.messages.push(
+      makeCouncilMessage(
+        'system',
+        `Queued sequential council replies from ${targets.map((ai) => AI_DISPLAY_NAMES[ai]).join(', ')}.`
+      )
+    )
+    emitCouncilRoomUpdate()
+  }
+
+  for (let index = 0; index < targets.length; index++) {
+    const targetAi = targets[index]
+    if (intent.kind === 'all') {
+      councilRoom.lastIntent = {
+        kind: 'all',
+        targetAis: targets,
+        note: `Sequential council turn ${index + 1}/${targets.length}: ${AI_DISPLAY_NAMES[targetAi]} is up next.`,
+      }
+      emitCouncilRoomUpdate()
+    }
+
+    try {
+      await enqueueCouncilTurn(targetAi, trimmedText)
+    } catch (err) {
+      recordCouncilTurnFailure(targetAi, trimmedText, err, {
+        kind: intent.kind,
+        targetAi,
+        targetAis: intent.kind === 'all' ? targets : undefined,
+        note: `${AI_DISPLAY_NAMES[targetAi]} failed to reply.`,
+      })
+      if (intent.kind !== 'all') break
+    }
+  }
+
+  if (intent.kind === 'all') {
+    councilRoom.lastIntent = {
+      kind: 'all',
+      targetAis: targets,
+      note: `Sequential council replies finished for ${targets.length} active AI${targets.length > 1 ? 's' : ''}.`,
+    }
+    emitCouncilRoomUpdate()
+  }
+
+  return cloneCouncilRoomState()
+}
+
+export function apiSwitchInteractionModeToWorkflow() {
+  return handoffInteractionMode('workflow', councilRoom.participants, councilRoom.primaryAi)
+}
+
+export function apiGetPrimaryAi() {
+  return councilRoom.primaryAi
+}
+
+export let telegramAiReplyCallback: ((aiName: string, text: string) => void) | null = null
+export function setTelegramAiReplyCallback(cb: (aiName: string, text: string) => void) {
+  telegramAiReplyCallback = cb
+}
+
+import { startTelegramBridge, getTelegramConfig, setTelegramConfig } from './telegram/bridge.js'
+
+// Start Telegram Bridge if enabled
+startTelegramBridge()
+
+ipcMain.handle('get-telegram-config', () => {
+  return getTelegramConfig()
+})
+
+ipcMain.handle('set-telegram-config', (_e, config) => {
+  return setTelegramConfig(config)
+})
+
+

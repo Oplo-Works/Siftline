@@ -145,5 +145,6 @@ export function buildResponseLanguageDirective(text: string): string {
 - If the user mixes multiple languages, reply in the language that appears more.
 - If the mix is close, follow the language used in the first substantial sentence.
 - Apply this same rule to casual chat, workflow answers, reviewer feedback, revisions, and follow-up turns.
+- Translate any English section headers, labels, or formatting templates from these instructions into the user's language. Do NOT copy English headers (e.g. "What to simplify", "Coverage gaps", "Hidden risks") verbatim when the user's language is not English.
 ${PREFERRED_LANGUAGE_PREFIX}${preferredLanguage}`
 }

@@ -69,10 +69,10 @@ function describeMissingAngle(ai: AiName): { missing: string; prompt: string } {
         missing: 'The discussion still needs stronger synthesis and big-picture framing.',
         prompt: '@Gemini, synthesize the strongest ideas into one coherent direction.',
       }
-    case 'groq':
+    case 'deepseek':
       return {
-        missing: 'The discussion still needs a shorter, sharper version of the answer.',
-        prompt: '@Groq, rewrite the current best answer into a tighter concise alternative.',
+        missing: 'The discussion still needs a strong analytical or coding review.',
+        prompt: '@DeepSeek, review the logical structure or code for any edge cases.',
       }
     default:
       return {
@@ -129,7 +129,7 @@ export function buildCouncilModeratorSnapshot(
   if (enabledAis.includes('chatgpt') && actionCount === 0) speakerOrder.push('chatgpt')
   if (enabledAis.includes('claude') && structureCount === 0) speakerOrder.push('claude')
   if (enabledAis.includes('gemini') && synthesisCount === 0) speakerOrder.push('gemini')
-  if (enabledAis.includes('groq') && conciseCount === 0) speakerOrder.push('groq')
+  if (enabledAis.includes('deepseek') && conciseCount === 0) speakerOrder.push('deepseek')
 
   const recentSpeaker = assistantMessages[assistantMessages.length - 1]?.ai ?? null
   const nextSpeaker = speakerOrder.find((ai) => ai !== recentSpeaker) ?? (enabledAis.includes(primaryAi) ? primaryAi : enabledAis[0] ?? null)

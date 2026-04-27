@@ -5,7 +5,7 @@ const RENDERER_MENTION_ALIASES: Record<AiName, string[]> = {
   claude: ['claude'],
   gemini: ['gemini'],
   grok: ['grok'],
-  groq: ['groq'],
+  deepseek: ['deepseek'],
   perplexity: ['perplexity'],
 }
 

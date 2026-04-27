@@ -14,6 +14,8 @@ interface TitleBarProps {
   logCount: number
   historyCount: number
   showAccounts: boolean
+  showTelegram: boolean
+  onToggleTelegram: () => void
 }
 
 export default function TitleBar({
@@ -29,6 +31,8 @@ export default function TitleBar({
   logCount,
   historyCount,
   showAccounts,
+  showTelegram,
+  onToggleTelegram,
 }: TitleBarProps) {
   return (
     <div className="titlebar" style={{ WebkitAppRegion: 'drag' } as CSSProperties}>
@@ -69,6 +73,14 @@ export default function TitleBar({
           id="btn-toggle-accounts"
         >
           <span>Acct</span>
+        </button>
+        <button
+          className={`titlebar-action-btn ${showTelegram ? 'active' : ''}`}
+          onClick={onToggleTelegram}
+          title="Telegram"
+          id="btn-toggle-telegram"
+        >
+          <span>TG</span>
         </button>
         <button
           className="titlebar-action-btn"

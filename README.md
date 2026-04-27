@@ -4,7 +4,19 @@
 
 ---
 
-## ✨ What's New in v1.0.7
+## ✨ What's New in v1.0.8
+
+| Feature | Description |
+|---------|-------------|
+| 📱 **Telegram Integration** | Control AI Council from your smartphone via a Telegram bot. Send messages, @mention specific AIs, and manage sessions — all from the Telegram app while the desktop app runs in the background. |
+| 🔵 **DeepSeek Support** | DeepSeek (`chat.deepseek.com`) replaces Groq as the 6th AI panel. DeepSeek is a high-quality open-weight model strong on reasoning, coding, and concise synthesis. |
+| 🤖 **Telegram Slash Commands** | Full session management via Telegram: `/new`, `/save`, `/save_and_new`, `/sessions`, `/load`, `/workflow`, `/status`, `/help`. |
+| 🔒 **Secure Token Storage** | Telegram bot token and chat ID are stored in an encrypted `electron-store` file — they never leave your machine and never appear in logs. |
+| ◉ **Telegram Status Indicator** | When the Telegram bot is active, a `◉ Telegram` indicator lights up in the status bar at the bottom of the app. |
+
+---
+
+## Previous Highlights (v1.0.7)
 
 | Feature | Description |
 |---------|-------------|
@@ -19,18 +31,6 @@
 
 ---
 
-## Previous Highlights (v1.0.6)
-
-| Feature | Description |
-|---------|-------------|
-| ⚡ **API Keys Tab** | New tab in the Accounts panel — store API keys for all 6 AI providers including Groq (ultra-fast Llama inference). Drag-and-drop rows to set analysis priority. Keys are saved in `electron-store` and never leave your machine. |
-| 🧭 **Reviewer Role Preview** | The toolbar shows a short `Reviewer focus` summary so you can see how each AI will review the draft before you click **Next**. |
-| 🤖 **AI Recommendation Engine** | As you type a query, the app calls your configured API provider to recommend the best Primary AI with a reason. Falls back to rule-based logic when no key is configured. |
-| 🔁 **AI-Assisted Session Routing** | Follow-up questions are checked against the current conversation — related prompts continue the same session, unrelated ones start fresh. |
-| 🔄 **Mid-Workflow Primary AI Reassignment** | At both pause points (▶▶ Next and ✓ Continue) you can click a different AI chip to switch the Primary AI mid-run. |
-
----
-
 ## Supported AI Services
 
 | Icon | AI | URL |
@@ -38,7 +38,7 @@
 | ✦ | Gemini | gemini.google.com |
 | ◎ | Claude | claude.ai |
 | ⊕ | ChatGPT | chatgpt.com |
-| ♦ | Groq | groq.com |
+| 🔵 | DeepSeek | chat.deepseek.com |
 | ◈ | Perplexity | perplexity.ai |
 | ⚡ | Grok | grok.com |
 
@@ -89,6 +89,85 @@ No build required. Download the latest installer from [GitHub Releases](https://
 
 ---
 
+## 📱 Telegram Integration
+
+AI Council can be controlled from your smartphone via a Telegram bot. The bot connects directly to the running desktop app using Telegram's long-poll API — **no server, no ngrok, no open ports required**.
+
+### How it works
+
+The Electron main process runs a long-poll loop (`getUpdates`) that listens for incoming Telegram messages. When a message arrives, the app routes it to the active Council Chat session exactly as if you had typed it on the desktop. AI replies are sent back to your Telegram chat via `sendMessage`.
+
+### Step 1 — Create a Telegram bot
+
+1. Open Telegram and search for **@BotFather**.
+2. Send `/newbot` and follow the prompts to choose a name and username for your bot.
+3. BotFather will reply with a **bot token** that looks like `123456789:AAH...`. Copy it.
+
+### Step 2 — Find your Chat ID
+
+You need your personal Telegram Chat ID so the bot only accepts messages from you.
+
+**Option A — @userinfobot:**  
+Open Telegram, search for **@userinfobot**, start it, and it will immediately reply with your Chat ID (a number like `987654321`).
+
+**Option B — From app logs:**  
+Enable the bot with any Chat ID first, send a message from Telegram, then open the **📊 Logs** drawer in AI Council. You will see a line like `Telegram: message from chat_id 987654321` — use that number.
+
+### Step 3 — Configure in AI Council
+
+1. Open AI Council on your desktop.
+2. Click the **📱 Telegram** button in the title bar.
+3. Paste your **Bot Token** into the Bot Token field.
+4. Paste your **Chat ID** into the Allowed Chat ID field. Only messages from this ID will be accepted; all others are silently rejected.
+5. Toggle **Enable Telegram Bot** ON.
+6. Click **Save & Apply**.
+
+The status bar at the bottom of the app will show **◉ Telegram** in green when the bot is active.
+
+### Telegram slash commands
+
+Once connected, send these commands from your Telegram chat:
+
+| Command | Description |
+|---------|-------------|
+| `/new` | Discard the current session and start a fresh Council Chat |
+| `/save [title]` | Save the current session with an optional title |
+| `/save_and_new [title]` | Save the current session and immediately start a new one |
+| `/sessions` | List your 10 most recent saved sessions (title, date, ID) |
+| `/load <id>` | Reload a saved session by its ID |
+| `/workflow` | Switch to Workflow mode using the current conversation as context |
+| `/status` | Show the current mode, Primary AI, participant count, and message count |
+| `/help` | List all available commands |
+
+### Sending messages and @mentions
+
+Any plain-text message you send to the bot is routed to the active Council Chat session:
+
+| Telegram message | Effect |
+|-----------------|--------|
+| `What are the risks of this approach?` | Sent to the current session; the Primary AI responds |
+| `@Gemini explain this in simple terms` | Only Gemini responds |
+| `@Claude review my logic` | Only Claude responds |
+| `@all summarize what we've decided` | All active AIs respond simultaneously |
+
+### Security notes
+
+- The bot token is stored in an **encrypted** `electron-store` file on your computer — it never appears in logs and is never committed to git.
+- Messages from any Chat ID other than the one you configured are **silently rejected** — the bot does not reply and does not log the content.
+- The polling loop stores the `lastUpdateId` so that if the app restarts, old messages are not replayed.
+
+### Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| Bot doesn't respond | Check that the app is running and that `◉ Telegram` is lit in the status bar |
+| "Unknown command" error | Type the command with a `/` prefix exactly as shown above |
+| Bot responds to wrong person | Verify the Chat ID in Settings matches your own ID from @userinfobot |
+| Messages replay on restart | Prevented automatically by `lastUpdateId` persistence |
+| Multiple app instances open | Only one polling loop can run per bot token — close extra instances |
+
+---
+
 ## Architecture
 
 ```text
@@ -101,7 +180,13 @@ ai-council/
 │   ├── preload-en-locale.js     # Locale spoof to ensure AI UIs load in English
 │   ├── preload-google-login.js  # Google login flow helper
 │   ├── preload-oauth-google-spoof.js  # Google OAuth identity masking
-│   └── selectors.json           # External DOM selector config (updatable without rebuild)
+│   ├── selectors.json           # External DOM selector config (updatable without rebuild)
+│   └── telegram/
+│       ├── api.ts               # Telegram Bot API wrapper (fetch-based, zero extra dependencies)
+│       ├── bridge.ts            # Long-poll loop, start/stop, exponential backoff reconnect
+│       ├── commands.ts          # Slash-command dispatcher (/new /save /load /sessions /workflow /status /help)
+│       ├── formatter.ts         # AI reply → Telegram message chunk splitter (4096-byte limit)
+│       └── queue.ts             # Serial message queue (one message processed at a time, FIFO)
 ├── src/
 │   ├── App.tsx                  # Root component: state, IPC subscriptions, dual-mode orchestration
 │   ├── types.ts                 # Shared types, constants, global window declarations
@@ -114,12 +199,13 @@ ai-council/
 │   └── components/
 │       ├── TitleBar.tsx         # Frameless window bar with 🔑 Accounts, 📋 History, 📊 Logs
 │       ├── Toolbar.tsx          # Mode toggle + Primary AI selector + query input + recommendation banner
-│       ├── StatusBar.tsx        # Live status text with animated progress bar
+│       ├── StatusBar.tsx        # Live status text with animated progress bar + Telegram indicator
 │       ├── PanelGrid.tsx        # Panel headers above embedded BrowserViews (only enabled AIs shown)
 │       ├── AccountsPanel.tsx    # Two-tab panel: Accounts (login/logout) + API Keys (key storage & ordering)
 │       ├── CouncilChatPanel.tsx # Group-chat panel: messages, sessions, moderator, candidates, snapshot list
 │       ├── CouncilMessageBubble.tsx # Bubble-style message component with preview + expand + pin + workflow actions
 │       ├── FinalResultPanel.tsx # Collapsible final answer panel + per-file download
+│       ├── TelegramSettings.tsx # Telegram bot configuration panel (token, chat ID, enable toggle)
 │       ├── LogDrawer.tsx        # Real-time execution logs side drawer
 │       ├── HistoryDrawer.tsx    # Persistent chat history side drawer
 │       └── UiErrorBoundary.tsx  # React error boundary for graceful UI error isolation
@@ -129,6 +215,8 @@ ai-council/
 ├── claude-login.bat             # Launcher for claude-login.mjs
 ├── chatgpt-login.mjs            # Standalone ChatGPT login helper
 ├── chatgpt-login.bat            # Launcher for chatgpt-login.mjs
+├── deepseek-login.mjs           # Standalone DeepSeek login helper
+├── deepseek-login.bat           # Launcher for deepseek-login.mjs
 ├── perplexity-login.mjs         # Standalone Perplexity login helper
 ├── perplexity-login.bat         # Launcher for perplexity-login.mjs
 ├── grok-login.mjs               # Standalone Grok (X/Twitter) login helper
@@ -175,9 +263,9 @@ Sessions are persisted in the Electron `persist:` partition and survive app rest
 | Gemini | `AIza...` | [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) |
 | Claude | `sk-ant-...` | [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys) |
 | ChatGPT (OpenAI) | `sk-...` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| DeepSeek | `sk-...` | [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys) |
 | Perplexity | `pplx-...` | [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api) |
 | Grok (xAI) | `xai-...` | [console.x.ai](https://console.x.ai/) |
-| ⚡ Groq (Llama · Ultra-fast) | `gsk_...` | [console.groq.com/keys](https://console.groq.com/keys) |
 
 Drag-and-drop the rows to control which provider is tried **first** when analyzing a query.  
 API keys are stored in `electron-store` and never sent anywhere except the provider's own API.
@@ -190,6 +278,7 @@ If you prefer to log in outside the app, use the batch launchers:
 google-login.bat      # Gemini (Google account)
 claude-login.bat      # Claude.ai (including Google OAuth popup)
 chatgpt-login.bat     # ChatGPT
+deepseek-login.bat    # DeepSeek
 perplexity-login.bat  # Perplexity
 grok-login.bat        # Grok (X / Twitter account)
 ```
@@ -208,7 +297,7 @@ The **Toolbar** has two rows of AI chip buttons:
 - Click any chip in the **Active** row to show or hide that AI's panel.
 - You can run the workflow with **2, 3, 4, 5, or 6** AIs simultaneously.
 - The **Primary AI** is always active (locked) — it cannot be toggled off.
-- On first launch, Gemini, Claude, and ChatGPT open by default; Perplexity, Grok, and Groq start inactive until you enable them.
+- On first launch, Gemini, Claude, and ChatGPT open by default; DeepSeek, Perplexity, and Grok start inactive until you enable them.
 
 ---
 
@@ -314,16 +403,16 @@ Click any chip to switch the Primary AI mid-workflow — the app continues with 
 
 ### Reviewer Roles
 
-Each AI can review from a different angle instead of using one generic checklist.
+Each AI reviews from a different angle instead of using one generic checklist.
 
-| AI | Reviewer focus |
-|----|----------------|
-| Claude | Logic, precision, and argument structure |
-| Perplexity | Fact-checking, freshness, and source-minded validation |
-| Grok | Adversarial critique, edge cases, and hidden risk |
-| ChatGPT | Practicality, clarity, and user-facing polish |
-| Gemini | Systems-level synthesis and overall framing |
-| Groq | Concise alternative paths and speed-oriented simplification |
+| AI | Reviewer role | Focus |
+|----|--------------|-------|
+| Claude | Logic and Precision Auditor | Stress-tests reasoning, contradictions, and unsupported leaps |
+| Perplexity | Fact Checker and Freshness Monitor | Accuracy, recency-sensitive claims, unsupported statements |
+| Grok | Adversarial Critic | Hidden risks, edge cases, counterarguments |
+| ChatGPT | Practical UX and Communication Coach | Clarity, tone, and real-world usefulness |
+| Gemini | Systems Synthesizer | Big-picture gaps, framing, and audience fit |
+| DeepSeek | Concise Alternative Solver | Cleaner routes, sharper summaries, more efficient answers |
 
 When a draft is sent to reviewers, the app briefly shows these roles so it is clear why each AI is being asked to respond.
 
@@ -401,142 +490,4 @@ Click the **🔑 key icon** in the top-right of the title bar at any time.
 
 ### ⚡ API Keys tab
 
-- Enter API keys for Gemini, Claude, ChatGPT (OpenAI), Perplexity, Grok, and Groq
-- Toggle show / hide masking per key
-- Drag-and-drop rows to set provider priority for the recommendation engine
-- Click **Save** to persist — order is auto-saved immediately on drop
-
----
-
-## AI Recommendation Engine
-
-When you type a query (≥ 8 characters) the app debounces for 800 ms and then calls the first available API provider in your configured key order.  
-A banner appears below the query input:
-
-- **Loading state** — spinner + "Analyzing query…"
-- **Result state** — recommended AI badge, reason, and an **Apply** button
-
-Click **Apply** (or the chip directly) to set the recommended AI as Primary before starting the workflow.
-
-**Fallback logic (no API key configured):** The engine uses keyword rules to pick the most suitable AI — e.g. analysis / documents → Gemini, creative writing → Claude, real-time news → Perplexity, code → ChatGPT.
-
----
-
-## Response Language Detection
-
-Every prompt automatically includes a **Response Language Directive** that tells each AI which language to reply in.  
-The detection engine analyzes the script of your message:
-
-| Script detected | AI replies in |
-|----------------|---------------|
-| Hangul | Korean |
-| Hiragana / Katakana | Japanese |
-| Han characters only | Chinese |
-| Arabic script | Arabic |
-| Cyrillic script | Same dominant Cyrillic language |
-| Devanagari | Devanagari-script language |
-| Latin (English signals) | English |
-| Latin (non-English) | Same dominant Latin language |
-
-This applies to Workflow prompts, reviewer feedback, revisions, and Council Chat messages alike.
-
----
-
-## File Attachment
-
-If you attach files with your question, all active AIs analyze the file contents and you can download the final revised version separated per file.
-
-| Supported formats | Extraction method | Saved as |
-|-----------|-----------|-------------|
-| `.pdf` | pdf-parse (text extraction) | `.txt` |
-| `.docx` | mammoth (body extraction) | `.docx` (regenerated) |
-| `.xlsx` | xlsx (sheets → CSV) | `.xlsx` (regenerated) |
-| `.txt` / `.md` / `.csv` | Read UTF-8 directly | Keep original extension |
-
-> **How it works:** File content is included as text in the Primary AI prompt. Reviewer AIs receive the same file context. The final answer outputs per-file revisions using `<<<FILE:filename>>> … <<<END_FILE>>>` delimiters, and the panel shows a per-file save button.
-
-- 📎 Attach multiple files at once
-- ⬇ Download each file separately
-- 80,000-character context limit
-
----
-
-## Final Result Panel
-
-A collapsible panel pinned to the bottom of the screen. Toggle it by clicking the header or the ▲/▼ button.
-
-| State | Height | Displayed |
-|------|------|-----------| 
-| Collapsed | 36 px | Title · Primary AI name · complete/in-progress badge |
-| Expanded | 260 px | Preview (Markdown render) / Raw tab · Copy button · Per-file save buttons |
-
-> **Preview / Markdown tab:** Toggle between rendered HTML and the raw Markdown text.  
-> **Per-file save:** When attachments exist, each revised file can be saved via an individual button.
-
----
-
-## Selector Maintenance
-
-> DOM selectors are defined in `electron/selectors.json` and inlined at build time.  
-> To override without rebuilding, place a custom `selectors.json` in the app's userData directory:
->
-> **🪟 Windows:** `%APPDATA%\ai-council\selectors.json`  
-> **🍎 macOS:** `~/Library/Application Support/ai-council/selectors.json`
-
----
-
-## Prompt Templates
-
-**Primary Prompt (when files are attached):**
-```text
-Please answer the following question.
-Question: {query}
-
-[Attached file content]
---- {filename} ---
-{file content}
----
-```
-
-**Reviewer Prompt (role-based):**
-```text
-You are acting as {Reviewer AI} in AI Council.
-Your reviewer focus is: {role focus}.
-
-Question: {query}
-[Attached file content]: {fileContext}   ← include only when files are attached
-Primary answer: {draft}
-
-Give feedback from your role only. Be specific and avoid repeating the same generic checklist for every AI.
-```
-
-**Final Revision Prompt (when files are attached):**
-```text
-Other AIs provided feedback on your previous answer.
-[Feedback from each AI] ...
-Incorporate the feedback and output the revised version of each file in the following format:
-
-<<<FILE:filename.ext>>>
-(full revised content)
-<<<END_FILE>>>
-```
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Shell | Electron 41 |
-| UI | React 18 + TypeScript |
-| Build | Vite 5 + vite-plugin-electron |
-| Markdown | marked 18 (GFM + breaks) |
-| Storage | electron-store |
-| Styling | Vanilla CSS (dark glassmorphism) |
-| Browser embeds | `BrowserView` (not headless, persistent sessions) |
-| DOM automation | `executeJavaScript` + CDP `DOM.setFileInputFiles` |
-| File parsing | pdf-parse · mammoth · xlsx |
-| File generation | docx · xlsx |
-| OAuth compatibility | preload-chrome-spoof.js (Chrome identity masking) |
-| Language detection | Unicode script analysis (responseLanguage.ts) |
-| AI inference (recommendation) | Gemini · Claude · OpenAI · Perplexity · Grok · Groq APIs |
+- Enter API keys for Gemini, Claude, ChatGPT (OpenAI), DeepSeek, Per

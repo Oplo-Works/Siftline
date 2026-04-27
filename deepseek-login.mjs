@@ -1,7 +1,7 @@
 /**
- * Groq Login Session Script
+ * DeepSeek Login Session Script
  *
- * Opens a standalone login window in the persist:groq partition so that
+ * Opens a standalone login window in the persist:deepseek partition so that
  * Google OAuth can complete without the parent-window WebAuthn/passkey
  * interference seen in the embedded flow.
  */
@@ -15,7 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const CHROME_FULL = process.versions.chrome
 const CHROME_MAJOR = CHROME_FULL.split('.')[0]
 const DESKTOP_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_MAJOR}.0.0.0 Safari/537.36`
-const PARTITION = 'persist:groq'
+const PARTITION = 'persist:deepseek'
 
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled')
 app.commandLine.appendSwitch('disable-quic')
@@ -59,7 +59,7 @@ app.whenReady().then(async () => {
   const win = new BrowserWindow({
     width: 520,
     height: 720,
-    title: 'Groq Login - AI Council Session Setup',
+    title: 'DeepSeek Login - AI Council Session Setup',
     webPreferences: {
       partition: PARTITION,
       preload: SPOOF_PRELOAD,
@@ -75,8 +75,8 @@ app.whenReady().then(async () => {
     'accounts.google.com',
     'oauth2.googleapis.com',
     'accounts.youtube.com',
-    'groq.com',
-    'console.groq.com',
+    'deepseek.com',
+    'chat.deepseek.com',
     'github.com',
   ]
 
@@ -106,18 +106,15 @@ app.whenReady().then(async () => {
 
   let finished = false
 
-  async function hasGroqSession() {
-    const cookies = await ses.cookies.get({})
-    return cookies.some((c) =>
-      c.domain.includes('groq.com') &&
-      (c.name === 'stytch_session' || c.name === 'stytch_session_jwt')
-    )
-  }
-
   async function checkAndFinish() {
     if (finished) return
-    const loginDone = await hasGroqSession()
-    if (!loginDone) return
+
+    // DeepSeek loads #chat-input when successfully logged in and on the main chat page
+    const isLoggedIn = await win.webContents.executeJavaScript(`
+      !!document.querySelector('#chat-input')
+    `).catch(() => false)
+
+    if (!isLoggedIn) return
 
     finished = true
     const allCookies = await ses.cookies.get({})
@@ -129,8 +126,8 @@ app.whenReady().then(async () => {
       document.body.innerHTML =
         '<div style="font-family:sans-serif;text-align:center;padding:60px 30px;background:#fff7ed">' +
         '<div style="font-size:64px">&#x2705;</div>' +
-        '<h2 style="color:#9a3412;margin:16px 0">Groq login complete!</h2>' +
-        '<p style="color:#c2410c">The Groq panel will reload automatically.</p>' +
+        '<h2 style="color:#9a3412;margin:16px 0">DeepSeek login complete!</h2>' +
+        '<p style="color:#c2410c">The DeepSeek panel will reload automatically.</p>' +
         '<p style="color:#6b7280;font-size:13px;margin-top:24px">Closing in 3 seconds...</p>' +
         '</div>'
     `).catch(() => {})
@@ -157,7 +154,7 @@ app.whenReady().then(async () => {
   win.webContents.on('did-navigate-in-page', () => setTimeout(() => checkAndFinish(), 500))
   win.webContents.on('did-finish-load', () => setTimeout(() => checkAndFinish(), 500))
 
-  win.loadURL('https://console.groq.com/chat', { userAgent: DESKTOP_UA })
+  win.loadURL('https://chat.deepseek.com', { userAgent: DESKTOP_UA })
   win.on('closed', () => app.quit())
 })
 

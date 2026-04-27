@@ -24,6 +24,7 @@ import FinalResultPanel from './components/FinalResultPanel'
 import LogDrawer from './components/LogDrawer'
 import HistoryDrawer from './components/HistoryDrawer'
 import AccountsPanel from './components/AccountsPanel'
+import TelegramSettings from './components/TelegramSettings'
 import CouncilChatPanel from './components/CouncilChatPanel'
 import UiErrorBoundary from './components/UiErrorBoundary'
 import {
@@ -84,6 +85,8 @@ export default function App() {
   const [showLogs, setShowLogs] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showAccounts, setShowAccounts] = useState(false)
+  const [showTelegram, setShowTelegram] = useState(false)
+  const [telegramEnabled, setTelegramEnabled] = useState(false)
   const [councilRoom, setCouncilRoom] = useState<CouncilRoomState>(EMPTY_COUNCIL_ROOM)
   const [councilSnapshots, setCouncilSnapshots] = useState<CouncilSnapshotSummary[]>([])
   const [pinnedCouncilCandidateIds, setPinnedCouncilCandidateIds] = useState<string[]>([])
@@ -189,6 +192,10 @@ export default function App() {
     }).catch(() => {
       setCouncilUiLoaded(true)
     })
+    
+    window.electronAPI.getTelegramConfig().then((conf: any) => {
+      setTelegramEnabled(conf?.enabled || false)
+    }).catch(() => {})
 
     return () => cleanups.forEach((fn) => fn())
   }, [addLog, interactionMode])
@@ -925,6 +932,24 @@ export default function App() {
           logCount={logs.length}
           historyCount={history.length}
           showAccounts={showAccounts}
+          showTelegram={showTelegram}
+          onToggleTelegram={() => {
+            const next = !showTelegram
+            setShowTelegram(next)
+            if (next) {
+              setShowAccounts(false)
+              setShowLogs(false)
+              setShowHistory(false)
+            }
+            window.electronAPI.setViewsVisible(!next)
+            
+            if (!next) {
+              // Refresh telegram state when closing
+              window.electronAPI.getTelegramConfig().then((conf: any) => {
+                setTelegramEnabled(conf?.enabled || false)
+              }).catch(() => {})
+            }
+          }}
         />
       </UiErrorBoundary>
 
@@ -950,7 +975,7 @@ export default function App() {
       </UiErrorBoundary>
 
       <UiErrorBoundary title="Status">
-        <StatusBar status={status} isRunning={isRunning || councilRoom.status === 'running'} />
+        <StatusBar status={status} isRunning={isRunning || councilRoom.status === 'running'} telegramEnabled={telegramEnabled} />
       </UiErrorBoundary>
 
       <UiErrorBoundary title="Panels">
@@ -1016,6 +1041,16 @@ export default function App() {
             isAutoSaving={isCouncilAutoSaving}
           />
         </UiErrorBoundary>
+      )}
+
+      {showTelegram && (
+        <TelegramSettings onClose={() => {
+          setShowTelegram(false)
+          window.electronAPI.setViewsVisible(true)
+          window.electronAPI.getTelegramConfig().then((conf: any) => {
+            setTelegramEnabled(conf?.enabled || false)
+          }).catch(() => {})
+        }} />
       )}
 
       {showAccounts && (

@@ -1270,28 +1270,28 @@ body,
   cursor: default;
 }
 
-/* Groq row separator + note */
-.apikey-row-groq {
-  border-color: rgba(249, 115, 22, 0.25);
+/* DeepSeek row separator + note */
+.apikey-row-deepseek {
+  border-color: rgba(77, 107, 254, 0.25);
   margin-top: 8px;
   position: relative;
 }
 
-.apikey-row-groq::before {
+.apikey-row-deepseek::before {
   content: 'Inference Platform';
   position: absolute;
   top: -9px;
   left: 10px;
   font-size: 9px;
   font-weight: 600;
-  color: #f97316;
+  color: #4D6BFE;
   background: var(--bg-elevated);
   padding: 0 6px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.apikey-groq-note {
+.apikey-deepseek-note {
   font-size: 10px;
   color: var(--text-muted);
   line-height: 1.5;
@@ -1299,8 +1299,8 @@ body,
   padding: 0;
 }
 
-.apikey-groq-note strong {
-  color: #f97316;
+.apikey-deepseek-note strong {
+  color: #4D6BFE;
 }
 
 /* ── Recommendation Banner ────────────────────────────────── */

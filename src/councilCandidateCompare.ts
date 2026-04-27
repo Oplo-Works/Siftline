@@ -92,7 +92,7 @@ function scoreCandidate(message: CouncilMessage): number {
     case 'grok':
       if (hasRiskSignals(text)) score += 1
       break
-    case 'groq':
+    case 'deepseek':
       if (words <= 120) score += 1
       break
     default:
@@ -122,8 +122,8 @@ function buildStrength(message: CouncilMessage): string {
   if (ai === 'grok' && hasRiskSignals(text)) {
     return 'Best at surfacing objections, risks, and edge-case pressure.'
   }
-  if (ai === 'groq') {
-    return 'Best concise alternative when the answer needs to be tighter and faster.'
+  if (ai === 'deepseek') {
+    return 'Best at analytical logic and coding perspectives.'
   }
 
   return `${role.title} strength comes through most clearly in this reply.`

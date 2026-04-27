@@ -1,4 +1,4 @@
-import { buildResponseLanguageDirective } from '../src/responseLanguage.js'
+import { buildResponseLanguageDirective, detectPreferredReplyLanguage } from '../src/responseLanguage.js'
 
 /**
  * Pure helpers for building AI Council prompts and parsing user intent.
@@ -7,7 +7,7 @@ import { buildResponseLanguageDirective } from '../src/responseLanguage.js'
  * them trivial to test in isolation.
  */
 
-export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'groq' | 'perplexity'
+export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'deepseek' | 'perplexity'
 
 export interface CouncilMessage {
   id: string
@@ -38,7 +38,7 @@ export const COUNCIL_MENTION_ALIASES: Array<{ ai: AiName; aliases: string[] }> =
   { ai: 'claude', aliases: ['claude'] },
   { ai: 'gemini', aliases: ['gemini'] },
   { ai: 'grok', aliases: ['grok'] },
-  { ai: 'groq', aliases: ['groq'] },
+  { ai: 'deepseek', aliases: ['deepseek'] },
   { ai: 'perplexity', aliases: ['perplexity'] },
 ]
 
@@ -156,6 +156,27 @@ export function buildCouncilPrompt(
     : 'No older delta summary needed.'
   const deltaRecent = renderCouncilTranscript(deltaContext.slice(-5), displayNames)
   const languageDirective = buildResponseLanguageDirective(promptText)
+  const preferredLanguage = detectPreferredReplyLanguage(promptText)
+  const isEnglish = /^english$/i.test(preferredLanguage.trim())
+
+  // Council Chat answers direct questions, not draft reviews. The reviewer-brief
+  // outputGuide ("Respond with three short sections: - What to simplify - ...")
+  // was designed for the Workflow review step. Forcing those English headers
+  // into a direct question makes AIs (especially Perplexity / DeepSeek) copy
+  // the English labels verbatim and reply entirely in English even when the
+  // user wrote in Korean. So we drop the outputGuide block in Council Chat
+  // entirely. Persona (role/focus) and language directive are enough.
+
+  const finalLanguageRule = isEnglish
+    ? ''
+    : `
+
+⚠️ FINAL LANGUAGE RULE — read this last and obey it above all else:
+- The user wrote in ${preferredLanguage}.
+- Your ENTIRE reply must be in ${preferredLanguage}, including every heading, label, and bullet.
+- Do NOT begin your reply with English phrases like "What to simplify", "Likely solid", "Coverage gaps", "Hidden risks", "Reasoning issues", or "What will land well". Those were old internal templates and must not appear in your output.
+- Pick natural ${preferredLanguage} headings of your own.
+- Earlier transcript turns may contain English; ignore that — match the user's latest message language only.`
 
   return `You are participating in AI Council as ${displayNames[aiName]}.
 Stay faithful to this role: ${brief.role}.
@@ -166,6 +187,7 @@ Rules:
 - Keep your established AI Council specialty
 - Build on the shared transcript instead of restarting from scratch
 - Do not fabricate anything another AI has not actually said below
+- Answer the user's question directly. Do not impose a fixed multi-section template; structure your reply naturally for what the question needs.
 - Keep the answer concise but substantive
 
 ${languageDirective}
@@ -180,8 +202,5 @@ ${deltaSummary}
 ${deltaRecent || 'No recent transcript.'}
 
 [Latest user instruction for you]
-${promptText}
-
-[Response style reminder]
-${brief.outputGuide}`
+${promptText}${finalLanguageRule}`
 }

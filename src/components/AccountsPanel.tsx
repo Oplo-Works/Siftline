@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { AiName, AI_DISPLAY_NAMES, AI_COLORS, AI_ICONS } from '../types'
 
-const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'groq', 'perplexity']
-const DEFAULT_ORDER = ['chatgpt', 'claude', 'gemini', 'grok', 'groq', 'perplexity']
+const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity']
+const DEFAULT_ORDER = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity']
 
-type ProviderId = AiName | 'groq'
+type ProviderId = AiName | 'deepseek'
 type Tab = 'accounts' | 'apikeys'
 
 interface ProviderMeta {
@@ -50,13 +50,13 @@ const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
     color: AI_COLORS.grok.primary,
     glow: AI_COLORS.grok.glow,
   },
-  groq: {
-    label: 'Groq API Key',
-    placeholder: 'gsk_...',
-    href: 'https://console.groq.com/keys',
-    icon: AI_ICONS.groq,
-    color: AI_COLORS.groq.primary,
-    glow: AI_COLORS.groq.glow,
+  deepseek: {
+    label: 'DeepSeek API Key',
+    placeholder: 'sk-...',
+    href: 'https://platform.deepseek.com/api_keys',
+    icon: AI_ICONS.deepseek,
+    color: AI_COLORS.deepseek.primary,
+    glow: AI_COLORS.deepseek.glow,
     isInference: true,
   },
   perplexity: {
@@ -80,7 +80,7 @@ export default function AccountsPanel({ onClose }: Props) {
     claude: false,
     gemini: false,
     grok: false,
-    groq: false,
+    deepseek: false,
     perplexity: false,
   })
   const [loading, setLoading] = useState(true)
@@ -149,7 +149,7 @@ export default function AccountsPanel({ onClose }: Props) {
   }
 
   const handleSaveKeys = async () => {
-    await window.electronAPI.setApiKeys(apiKeys as Partial<Record<AiName, string>> & { groq?: string })
+    await window.electronAPI.setApiKeys(apiKeys as Partial<Record<AiName, string>> & { deepseek?: string })
     await window.electronAPI.setApiKeyOrder(keyOrder)
     setKeysSaved(true)
     setTimeout(() => setKeysSaved(false), 2500)
@@ -304,7 +304,7 @@ export default function AccountsPanel({ onClose }: Props) {
                     return (
                       <div
                         key={providerId}
-                        className={`apikey-row ${meta.isInference ? 'apikey-row-groq' : ''} ${isDragging ? 'is-dragging' : ''} ${isDragOver ? 'is-drag-over' : ''}`}
+                        className={`apikey-row ${meta.isInference ? 'apikey-row-deepseek' : ''} ${isDragging ? 'is-dragging' : ''} ${isDragOver ? 'is-drag-over' : ''}`}
                         draggable
                         onDragStart={(e) => handleDragStart(e, index)}
                         onDragOver={(e) => handleDragOver(e, index)}
@@ -345,8 +345,8 @@ export default function AccountsPanel({ onClose }: Props) {
                         </div>
 
                         {meta.isInference && (
-                          <p className="apikey-groq-note">
-                            Groq API access is optional here. The Groq chat panel is now a regular toggleable panel in the main app as well.
+                          <p className="apikey-deepseek-note">
+                            DeepSeek API access is optional here. The DeepSeek chat panel is now a regular toggleable panel in the main app as well.
                           </p>
                         )}
                       </div>

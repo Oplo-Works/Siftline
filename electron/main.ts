@@ -1324,7 +1324,11 @@ function buildCouncilPrompt(aiName: AiName, promptText: string): string {
   })
 }
 
-async function processCouncilTurn(aiName: AiName, promptText: string): Promise<void> {
+async function processCouncilTurn(
+  aiName: AiName,
+  promptText: string,
+  attachedFilePaths: string[] = []
+): Promise<void> {
   const view = views.get(aiName)
   if (!view) throw new Error(`No BrowserView found for ${aiName}`)
 
@@ -1364,6 +1368,15 @@ async function processCouncilTurn(aiName: AiName, promptText: string): Promise<v
 
     sendLog('info', `[council] ${aiName}: injecting ${councilPrompt.length} chars`)
     await pasteText(view, councilPrompt, inputRes.selector)
+
+    if (attachedFilePaths.length > 0) {
+      sendLog('info', `[council] ${aiName}: attaching ${attachedFilePaths.length} file(s) via CDP`)
+      const attached = await attachFilesViaCDP(view, aiName, attachedFilePaths)
+      if (!attached) {
+        sendLog('warn', `[council] ${aiName}: file attachment failed — proceeding with text-only prompt`)
+      }
+    }
+
     await sleep(CLICK_SEND_DELAY_MS)
 
     const sent = await clickSend(view, config.sendButtonSelectors)
@@ -1426,10 +1439,14 @@ async function processCouncilTurn(aiName: AiName, promptText: string): Promise<v
   }
 }
 
-async function enqueueCouncilTurn(aiName: AiName, promptText: string): Promise<void> {
+async function enqueueCouncilTurn(
+  aiName: AiName,
+  promptText: string,
+  attachedFilePaths: string[] = []
+): Promise<void> {
   councilTurnChain = councilTurnChain
     .catch(() => undefined)
-    .then(() => processCouncilTurn(aiName, promptText))
+    .then(() => processCouncilTurn(aiName, promptText, attachedFilePaths))
   return councilTurnChain
 }
 
@@ -2490,7 +2507,9 @@ ipcMain.handle('open-file-dialog', async () => {
     title: 'Attach File',
     properties: ['openFile', 'multiSelections'],
     filters: [
-      { name: 'Supported Files', extensions: ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'txt', 'md', 'csv'] },
+      { name: 'Documents', extensions: ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'txt', 'md', 'csv'] },
+      { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] },
+      { name: 'All Supported', extensions: ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'txt', 'md', 'csv', 'jpg', 'jpeg', 'png', 'gif', 'webp'] },
       { name: 'All Files', extensions: ['*'] },
     ],
   })
@@ -3665,10 +3684,31 @@ ipcMain.handle(
       }
 
       const needsContextBridge = Boolean(workflowSession?.latestFinalAnswer) && !doesWorkflowOwnThread(currentPrimary)
+
+      // ── Try to physically attach original files to the primary via CDP ───
+      // Mirrors the reviewer flow (Step 5): when files upload successfully we
+      // omit the embedded text content from the prompt so the AI sees the real
+      // file (mandatory for images, where text extraction is impossible).
+      let primaryFilesAttached = false
+      const primaryFilePaths = normalizedFiles.map((f) => f.path)
+      if (primaryFilePaths.length > 0) {
+        sendLog('info', `[Step 3] ${currentPrimary}: Attempting CDP file attach (${primaryFilePaths.length} file(s))`)
+        primaryFilesAttached = await attachFilesViaCDP(primaryView, currentPrimary, primaryFilePaths)
+        if (primaryFilesAttached) {
+          sendLog('info', `[Step 3] ${currentPrimary}: File attach succeeded — omitting file content from prompt`)
+        } else {
+          sendLog('warn', `[Step 3] ${currentPrimary}: File attach failed — falling back to text method`)
+          primaryView.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+          primaryView.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+          await sleep(400)
+        }
+      }
+
+      const effectiveFileContext = primaryFilesAttached ? '' : fileContext
       const includeFileContext = normalizedFiles.length > 0 || !isContinuingPrimaryThread
       const primaryPrompt = needsContextBridge
-        ? buildContextBridgePrompt(trimmedQuery, workflowSession!.latestFinalAnswer, fileContext)
-        : buildPrimaryPrompt(trimmedQuery, includeFileContext ? fileContext : '')
+        ? buildContextBridgePrompt(trimmedQuery, workflowSession!.latestFinalAnswer, effectiveFileContext)
+        : buildPrimaryPrompt(trimmedQuery, includeFileContext ? effectiveFileContext : '')
       await pasteText(primaryView, primaryPrompt, inputResult.selector!)
 
       // small pause before send
@@ -4590,9 +4630,11 @@ async function attachFilesViaCDP(
   try {
     if (!wasAlreadyAttached) dbg.attach('1.3')
 
-    // Helper: find file input nodeIds from current DOM
+    // Helper: find file input nodeIds from current DOM.  We re-fetch the
+    // document each time because clicking the upload trigger may rerender the
+    // composer subtree and invalidate previously cached nodeIds.
     const findFileInputs = async (): Promise<number[]> => {
-      const { root } = await dbg.sendCommand('DOM.getDocument', { depth: 3 }) as { root: { nodeId: number } }
+      const { root } = await dbg.sendCommand('DOM.getDocument', { depth: -1, pierce: true }) as { root: { nodeId: number } }
       const { nodeIds } = await dbg.sendCommand('DOM.querySelectorAll', {
         nodeId: root.nodeId,
         selector: 'input[type="file"]',
@@ -4600,7 +4642,29 @@ async function attachFilesViaCDP(
       return nodeIds ?? []
     }
 
-    const nodeIds = await findFileInputs()
+    let nodeIds = await findFileInputs()
+
+    // Some AIs (Claude, ChatGPT, Gemini) only mount the <input type="file"> after
+    // the user clicks an "attach" / "+" trigger.  Try those known triggers when
+    // the input isn't initially present.
+    if (nodeIds.length === 0) {
+      const triggers = FILE_UPLOAD_BUTTON_SELECTORS[ai] ?? []
+      for (const selector of triggers) {
+        try {
+          const clicked = await view.webContents.executeJavaScript(
+            `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (el) { el.click(); return true; } return false; })()`,
+            true
+          )
+          if (!clicked) continue
+          sendLog('info', `[file-attach] ${ai}: clicked upload trigger ${selector}`)
+          await sleep(500)
+          nodeIds = await findFileInputs()
+          if (nodeIds.length > 0) break
+        } catch (e) {
+          // try next selector
+        }
+      }
+    }
 
     if (nodeIds.length === 0) {
       sendLog('warn', `[file-attach] ${ai}: No <input type="file"> found — falling back to text`)
@@ -4630,8 +4694,14 @@ async function attachFilesViaCDP(
 
 // ─── File Content Extraction ──────────────────────────────────────────────────
 const FILE_CONTENT_MAX_CHARS = 80_000   // ~40-50 pages — prevents token overflow
+const IMAGE_FILE_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'])
 
 async function extractFileContent(filePath: string, ext: string): Promise<string> {
+  // Images can't be meaningfully reduced to text — return empty so the caller
+  // skips them and relies on attachFilesViaCDP to deliver the actual binary
+  // to the AI.
+  if (IMAGE_FILE_EXTS.has(ext)) return ''
+
   try {
     if (ext === 'pdf') {
       const pdfParse = require('pdf-parse')
@@ -4678,12 +4748,20 @@ export async function buildFileContext(
   for (const file of files) {
     sendLog('info', `[file] Extracting: ${file.name} (.${file.ext})`)
     let content = await extractFileContent(file.path, file.ext)
+    // Images and other un-extractable types return ''.  Skip them so the
+    // prompt isn't bloated with placeholder lines — the binary still flows
+    // through attachFilesViaCDP separately.
+    if (!content) {
+      sendLog('info', `[file] ${file.name}: No text content (likely binary/image) — relying on file attach`)
+      continue
+    }
     if (content.length > FILE_CONTENT_MAX_CHARS) {
       content = content.slice(0, FILE_CONTENT_MAX_CHARS) + '\n\n[... Content truncated due to length]'
       sendLog('warn', `[file] ${file.name}: Content truncated to ${FILE_CONTENT_MAX_CHARS} chars`)
     }
     parts.push(`--- File: ${file.name} ---\n${content}\n---`)
   }
+  if (parts.length === 0) return ''
   return '\n\n[Attached Files]\n' + parts.join('\n\n')
 }
 
@@ -5464,14 +5542,21 @@ export function apiLoadCouncilSnapshot(snapshotId: string) {
   }
 }
 
-export async function apiSendCouncilMessage(text: string) {
+export async function apiSendCouncilMessage(
+  text: string,
+  attachedFiles: Array<{ name: string; path: string }> = []
+) {
   const payload = { text, participants: councilRoom.participants, primaryAi: councilRoom.primaryAi }
   const trimmedText = typeof payload?.text === 'string' ? payload.text.trim() : ''
-  if (!trimmedText) return cloneCouncilRoomState()
+  const hasFiles = attachedFiles.length > 0
+  if (!trimmedText && !hasFiles) return cloneCouncilRoomState()
 
   syncCouncilRoomContext(payload.participants, payload.primaryAi)
   clearFailedCouncilTurn()
-  const userMessage = makeCouncilMessage('user', trimmedText)
+  const attachmentNote = hasFiles
+    ? `\n\n[Attached: ${attachedFiles.map((f) => f.name).join(', ')}]`
+    : ''
+  const userMessage = makeCouncilMessage('user', `${trimmedText}${attachmentNote}`)
   councilRoom.messages.push(userMessage)
   councilRoom.lastIntent = parseCouncilIntent(trimmedText)
   emitCouncilRoomUpdate()
@@ -5553,7 +5638,7 @@ export async function apiSendCouncilMessage(text: string) {
     }
 
     try {
-      await enqueueCouncilTurn(targetAi, trimmedText)
+      await enqueueCouncilTurn(targetAi, trimmedText, attachedFiles.map((f) => f.path))
     } catch (err) {
       recordCouncilTurnFailure(targetAi, trimmedText, err, {
         kind: intent.kind,

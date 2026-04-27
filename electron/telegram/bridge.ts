@@ -3,10 +3,10 @@ import * as os from 'os'
 import * as path from 'path'
 import Store from 'electron-store'
 import { downloadFile, getFile, getUpdates, sendMessage, type TgMessage } from './api.js'
-import { handleTelegramCommand } from './commands.js'
+import { handleTelegramCommand, type TelegramAttachedFile } from './commands.js'
 import { SerialQueue } from './queue.js'
 import { formatForTelegram } from './formatter.js'
-import { buildFileContext, setTelegramAiReplyCallback } from '../main.js'
+import { setTelegramAiReplyCallback } from '../main.js'
 
 export interface TelegramConfig {
   enabled: boolean
@@ -31,17 +31,9 @@ const tgStore = new Store<{ telegram: TelegramConfig }>({
 let pollingAbortController: AbortController | null = null
 const queue = new SerialQueue()
 
-// Document extensions we can extract text from (mirrors extractFileContent in main.ts)
-const SUPPORTED_DOC_EXTS = new Set(['pdf', 'docx', 'doc', 'xlsx', 'xls', 'txt', 'md', 'csv', 'json', 'html', 'htm'])
-
-// Telegram Bot API caps downloads at 20 MB. We cap a bit lower for headroom.
+// Telegram Bot API caps downloads at 20 MB. Larger files require a self-hosted
+// Bot API server; we reject them with a notice rather than silently truncate.
 const MAX_TELEGRAM_DOWNLOAD_BYTES = 20 * 1024 * 1024
-
-interface DownloadedAttachment {
-  name: string
-  path: string
-  ext: string
-}
 
 export function getTelegramConfig() {
   return tgStore.get('telegram')
@@ -107,7 +99,6 @@ function extractExt(fileName: string | undefined, mimeType: string | undefined):
     const dot = fileName.lastIndexOf('.')
     if (dot !== -1 && dot < fileName.length - 1) return fileName.slice(dot + 1).toLowerCase()
   }
-  // Fallback: derive from common mime types
   if (mimeType) {
     const map: Record<string, string> = {
       'application/pdf': 'pdf',
@@ -120,42 +111,55 @@ function extractExt(fileName: string | undefined, mimeType: string | undefined):
       'text/csv': 'csv',
       'application/json': 'json',
       'text/html': 'html',
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
     }
     if (map[mimeType]) return map[mimeType]
   }
   return ''
 }
 
+async function downloadToTemp(
+  token: string,
+  fileId: string,
+  preferredName: string
+): Promise<string> {
+  const meta = await getFile(token, fileId)
+  if (!meta.file_path) throw new Error('getFile returned no file_path')
+  const buf = await downloadFile(token, meta.file_path)
+  const safeName = preferredName.replace(/[^\w.\-]+/g, '_')
+  const outPath = path.join(getTempDir(), `${Date.now()}_${safeName}`)
+  fs.writeFileSync(outPath, buf)
+  return outPath
+}
+
 /**
- * Download any document attachment on a Telegram message into a temp dir.
+ * Download document and photo attachments on a Telegram message.
  *
- * Photos are not supported in this MVP — vision/OCR is out of scope for the
- * web-automation-driven AI integrations. A user-facing notice is returned so
- * the caller can inform the sender.
+ * Files are written to a temp dir; the caller is responsible for cleanup once
+ * the council turn has fully consumed them. Attachments are passed through
+ * to the AI's web UI directly via attachFilesViaCDP — text extraction is no
+ * longer performed here, so images flow through unchanged.
  */
 async function collectAttachments(
   token: string,
   message: TgMessage
-): Promise<{ files: DownloadedAttachment[]; notices: string[] }> {
-  const files: DownloadedAttachment[] = []
+): Promise<{ files: TelegramAttachedFile[]; notices: string[] }> {
+  const files: TelegramAttachedFile[] = []
   const notices: string[] = []
 
   if (message.document) {
     const doc = message.document
     const ext = extractExt(doc.file_name, doc.mime_type)
-    if (!SUPPORTED_DOC_EXTS.has(ext)) {
-      notices.push(`⚠️ "${doc.file_name ?? 'file'}" (.${ext || 'unknown'}) is not a supported document type. Supported: ${[...SUPPORTED_DOC_EXTS].join(', ')}.`)
-    } else if (doc.file_size && doc.file_size > MAX_TELEGRAM_DOWNLOAD_BYTES) {
+    if (doc.file_size && doc.file_size > MAX_TELEGRAM_DOWNLOAD_BYTES) {
       notices.push(`⚠️ "${doc.file_name ?? 'file'}" is larger than the 20 MB Telegram Bot API download limit and was skipped.`)
     } else {
       try {
-        const meta = await getFile(token, doc.file_id)
-        if (!meta.file_path) throw new Error('getFile returned no file_path')
-        const buf = await downloadFile(token, meta.file_path)
-        const safeName = (doc.file_name ?? `document.${ext}`).replace(/[^\w.\-]+/g, '_')
-        const outPath = path.join(getTempDir(), `${Date.now()}_${safeName}`)
-        fs.writeFileSync(outPath, buf)
-        files.push({ name: doc.file_name ?? safeName, path: outPath, ext })
+        const name = doc.file_name ?? `document.${ext || 'bin'}`
+        const outPath = await downloadToTemp(token, doc.file_id, name)
+        files.push({ name, path: outPath, ext })
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         console.error('[Telegram] document download failed:', msg)
@@ -165,13 +169,28 @@ async function collectAttachments(
   }
 
   if (message.photo && message.photo.length > 0) {
-    notices.push('⚠️ Image attachments are not supported yet — only document files (PDF, DOCX, XLSX, TXT, MD, CSV, JSON, HTML) are extracted and sent to the AIs.')
+    // Telegram returns progressively larger sizes; the last entry is the highest
+    // resolution available for this photo.
+    const largest = message.photo[message.photo.length - 1]
+    if (largest.file_size && largest.file_size > MAX_TELEGRAM_DOWNLOAD_BYTES) {
+      notices.push('⚠️ The attached photo is larger than the 20 MB Telegram Bot API download limit and was skipped.')
+    } else {
+      try {
+        const name = `photo_${largest.file_unique_id}.jpg`
+        const outPath = await downloadToTemp(token, largest.file_id, name)
+        files.push({ name, path: outPath, ext: 'jpg' })
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error('[Telegram] photo download failed:', msg)
+        notices.push(`❌ Failed to download photo: ${msg}`)
+      }
+    }
   }
 
   return { files, notices }
 }
 
-function cleanupAttachments(files: DownloadedAttachment[]): void {
+function cleanupAttachments(files: TelegramAttachedFile[]): void {
   for (const f of files) {
     try { fs.unlinkSync(f.path) } catch { /* ignore */ }
   }
@@ -207,34 +226,27 @@ async function poll(token: string, allowedChatId: string, signal: AbortSignal) {
 
         // Enqueue message processing
         queue.enqueue(async () => {
-          let downloaded: DownloadedAttachment[] = []
+          let downloaded: TelegramAttachedFile[] = []
           try {
-            let fileContext = ''
             if (hasAttachment) {
               const { files, notices } = await collectAttachments(token, message)
               downloaded = files
               for (const note of notices) {
                 await sendTelegramReply(note)
               }
-              if (files.length > 0) {
-                // Extract text NOW so we can delete the temp files immediately
-                // — apiSendCouncilMessage runs council turns asynchronously,
-                // so file paths can't safely outlive this scope.
-                fileContext = await buildFileContext(files)
-              }
             }
 
-            // Nothing actionable: no text/caption AND no extractable file content.
-            if (!textPart && !fileContext) return
+            // Nothing actionable: no text/caption AND no successfully downloaded file.
+            if (!textPart && downloaded.length === 0) return
 
             // When the user sends a bare attachment with no caption, give the
             // council intent parser a sensible default so an AI is mentioned.
-            const baseText = textPart || `@all Please review the attached file${downloaded.length > 1 ? 's' : ''}.`
-            const effectiveText = fileContext ? `${baseText}${fileContext}` : baseText
+            const effectiveText = textPart || `@all Please review the attached file${downloaded.length > 1 ? 's' : ''}.`
 
             await handleTelegramCommand(
               effectiveText,
-              async (text: string) => { await sendTelegramReply(text) }
+              async (text: string) => { await sendTelegramReply(text) },
+              downloaded
             )
           } finally {
             cleanupAttachments(downloaded)

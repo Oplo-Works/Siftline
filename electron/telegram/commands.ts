@@ -11,7 +11,18 @@ import {
 import { parseCouncilIntent, getSequentialCouncilTargets } from '../councilPrompt.js'
 import type { AiName } from '../councilPrompt.js'
 
-export async function handleTelegramCommand(text: string, sendMessage: (text: string) => Promise<void>) {
+export type TelegramAttachedFile = {
+  name: string
+  path: string
+  /** Lowercase extension without dot, e.g. 'pdf', 'jpg'. Empty when unknown. */
+  ext: string
+}
+
+export async function handleTelegramCommand(
+  text: string,
+  sendMessage: (text: string) => Promise<void>,
+  attachedFiles: TelegramAttachedFile[] = []
+): Promise<void> {
   const [command, ...args] = text.trim().split(/\s+/)
   const lowerCmd = command.toLowerCase()
 
@@ -107,15 +118,25 @@ export async function handleTelegramCommand(text: string, sendMessage: (text: st
         await sendMessage(ack)
 
         if (willRunTurns) {
-          // Run the actual council turn in the background; AI replies are
-          // streamed back to Telegram via the registered telegramAiReplyCallback.
-          apiSendCouncilMessage(text).catch((err) => {
-            console.error('[Telegram] Error during council turn:', err)
-          })
+          // When files are attached the caller (bridge) needs to know when the
+          // turn has fully consumed them so it can clean up temp files, so we
+          // await in that case; otherwise keep the original fire-and-forget
+          // behaviour so the ack doesn't block.
+          if (attachedFiles.length > 0) {
+            try {
+              await apiSendCouncilMessage(text, attachedFiles)
+            } catch (err) {
+              console.error('[Telegram] Error during council turn:', err)
+            }
+          } else {
+            apiSendCouncilMessage(text).catch((err) => {
+              console.error('[Telegram] Error during council turn:', err)
+            })
+          }
         } else {
           // Still record the user message in the transcript so the desktop UI
           // and saved sessions stay in sync, even when no AI was triggered.
-          apiSendCouncilMessage(text).catch((err) => {
+          apiSendCouncilMessage(text, attachedFiles).catch((err) => {
             console.error('[Telegram] Error recording council message:', err)
           })
         }

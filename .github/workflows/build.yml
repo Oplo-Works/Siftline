@@ -110,7 +110,7 @@ jobs:
 
   # ================================================================
   #  Job 3: Create GitHub Release and attach all artifacts
-  #  (runs only after both build jobs succeed)
+  #  (runs only after both build jobs succeed, on tag push)
   # ================================================================
   release:
     name: Create GitHub Release
@@ -130,7 +130,7 @@ jobs:
       - name: Create or update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "AI Council ${{ github.ref_name }} - Telegram + DeepSeek"
+          name: "AI Council ${{ github.ref_name }} - Council Chat Files + Telegram Files + DeepSeek"
           draft: false
           prerelease: false
           make_latest: true
@@ -141,31 +141,28 @@ jobs:
           body: |
             ### What's New in ${{ github.ref_name }}
 
+            #### Council Chat File Attachment
+            - **+Attach** button in Council Chat lets you attach files (PDF, DOCX, XLSX, TXT, MD, CSV, images) before sending any message
+            - Files are physically uploaded to each AI browser interface via CDP; text fallback used when CDP upload is unavailable
+            - Multiple files can be attached at once; each shows as a removable chip
+
+            #### Telegram File Sharing
+            - Send photos or documents directly from Telegram — downloaded and attached to the Council Chat session automatically
+            - Photo albums (media groups) are bundled and processed as a single message
+            - Supported formats: `pdf`, `doc`, `docx`, `xls`, `xlsx`, `txt`, `md`, `csv`, `json`, `html`, `png`, `jpg`, `jpeg`, `webp`, `gif`, `bmp`
+
+            #### Bug Fix
+            - Fixed duplicate file attachment for Claude: `DOM.setFileInputFiles` already fires a native change event — the extra manual dispatch was causing Claude's uploader to process each file twice
+
             #### Telegram Integration
             - Control AI Council from your smartphone via a Telegram bot
             - No server, no ngrok, no open ports — pure long-poll from the desktop app
-            - Full @mention routing: `@Gemini`, `@Claude`, `@all`, etc. work from Telegram exactly as on desktop
             - Slash commands: `/new` · `/save [title]` · `/save_and_new [title]` · `/sessions` · `/load <id>` · `/workflow` · `/status` · `/help`
-            - Bot token and chat ID stored in an **encrypted** `electron-store` file — never leaves your machine
-            - Chat ID whitelist: messages from unknown senders are silently rejected
-            - `Telegram` status indicator lights up in the app status bar when the bot is active
-            - `lastUpdateId` persistence prevents old messages from replaying after restart
+            - Bot token and chat ID stored in an **encrypted** `electron-store` file
 
             #### DeepSeek Support
-            - DeepSeek (`chat.deepseek.com`) replaces Groq as the 6th AI panel
+            - DeepSeek (`chat.deepseek.com`) is the 6th AI panel
             - Reviewer role: **Concise Alternative Solver** — optimizes for simpler routes and sharper summaries
-            - Standalone login script: `deepseek-login.bat` / `deepseek-login.mjs`
-            - API key support for the recommendation engine
-
-            ---
-
-            ### Previous highlights (v1.0.7)
-
-            #### Council Chat Mode
-            - Free-form group-chat panel with bubble UI and `@mention` routing
-            - Dual mode toggle: Workflow <-> Council Chat
-
-            #### Saved Sessions · AI Moderator · Candidate Pinning · Workflow Handoff · Response Language Detection
 
             ---
 
@@ -177,5 +174,37 @@ jobs:
             | macOS (Intel) | `AI-Council-${{ github.ref_name }}-x64.dmg` |
             | Windows | `AI-Council-Setup.exe` |
 
-            > **macOS Gatekeeper:** If macOS blocks the app, go to System Settings -> Privacy & Security -> Open Anyway, or run `xattr -cr "/Applications/AI Council.app"` in Terminal.
+            > **macOS Gatekeeper:** System Settings -> Privacy & Security -> Open Anyway, or run `xattr -cr "/Applications/AI Council.app"` in Terminal.
             > **Windows SmartScreen:** Click "More info" -> "Run anyway".
+
+  # ================================================================
+  #  Job 4: Upload macOS DMGs to existing v1.0.8 release
+  #  Runs only on workflow_dispatch (manual trigger — no tag needed)
+  # ================================================================
+  upload-mac-to-release:
+    name: Upload macOS DMGs to v1.0.8 Release
+    needs: [build-mac]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Download mac artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-dmg
+          path: dist-mac
+
+      - name: List files
+        run: find dist-mac -type f
+
+      - name: Delete existing DMG assets and upload new ones
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for DMG in dist-mac/*.dmg; do
+            echo "Uploading $DMG..."
+            gh release upload v1.0.8 "$DMG" \
+              --repo MinkyuTheBuilder/ai-council \
+              --clobber
+          done
+          echo "macOS DMG upload complete"

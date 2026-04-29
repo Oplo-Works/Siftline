@@ -323,6 +323,16 @@
         <div class="card-desc">Control AI Council from your smartphone. Send messages, @mention AIs, and manage sessions via Telegram — no server or open ports needed.</div>
       </div>
       <div class="card">
+        <div class="card-icon">📎</div>
+        <div class="card-title">Telegram File Sharing <span class="new-badge">NEW</span></div>
+        <div class="card-desc">Send photos and documents from Telegram. Files are automatically attached to the Council session. Supports media groups (albums) and multiple formats.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">📎</div>
+        <div class="card-title">Council Chat Attach <span class="new-badge">NEW</span></div>
+        <div class="card-desc">New <strong>+Attach</strong> button in Council Chat. Upload files via CDP to each AI browser interface directly from the chat panel.</div>
+      </div>
+      <div class="card">
         <div class="card-icon">🔵</div>
         <div class="card-title">DeepSeek Support <span class="new-badge">NEW</span></div>
         <div class="card-desc">DeepSeek (<code>chat.deepseek.com</code>) replaces Groq as the 6th AI panel. Optimized for reasoning, coding, and concise synthesis.</div>
@@ -452,6 +462,18 @@
       </tbody>
     </table>
 
+    <h3>📎 Sending files from Telegram</h3>
+    <table>
+      <thead><tr><th>What to send</th><th>What happens</th></tr></thead>
+      <tbody>
+        <tr><td>Photo (single)</td><td>Downloaded as <code>.jpg</code> and attached to next message</td></tr>
+        <tr><td>Photo album (media group)</td><td>All photos bundled and attached together</td></tr>
+        <tr><td>Document (PDF, DOCX, XLSX, TXT, MD, CSV, ...)</td><td>Downloaded and attached; unsupported types ignored</td></tr>
+        <tr><td>Photo/Doc + caption</td><td>Caption becomes text; file becomes attachment</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:13px; color:var(--text-muted); margin-top:8px;">Supported formats: <code>pdf</code>, <code>doc</code>, <code>docx</code>, <code>xls</code>, <code>xlsx</code>, <code>txt</code>, <code>md</code>, <code>csv</code>, <code>json</code>, <code>html</code>, <code>png</code>, <code>jpg</code>, <code>jpeg</code>, <code>webp</code>, <code>gif</code>, <code>bmp</code>.</p>
+
     <h3>Security</h3>
     <ul>
       <li>Bot token stored in an <strong>encrypted</strong> <code>electron-store</code> file — never in logs, never committed to git.</li>
@@ -514,6 +536,23 @@
       </tbody>
     </table>
 
+    <h3>📎 File Attachment in Council Chat</h3>
+    <p style="font-size:14px; color:var(--text-muted);">Click the <strong>+Attach</strong> button in the input bar to attach files before sending a message.</p>
+    <ul>
+      <li>Files are physically uploaded to each AI browser via <strong>CDP</strong> (Chrome DevTools Protocol).</li>
+      <li>When CDP upload is unavailable, extracted text is included inline in the prompt as fallback.</li>
+      <li>Multiple files supported; each shows as a removable chip.</li>
+    </ul>
+    <table>
+      <thead><tr><th>Format</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>.pdf</code></td><td>Text extracted via pdf-parse</td></tr>
+        <tr><td><code>.docx</code></td><td>Body extracted via mammoth</td></tr>
+        <tr><td><code>.xlsx</code></td><td>Sheets converted to CSV via xlsx</td></tr>
+        <tr><td><code>.txt</code> / <code>.md</code> / <code>.csv</code> / <code>.json</code></td><td>Read as UTF-8 directly</td></tr>
+      </tbody>
+    </table>
+
     <h3>Saved Sessions</h3>
     <table>
       <thead><tr><th>Action</th><th>Description</th></tr></thead>
@@ -566,6 +605,26 @@ grok-login.bat        <span class="cm"># Grok (X / Twitter account)</span></pre>
     <div class="callout callout-teal">
       <span class="callout-icon">ℹ️</span>
       <span><strong>Requirements:</strong> Node.js v18+, npm v9+</span>
+    </div>
+  </section>
+
+  <!-- ══ FILE ATTACHMENT ══ -->
+  <section class="section">
+    <div class="section-title">📎 File Attachment &amp; Extraction</div>
+    <p style="color:var(--text-muted);font-size:14px;margin-bottom:16px;">Files can be attached in all three entry points: Workflow mode, Council Chat, and Telegram.</p>
+    <table>
+      <thead><tr><th>Format</th><th>Extraction Method</th><th>Saved As (Workflow)</th></tr></thead>
+      <tbody>
+        <tr><td><code>.pdf</code></td><td>pdf-parse (text extraction)</td><td><code>.txt</code></td></tr>
+        <tr><td><code>.docx</code></td><td>mammoth (body extraction)</td><td><code>.docx</code></td></tr>
+        <tr><td><code>.xlsx</code></td><td>xlsx (sheets → CSV)</td><td><code>.xlsx</code></td></tr>
+        <tr><td><code>.txt</code> / <code>.md</code> / <code>.csv</code></td><td>Read UTF-8 directly</td><td>Keep original</td></tr>
+        <tr><td><code>Images</code></td><td>CDP Upload to AI Interface</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <div class="callout callout-teal">
+      <span class="callout-icon">💡</span>
+      <span><strong>How it works:</strong> The app first tries to physically upload the file to each AI's browser interface via CDP. When that succeeds, the AI uses its own native reader. If CDP fails, extracted text is sent as a prompt fallback.</span>
     </div>
   </section>
 

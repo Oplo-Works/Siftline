@@ -57,7 +57,10 @@ interface CouncilChatPanelProps {
   snapshots: CouncilSnapshotSummary[]
   enabledAis: AiName[]
   primaryAi: AiName
-  onSend: (text: string) => Promise<void>
+  onSend: (text: string, files?: import('../types').AttachedFile[]) => Promise<void>
+  attachedFiles: import('../types').AttachedFile[]
+  onAttachFiles: () => Promise<void>
+  onRemoveAttachedFile: (index: number) => void
   onReset: () => Promise<void>
   onRetryFailed: () => Promise<void>
   onSkipFailed: () => Promise<void>
@@ -98,6 +101,9 @@ export default function CouncilChatPanel({
   enabledAis,
   primaryAi,
   onSend,
+  attachedFiles,
+  onAttachFiles,
+  onRemoveAttachedFile,
   onReset,
   onRetryFailed,
   onSkipFailed,
@@ -307,10 +313,11 @@ export default function CouncilChatPanel({
 
   const submit = async () => {
     const text = draft.trim()
-    if (!text || isSending || room.status === 'running') return
+    const hasFiles = attachedFiles.length > 0
+    if ((!text && !hasFiles) || isSending || room.status === 'running') return
     setIsSending(true)
     try {
-      await onSend(text)
+      await onSend(text, hasFiles ? attachedFiles : undefined)
       setDraft('')
       setMentionQuery(null)
       setSelectedMentionIndex(0)
@@ -1350,7 +1357,32 @@ export default function CouncilChatPanel({
           </div>
         )}
 
+        {attachedFiles.length > 0 && (
+          <div className="council-attachment-bar">
+            {attachedFiles.map((file, index) => (
+              <span key={file.path} className="council-attachment-chip">
+                <span className="council-attachment-chip-name">{file.name}</span>
+                <button
+                  className="council-attachment-chip-remove"
+                  onClick={() => onRemoveAttachedFile(index)}
+                  aria-label={`Remove ${file.name}`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
         <div className="council-chat-composer-footer">
+          <button
+            className="council-chat-attach"
+            onClick={() => void onAttachFiles()}
+            disabled={room.status === 'running' || isSending}
+            title="Attach files"
+          >
+            +Attach
+          </button>
           <span className="council-chat-status">
             {room.status === 'running' && room.pendingAi
               ? `${AI_DISPLAY_NAMES[room.pendingAi]} is replying...`
@@ -1359,7 +1391,7 @@ export default function CouncilChatPanel({
           <button
             className="council-chat-send"
             onClick={() => void submit()}
-            disabled={!draft.trim() || room.status === 'running' || isSending}
+            disabled={(!draft.trim() && attachedFiles.length === 0) || room.status === 'running' || isSending}
           >
             Send
           </button>

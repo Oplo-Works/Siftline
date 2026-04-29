@@ -64,23 +64,50 @@ export function parseCouncilIntent(text: string): CouncilIntentState {
   if (matched.size === 0) {
     return {
       kind: 'none',
-      note: 'Message added to the shared transcript. Mention one active AI when you want a reply.',
+      note: 'Message added to the shared transcript. Mention one or more active AIs when you want replies.',
     }
   }
 
-  if (matched.size > 1) {
+  // Preserve mention order from the user's text so the council replies in
+  // the order the user typed (e.g. "@gemini @deepseek" → Gemini first).
+  const orderedTargets = orderTargetsByMentionPosition(text, matched)
+
+  if (orderedTargets.length === 1) {
+    const [targetAi] = orderedTargets
     return {
-      kind: 'unsupported',
-      note: 'This first Council Chat MVP supports one mentioned AI at a time.',
+      kind: 'mention',
+      targetAi,
+      note: `${targetAi} was selected to reply next.`,
     }
   }
 
-  const [targetAi] = [...matched]
+  // Multi-mention: queue sequential replies in the order the user mentioned
+  // them.  Reuses the existing 'all' code path which already handles
+  // sequential turn dispatch — we just narrow the target list.
   return {
-    kind: 'mention',
-    targetAi,
-    note: `${targetAi} was selected to reply next.`,
+    kind: 'all',
+    targetAis: orderedTargets,
+    note: `Sequential council replies queued for ${orderedTargets.join(', ')}.`,
   }
+}
+
+function orderTargetsByMentionPosition(text: string, matched: Set<AiName>): AiName[] {
+  // Find the first @-mention position for each AI; sort by ascending position.
+  const positions = new Map<AiName, number>()
+  for (const ai of matched) {
+    const aliases = COUNCIL_MENTION_ALIASES.find((entry) => entry.ai === ai)?.aliases ?? [ai]
+    let earliest = Number.MAX_SAFE_INTEGER
+    for (const alias of aliases) {
+      const re = new RegExp(`(^|\\s)@${alias}(?=\\b)`, 'i')
+      const match = text.match(re)
+      if (match && match.index !== undefined) {
+        const at = match.index + match[1].length
+        if (at < earliest) earliest = at
+      }
+    }
+    positions.set(ai, earliest)
+  }
+  return [...matched].sort((a, b) => (positions.get(a)! - positions.get(b)!))
 }
 
 export function getSequentialCouncilTargets(

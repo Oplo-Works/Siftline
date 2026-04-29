@@ -4445,3 +4445,80 @@ body,
   cursor: not-allowed;
   box-shadow: none;
 }
+
+/* ── Council Attach Button ───────────────────────── */
+.council-chat-attach {
+  flex-shrink: 0;
+  border: 1px solid rgba(108, 99, 255, 0.28);
+  background: rgba(108, 99, 255, 0.1);
+  color: rgba(216, 213, 255, 0.9);
+  border-radius: 10px;
+  padding: 6px 11px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  letter-spacing: 0.01em;
+}
+
+.council-chat-attach:hover:not(:disabled) {
+  background: rgba(108, 99, 255, 0.2);
+  border-color: rgba(108, 99, 255, 0.48);
+  color: #e0ddff;
+}
+
+.council-chat-attach:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── Council Attachment Bar ──────────────────────── */
+.council-attachment-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0 2px;
+}
+
+.council-attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(108, 99, 255, 0.24);
+  background: rgba(108, 99, 255, 0.1);
+  border-radius: 999px;
+  padding: 3px 8px 3px 10px;
+  font-size: 10px;
+  color: rgba(216, 213, 255, 0.92);
+  max-width: 200px;
+}
+
+.council-attachment-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+.council-attachment-chip-remove {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  color: rgba(216, 213, 255, 0.6);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 13px;
+  line-height: 1;
+  border-radius: 50%;
+  transition: color 0.15s ease, background 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.council-attachment-chip-remove:hover {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.12);
+}

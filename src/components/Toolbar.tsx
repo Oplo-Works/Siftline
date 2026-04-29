@@ -306,7 +306,7 @@ export default function Toolbar({
               Use the docked chat panel to the right.
             </strong>
             <span className="chat-mode-banner-detail">
-              First MVP supports one mentioned AI at a time, such as `@Gemini` or `@Claude`.
+              Mention one or more AIs (e.g. `@Gemini`, `@Gemini @DeepSeek`) or use `@all` for every active AI.
             </span>
           </div>
         </div>

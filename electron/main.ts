@@ -1282,12 +1282,12 @@ function resetCouncilRoomContext(participants?: AiName[], primaryAi: AiName = co
     messages: [
       makeCouncilMessage(
         'system',
-        'Council Chat is ready. Mention one active AI such as @Gemini or @Claude to request a reply.'
+        'Council Chat is ready. Mention one or more active AIs (e.g. @Gemini, @Gemini @DeepSeek) or @all to request replies.'
       ),
     ],
     lastIntent: {
       kind: 'none',
-      note: 'Shared transcript is ready. Mention one active AI for the first MVP.',
+      note: 'Shared transcript is ready. Mention one or more AIs (e.g. @Gemini @DeepSeek) or @all.',
     },
     failedTurn: null,
     deliveredCount: {},
@@ -1324,7 +1324,12 @@ function buildCouncilPrompt(aiName: AiName, promptText: string): string {
   })
 }
 
-async function processCouncilTurn(aiName: AiName, promptText: string): Promise<void> {
+async function processCouncilTurn(
+  aiName: AiName,
+  promptText: string,
+  filePaths: string[] = [],
+  attachedFiles: Array<{ name: string; path: string; ext: string }> = []
+): Promise<void> {
   const view = views.get(aiName)
   if (!view) throw new Error(`No BrowserView found for ${aiName}`)
 
@@ -1360,10 +1365,43 @@ async function processCouncilTurn(aiName: AiName, promptText: string): Promise<v
     }
 
     const baseline = await captureCurrentText(view, config.responseContainerSelectors)
-    const councilPrompt = buildCouncilPrompt(aiName, promptText)
+
+    // Attach files via CDP before injecting text (images, documents, etc.)
+    let filesAttachedViaCDP = false
+    if (filePaths.length > 0) {
+      sendLog('info', `[council] ${aiName}: attaching ${filePaths.length} file(s) via CDP`)
+      filesAttachedViaCDP = await attachFilesViaCDP(view, aiName, filePaths)
+      if (filesAttachedViaCDP) {
+        sendLog('info', `[council] ${aiName}: file attach succeeded — waiting for upload to complete`)
+        // Wait for file upload/processing to finish (ChatGPT shows a spinner
+        // during upload and blocks Send until the file is fully processed).
+        await waitForFileUploadComplete(view, aiName)
+      } else {
+        sendLog('warn', `[council] ${aiName}: file attach failed — falling back to text extraction`)
+        // Close any dialogs that may have been left open
+        view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+        view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+        await sleep(400)
+      }
+      await sleep(800)
+    }
+
+    // Build council prompt; if CDP failed, extract document text and append it
+    let councilPrompt = buildCouncilPrompt(aiName, promptText)
+    if (attachedFiles.length > 0 && !filesAttachedViaCDP) {
+      const fileContext = await buildFileContext(attachedFiles)
+      if (fileContext.trim().length > 0) {
+        councilPrompt += '\n' + fileContext
+        sendLog('info', `[council] ${aiName}: appended ${fileContext.length} chars of file context to prompt`)
+      }
+    }
 
     sendLog('info', `[council] ${aiName}: injecting ${councilPrompt.length} chars`)
     await pasteText(view, councilPrompt, inputRes.selector)
+    if (filePaths.length > 0) {
+      sendLog('info', `[council] ${aiName}: waiting for composer to become send-ready after attachment`)
+      await waitForComposerReadyToSend(view, aiName, config.sendButtonSelectors)
+    }
     await sleep(CLICK_SEND_DELAY_MS)
 
     const sent = await clickSend(view, config.sendButtonSelectors)
@@ -1426,10 +1464,15 @@ async function processCouncilTurn(aiName: AiName, promptText: string): Promise<v
   }
 }
 
-async function enqueueCouncilTurn(aiName: AiName, promptText: string): Promise<void> {
+async function enqueueCouncilTurn(
+  aiName: AiName,
+  promptText: string,
+  filePaths: string[] = [],
+  attachedFiles: Array<{ name: string; path: string; ext: string }> = []
+): Promise<void> {
   councilTurnChain = councilTurnChain
     .catch(() => undefined)
-    .then(() => processCouncilTurn(aiName, promptText))
+    .then(() => processCouncilTurn(aiName, promptText, filePaths, attachedFiles))
   return councilTurnChain
 }
 
@@ -1558,6 +1601,133 @@ async function pasteText(view: BrowserView, text: string, selector: string) {
       return 'fallback-skipped-contenteditable';
     })()
   `).catch(() => { /* swallow — best-effort fallback */ })
+}
+
+/**
+ * After we paste the prompt, some UIs still keep Send disabled while they
+ * finish indexing attached files. ChatGPT is the most sensitive to this.
+ */
+async function waitForComposerReadyToSend(
+  view: BrowserView,
+  ai: AiName,
+  sendSelectors: string[]
+): Promise<void> {
+  const maxWaitMs = ai === 'chatgpt' ? 90000 : 20000
+  const pollIntervalMs = 350
+  const startTime = Date.now()
+  let lastStatus = ''
+
+  while (Date.now() - startTime < maxWaitMs) {
+    try {
+      const status = await view.webContents.executeJavaScript(`
+        (() => {
+          const isVisible = (el) => {
+            if (!(el instanceof HTMLElement)) return false;
+            const rect = el.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) return false;
+            const style = window.getComputedStyle(el);
+            return style.visibility !== 'hidden' && style.display !== 'none' && style.opacity !== '0';
+          };
+
+          const sendSelectors = ${JSON.stringify(sendSelectors)};
+          const inputSelectors = ${JSON.stringify(getSelectors(ai).inputSelectors)};
+          const busySelectors = [
+            '[role="progressbar"]',
+            'progress',
+            '[aria-busy="true"]',
+            '.animate-spin',
+            'svg[class*="spin"]',
+            '.spinner',
+            '.loading'
+          ];
+
+          let inputEl = null;
+          for (const sel of inputSelectors) {
+            const found = document.querySelector(sel);
+            if (found instanceof HTMLElement) {
+              inputEl = found;
+              break;
+            }
+          }
+          if (!inputEl) {
+            const fallback = document.querySelector('textarea, div[contenteditable="true"]');
+            if (fallback instanceof HTMLElement) inputEl = fallback;
+          }
+
+          const inputText = inputEl
+            ? ('value' in inputEl ? String(inputEl.value || '') : String(inputEl.innerText || inputEl.textContent || ''))
+            : '';
+          const inputHasText = inputText.trim().length > 0;
+
+          let sendFound = false;
+          let sendEnabled = false;
+          for (const sel of sendSelectors) {
+            const btn = document.querySelector(sel);
+            if (!(btn instanceof HTMLElement) || !isVisible(btn)) continue;
+            sendFound = true;
+            sendEnabled = !btn.hasAttribute('disabled') && btn.getAttribute('aria-disabled') !== 'true';
+            break;
+          }
+
+          const hasVisibleBusyIndicator = busySelectors.some((sel) =>
+            Array.from(document.querySelectorAll(sel)).some((el) => isVisible(el))
+          );
+
+          const attachmentBusy = Array.from(
+            document.querySelectorAll('[data-testid^="file-"], [data-testid*="attachment"], [data-testid*="file-pill"]')
+          ).some((el) => {
+            if (!(el instanceof HTMLElement) || !isVisible(el)) return false;
+            const text = (el.innerText || el.textContent || '').toLowerCase();
+            if (/upload|processing|analy|index|extract|reading/.test(text)) return true;
+            return busySelectors.some((sel) => {
+              try {
+                return Array.from(el.querySelectorAll(sel)).some((child) => isVisible(child));
+              } catch {
+                return false;
+              }
+            });
+          });
+
+          const dragOverlayVisible = Array.from(document.querySelectorAll('div, section, form, [role="dialog"]')).some((el) => {
+            if (!(el instanceof HTMLElement) || !isVisible(el)) return false;
+            const text = (el.innerText || el.textContent || '').toLowerCase();
+            return text.includes('add anything') && text.includes('drop any file here');
+          });
+
+          const duplicateDialogVisible = Array.from(document.querySelectorAll('div, section, [role="dialog"]')).some((el) => {
+            if (!(el instanceof HTMLElement) || !isVisible(el)) return false;
+            const text = (el.innerText || el.textContent || '').toLowerCase();
+            return text.includes('already uploaded this file');
+          });
+
+          return {
+            inputHasText,
+            sendFound,
+            sendEnabled,
+            busy: hasVisibleBusyIndicator || attachmentBusy || dragOverlayVisible || duplicateDialogVisible,
+            dragOverlayVisible,
+            duplicateDialogVisible,
+          };
+        })()
+      `)
+
+      lastStatus = JSON.stringify(status)
+      if (ai === 'chatgpt' && (status?.dragOverlayVisible || status?.duplicateDialogVisible)) {
+        await dismissChatgptUploadOverlay(view)
+      }
+      if (status?.inputHasText && (!status?.sendFound || status?.sendEnabled) && !status?.busy) {
+        await sleep(ai === 'chatgpt' ? 500 : 200)
+        return
+      }
+    } catch (err) {
+      sendLog('warn', `[composer-ready] ${ai}: error while polling composer state: ${err instanceof Error ? err.message : String(err)}`)
+      break
+    }
+
+    await sleep(pollIntervalMs)
+  }
+
+  sendLog('warn', `[composer-ready] ${ai}: timed out waiting for send-ready composer after ${maxWaitMs}ms; last=${lastStatus || 'n/a'}`)
 }
 
 /**
@@ -1913,13 +2083,25 @@ async function clickSend(view: BrowserView, selectors: string[]): Promise<boolea
 
         const candidates = composer.querySelectorAll('button, div[role="button"], div.ds-button');
         const iconOnly = [];
+        const attachLabels = /attach|upload|file|clip|image|photo/i;
         for (const c of candidates) {
           if (c.disabled) continue;
           if (c.getAttribute('aria-disabled') === 'true') continue;
+          // Skip attachment/upload buttons — clicking them opens a file dialog
+          const ariaLabel = c.getAttribute('aria-label') || '';
+          const title = c.getAttribute('title') || '';
+          if (attachLabels.test(ariaLabel) || attachLabels.test(title)) continue;
+          // Skip if this button has an associated <input type="file"> (either as
+          // a child, sibling, or via a nearby hidden input — a strong sign it is
+          // an upload trigger, not a send button).
+          const hasFileInput = c.querySelector('input[type="file"]')
+            || (c.nextElementSibling && c.nextElementSibling.matches && c.nextElementSibling.matches('input[type="file"]'))
+            || (c.parentElement && c.parentElement.querySelector(':scope > input[type="file"]'));
+          if (hasFileInput) continue;
           // Visible text content excludes toggles like DeepThink, Search
           const textLen = (c.innerText || '').trim().length;
           if (textLen > 2) continue;  // Allow tiny labels (e.g. "↑") but skip word-labeled toggles
-          // Must contain an icon (svg or img) — paperclip-attach is also OK; we pick rightmost
+          // Must contain an icon (svg or img) — the send button is icon-only
           if (!c.querySelector('svg, img')) continue;
           const rect = c.getBoundingClientRect();
           if (rect.width === 0 || rect.height === 0) continue;  // Hidden
@@ -1951,35 +2133,60 @@ async function clickSend(view: BrowserView, selectors: string[]): Promise<boolea
   // 3. Send native Enter key
   try {
     view.webContents.focus()
-    const inputRect = await view.webContents.executeJavaScript(`
+    const fallbackState = await view.webContents.executeJavaScript(`
       (() => {
         const inputEl = document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.isContentEditable
           ? document.activeElement
           : document.querySelector('textarea, div[contenteditable="true"]');
         if (inputEl) {
           inputEl.focus();
+          const text = 'value' in inputEl
+            ? String(inputEl.value || '')
+            : String(inputEl.innerText || inputEl.textContent || '');
           const r = inputEl.getBoundingClientRect();
-          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+          return {
+            x: r.x + r.width / 2,
+            y: r.y + r.height / 2,
+            hadText: text.trim().length > 0,
+          };
         }
         return null;
       })()
     `)
-    
-    if (inputRect) {
+
+    if (fallbackState?.x != null && fallbackState?.y != null && fallbackState?.hadText) {
       // Native click on the text area to ensure it has physical focus and defeats any transparent masks
-      view.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(inputRect.x), y: Math.round(inputRect.y), button: 'left', clickCount: 1 })
-      view.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(inputRect.x), y: Math.round(inputRect.y), button: 'left', clickCount: 1 })
-      
+      view.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(fallbackState.x), y: Math.round(fallbackState.y), button: 'left', clickCount: 1 })
+      view.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(fallbackState.x), y: Math.round(fallbackState.y), button: 'left', clickCount: 1 })
+
       // Wait a tiny bit for UI state to catch up
-      await new Promise(r => setTimeout(r, 50));
-      
+      await new Promise(r => setTimeout(r, 50))
+
       // Native Enter Key (this is how 99% of chat apps send messages)
       view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return' })
       view.webContents.sendInputEvent({ type: 'char', keyCode: 'Return' })
       view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return' })
+
+      await sleep(250)
+
+      const postEnterState = await view.webContents.executeJavaScript(`
+        (() => {
+          const inputEl = document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.isContentEditable
+            ? document.activeElement
+            : document.querySelector('textarea, div[contenteditable="true"]');
+          const text = inputEl
+            ? ('value' in inputEl ? String(inputEl.value || '') : String(inputEl.innerText || inputEl.textContent || ''))
+            : '';
+          return { textLength: text.trim().length };
+        })()
+      `)
+
+      if ((postEnterState?.textLength ?? 0) === 0) {
+        return true
+      }
     }
-    
-    return true;
+
+    return false
   } catch { /* ignore */ }
   return false
 }
@@ -3351,9 +3558,14 @@ ipcMain.handle('skip-council-turn', () => {
   return cloneCouncilRoomState()
 })
 
-ipcMain.handle('send-council-message', async (_e, payload: { text: string; participants: AiName[]; primaryAi: AiName }) => {
+ipcMain.handle('send-council-message', async (_e, payload: { text: string; participants: AiName[]; primaryAi: AiName; attachedFiles?: Array<{ name: string; path: string; ext: string }> }) => {
   const text = typeof payload?.text === 'string' ? payload.text.trim() : ''
   if (!text) return cloneCouncilRoomState()
+
+  const councilAttachedFiles = Array.isArray(payload.attachedFiles)
+    ? payload.attachedFiles.filter((f) => typeof f.path === 'string' && f.path.length > 0)
+    : []
+  const councilFilePaths = councilAttachedFiles.map((f) => f.path)
 
   syncCouncilRoomContext(payload.participants, payload.primaryAi)
   clearFailedCouncilTurn()
@@ -3386,8 +3598,13 @@ ipcMain.handle('send-council-message', async (_e, payload: { text: string; parti
     return cloneCouncilRoomState()
   }
 
+  // Multi-mention path: parser sets intent.targetAis to the user's explicit
+  // list (in mention order).  Pure @all (no specific list) falls back to all
+  // active participants in the standard sequential ordering.
   const targets = intent.kind === 'all'
-    ? getSequentialCouncilTargets(councilRoom.participants, councilRoom.primaryAi)
+    ? (intent.targetAis && intent.targetAis.length > 0
+        ? intent.targetAis
+        : getSequentialCouncilTargets(councilRoom.participants, councilRoom.primaryAi))
     : intent.targetAi
       ? [intent.targetAi]
       : []
@@ -3439,7 +3656,7 @@ ipcMain.handle('send-council-message', async (_e, payload: { text: string; parti
     }
 
     try {
-      await enqueueCouncilTurn(targetAi, text)
+      await enqueueCouncilTurn(targetAi, text, councilFilePaths, councilAttachedFiles)
     } catch (err) {
       recordCouncilTurnFailure(targetAi, text, err, {
         kind: intent.kind,
@@ -3582,6 +3799,7 @@ ipcMain.handle(
     try {
       // ── STEP 2.5: Extract attached file content ───────────────────────────
       const normalizedFiles: WorkflowAttachment[] = attachedFiles ? [...attachedFiles] : []
+      const normalizedFilePaths = normalizedFiles.map((f) => f.path)
       let fileContext = workflowSession?.fileContext ?? ''
       let queryForRound = trimmedQuery || workflowSession?.lastUserQuery || ''
       let historyQuery = queryForRound
@@ -3664,12 +3882,32 @@ ipcMain.handle(
         throw new Error(`Could not find input box in ${currentPrimary}. Please check login status.`)
       }
 
+      let primaryFilesAttached = false
+      if (normalizedFiles.length > 0 && normalizedFilePaths.length > 0) {
+        sendLog('info', `[Step 3] ${currentPrimary}: Attempting CDP file attach (${normalizedFilePaths.length} file(s))`)
+        primaryFilesAttached = await attachFilesViaCDP(primaryView, currentPrimary, normalizedFilePaths)
+        if (primaryFilesAttached) {
+          sendLog('info', `[Step 3] ${currentPrimary}: File attach succeeded — omitting file content from prompt`)
+          await waitForFileUploadComplete(primaryView, currentPrimary)
+        } else {
+          sendLog('warn', `[Step 3] ${currentPrimary}: File attach failed — falling back to extracted file text`)
+          primaryView.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+          primaryView.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+          await sleep(400)
+        }
+      }
+
       const needsContextBridge = Boolean(workflowSession?.latestFinalAnswer) && !doesWorkflowOwnThread(currentPrimary)
       const includeFileContext = normalizedFiles.length > 0 || !isContinuingPrimaryThread
+      const primaryFileContext = primaryFilesAttached ? '' : (includeFileContext ? fileContext : '')
       const primaryPrompt = needsContextBridge
-        ? buildContextBridgePrompt(trimmedQuery, workflowSession!.latestFinalAnswer, fileContext)
-        : buildPrimaryPrompt(trimmedQuery, includeFileContext ? fileContext : '')
+        ? buildContextBridgePrompt(trimmedQuery, workflowSession!.latestFinalAnswer, primaryFileContext)
+        : buildPrimaryPrompt(trimmedQuery, primaryFileContext)
       await pasteText(primaryView, primaryPrompt, inputResult.selector!)
+      if (primaryFilesAttached) {
+        sendLog('info', `[Step 3] ${currentPrimary}: Waiting for composer to become send-ready after attachment`)
+        await waitForComposerReadyToSend(primaryView, currentPrimary, primaryConfig.sendButtonSelectors)
+      }
 
       // small pause before send
       await sleep(CLICK_SEND_DELAY_MS)
@@ -3762,6 +4000,9 @@ ipcMain.handle(
           sendLog('info', `[Step 5] ${reviewerName}: Attempting CDP file attach (${filePaths.length} file(s))`)
           filesAttached = await attachFilesViaCDP(reviewerView, reviewerName, filePaths)
           if (filesAttached) {
+            await waitForFileUploadComplete(reviewerView, reviewerName)
+          }
+          if (filesAttached) {
             sendLog('info', `[Step 5] ${reviewerName}: File attach succeeded — omitting file content from prompt`)
           } else {
             sendLog('warn', `[Step 5] ${reviewerName}: File attach failed — falling back to text method`)
@@ -3782,6 +4023,10 @@ ipcMain.handle(
 
         sendLog('info', `[Step 5] ${reviewerName}: Starting prompt paste`)
         await pasteText(reviewerView, prompt, inputRes.selector!)
+        if (filesAttached) {
+          sendLog('info', `[Step 5] ${reviewerName}: Waiting for composer to become send-ready after attachment`)
+          await waitForComposerReadyToSend(reviewerView, reviewerName, reviewerConfig.sendButtonSelectors)
+        }
 
         // ── Capture baseline BEFORE clicking Send ─────────────────────────
         // This prevents old conversation text from being mistaken for the
@@ -4557,25 +4802,61 @@ const FILE_UPLOAD_BUTTON_SELECTORS: Partial<Record<AiName, string[]>> = {
     'button[data-testid="send-button"]',  // fallback
   ],
   gemini: [
+    // Most specific first — exact aria-labels for Gemini's "+" / upload menu.
+    // The previous "*='Add' i" wildcard was too greedy and would click any
+    // unrelated "Add to favorites" / "Add account" button, then return early
+    // and never reach the proper Gemini DOM heuristic at the bottom.
+    'button[aria-label="Open upload file menu"]',
     'button[aria-label="Upload and use files"]',
-    'button[aria-label*="pload"]',
+    'button[aria-label="Add files"]',
+    'button[aria-label*="dd files" i]',
+    'button[aria-label*="dd file" i]',
+    'button[aria-label*="upload" i]',
+    'button[aria-label*="attach" i]',
+    'button[aria-label*="ttachment" i]',
+    'button[aria-label*="insert" i]',
+    'button[mattooltip*="upload" i]',
+    'button[mattooltip*="file" i]',
     'button[jsaction*="upload"]',
   ],
-  deepseek: [],
+  deepseek: [
+    // DeepSeek paperclip / attachment icon button
+    'div.ds-icon-button[aria-label*="attach" i]',
+    'div.ds-icon-button[aria-label*="upload" i]',
+    'div.ds-icon-button[aria-label*="file" i]',
+    'div.ds-icon-button[aria-label*="image" i]',
+    'div.ds-icon-button[aria-label*="上传"]',
+    'div.ds-icon-button[aria-label*="附件"]',
+    'button[aria-label*="attach" i]',
+    'button[aria-label*="upload" i]',
+    'button[aria-label*="上传"]',
+    'button[aria-label*="附件"]',
+  ],
+  grok: [
+    'button[aria-label*="attach" i]',
+    'button[aria-label*="upload" i]',
+    'button[aria-label*="file" i]',
+    'button[aria-label*="image" i]',
+    'button[aria-label*="media" i]',
+  ],
   perplexity: [],   // no reliable file upload in free tier
 }
 
 /**
- * Attach files to an AI BrowserView using Chrome DevTools Protocol.
+ * Attach files to an AI BrowserView.
  *
- * Steps:
- *   1. Optionally click the upload-trigger button to reveal the hidden <input type="file">
- *   2. Find the file input via CDP DOM.querySelectorAll
- *   3. Set file paths with DOM.setFileInputFiles (fires the 'change' event automatically)
- *   4. Wait briefly for the AI's upload UI to register the files
+ * Strategy order (default):
+ *   A. CDP file-input: click upload button → find <input type="file"> → setFileInputFiles
+ *      - Gemini: two-step (click "+" → click "Upload file" menu item)
+ *   B. Clipboard paste fallback: write image to clipboard → paste
  *
- * Returns true when files were set successfully, false on any failure
- * (caller should then fall back to embedding file content as text).
+ * DeepSeek exception: DeepSeek's paperclip button reveals a DOCUMENT uploader
+ * (shows "No text extracted" for images, and opens Windows Explorer dialog).
+ * For image files, we use JavaScript drop/paste injection instead: read the
+ * image as base64, create a File object in the page context, and dispatch
+ * drop/paste events on the input area.  Non-image files go through CDP.
+ *
+ * Returns true when files were attached successfully, false on total failure.
  */
 async function attachFilesViaCDP(
   view: BrowserView,
@@ -4584,15 +4865,504 @@ async function attachFilesViaCDP(
 ): Promise<boolean> {
   if (!filePaths || filePaths.length === 0) return true
 
+  const IMAGE_EXTS_SET = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'])
+  const imageFiles = filePaths.filter((fp) => IMAGE_EXTS_SET.has(path.extname(fp).replace('.', '').toLowerCase()))
+  const nonImageFiles = filePaths.filter((fp) => !IMAGE_EXTS_SET.has(path.extname(fp).replace('.', '').toLowerCase()))
+
+  // ── DeepSeek: web interface does NOT support image uploads ────────────────
+  // DeepSeek's web UI only has a document uploader (📎 paperclip).  ALL image
+  // attachment methods fail:
+  //   - CDP file-input: opens Windows Explorer + shows "No text extracted"
+  //   - clipboard paste: routes through document uploader → "No text extracted"
+  //     AND blocks Send button with "Remove failed files to submit"
+  //   - JS drop injection: duplicates + opens file dialog
+  // For images, we skip attachment and return false so the caller uses the
+  // text-extraction fallback (which is empty for images — DeepSeek gets
+  // text-only).  Non-image document files (PDF, DOCX, etc.) still work via CDP.
+  if (ai === 'deepseek' && imageFiles.length > 0) {
+    sendLog('warn', `[file-attach] deepseek: web interface does not support image uploads — skipping ${imageFiles.length} image(s)`)
+
+    // Attach non-image files via CDP (document uploader works for docs)
+    if (nonImageFiles.length > 0) {
+      const cdpResult = await attachFilesViaCDPFileInput(view, ai, nonImageFiles)
+      if (!cdpResult) {
+        sendLog('warn', `[file-attach] deepseek: CDP file-input failed for ${nonImageFiles.length} non-image file(s)`)
+      }
+    }
+
+    // Return false to signal image attachment failed — caller will use text fallback
+    return false
+  }
+
+  // ── Standard path: CDP file-input first, clipboard paste fallback ────────
+  // ── Strategy A: CDP file-input approach ──────────────────────────────────
+  if (ai === 'chatgpt') {
+    const jsDropResult = await attachFilesViaJSDrop(view, ai, filePaths)
+    if (jsDropResult) return true
+    sendLog('info', `[file-attach] ${ai}: JS drop failed ??falling back to CDP file-input`)
+  }
+
+  const cdpResult = await attachFilesViaCDPFileInput(view, ai, filePaths)
+  if (cdpResult) return true
+
+  // ── Strategy B: clipboard paste fallback (images only) ───────────────────
+  sendLog('info', `[file-attach] ${ai}: CDP file-input failed — trying clipboard paste fallback`)
+  const pasteResult = await attachFilesViaClipboardPaste(view, ai, filePaths)
+  if (pasteResult) return true
+
+  sendLog('warn', `[file-attach] ${ai}: All attach strategies failed`)
+  return false
+}
+
+/**
+ * Strategy C (DeepSeek priority): Inject image via JavaScript drop/paste events.
+ *
+ * Reads the image file as base64, injects it into the page context as a File
+ * object, and dispatches drop/paste events on the input area.  This bypasses
+ * the native file dialog entirely and works reliably in Electron BrowserViews.
+ */
+async function attachFilesViaJSDrop(
+  view: BrowserView,
+  ai: AiName,
+  filePaths: string[]
+): Promise<boolean> {
+  const config = getSelectors(ai)
+  let successCount = 0
+
+  try {
+    // Ensure the input area is available
+    const inputRes = await execWithFallback(
+      view, config.inputSelectors,
+      (sel) => `(() => { const el = document.querySelector(\`${sel}\`); if (el) { el.focus(); el.click(); return true; } return false; })()`
+    )
+    if (!inputRes.success) {
+      sendLog('warn', `[file-attach] ${ai}: could not focus input for JS drop injection`)
+      return false
+    }
+    await sleep(300)
+
+    for (const filePath of filePaths) {
+      try {
+        const fileBuffer = fs.readFileSync(filePath)
+        const base64 = fileBuffer.toString('base64')
+        const mimeType = getMimeTypeForFile(filePath)
+        const fileName = path.basename(filePath)
+
+        const getAttachmentSnapshot = async () => {
+          return await view.webContents.executeJavaScript(`
+            (() => {
+              const input = document.querySelector('#prompt-textarea')
+                || document.querySelector('textarea')
+                || document.querySelector('[contenteditable="true"]');
+              const composer = input?.closest('form') || input?.parentElement || document.body;
+
+              const isVisible = (el) => {
+                if (!(el instanceof HTMLElement)) return false;
+                const rect = el.getBoundingClientRect();
+                if (rect.width <= 0 || rect.height <= 0) return false;
+                const style = window.getComputedStyle(el);
+                return style.visibility !== 'hidden' && style.display !== 'none' && style.opacity !== '0';
+              };
+
+              const seenText = new Set();
+              const names = [];
+              let count = 0;
+              for (const el of composer.querySelectorAll('*')) {
+                if (!isVisible(el)) continue;
+                const text = (el.textContent || '').trim();
+                if (!text || text.length > 160) continue;
+                if (!/[.][a-z0-9]{1,8}$/i.test(text)) continue;
+                const normalized = text.toLowerCase();
+                if (seenText.has(normalized)) continue;
+                seenText.add(normalized);
+                count += 1;
+                names.push(normalized);
+              }
+              return { count, names };
+            })()
+          `).catch(() => ({ count: 0, names: [] as string[] }))
+        }
+
+        const baselineSnapshot = await getAttachmentSnapshot()
+
+        const injectedPaste = await view.webContents.executeJavaScript(`
+          (async () => {
+            try {
+              const base64 = ${JSON.stringify(base64)};
+              const binaryStr = atob(base64);
+              const bytes = new Uint8Array(binaryStr.length);
+              for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+              const blob = new Blob([bytes], { type: ${JSON.stringify(mimeType)} });
+              const file = new File([blob], ${JSON.stringify(fileName)}, { type: ${JSON.stringify(mimeType)}, lastModified: Date.now() });
+
+              const inputArea = document.querySelector('#prompt-textarea')
+                || document.querySelector('textarea#chat-input')
+                || document.querySelector('textarea')
+                || document.querySelector('[contenteditable="true"]')
+                || document.querySelector('.chat-input')
+                || document.activeElement;
+              if (!inputArea) return 'no-input';
+
+              const dt = new DataTransfer();
+              dt.items.add(file);
+              const pasteEvent = new ClipboardEvent('paste', {
+                bubbles: true,
+                cancelable: true,
+                clipboardData: dt
+              });
+              inputArea.dispatchEvent(pasteEvent);
+              return 'paste-dispatched';
+            } catch (err) {
+              return 'error: ' + (err.message || String(err));
+            }
+          })()
+        `)
+
+        const waitForChip = async () => {
+          const deadline = Date.now() + 5000
+          while (Date.now() < deadline) {
+            const snapshot = await getAttachmentSnapshot()
+            const countIncreased = (snapshot?.count ?? 0) > (baselineSnapshot?.count ?? 0)
+            const target = fileName.toLowerCase()
+            const matchedName = Array.isArray(snapshot?.names)
+              ? snapshot.names.some((text) => text.includes(target) || target.includes(text))
+              : false
+            if (countIncreased || matchedName) return true
+            await sleep(250)
+          }
+          return false
+        }
+
+        let attached = await waitForChip()
+        if (!attached && ai !== 'chatgpt') {
+          const injectedDrop = await view.webContents.executeJavaScript(`
+            (async () => {
+              try {
+                const base64 = ${JSON.stringify(base64)};
+                const binaryStr = atob(base64);
+                const bytes = new Uint8Array(binaryStr.length);
+                for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+                const blob = new Blob([bytes], { type: ${JSON.stringify(mimeType)} });
+                const file = new File([blob], ${JSON.stringify(fileName)}, { type: ${JSON.stringify(mimeType)}, lastModified: Date.now() });
+
+                const inputArea = document.querySelector('#prompt-textarea')
+                  || document.querySelector('textarea#chat-input')
+                  || document.querySelector('textarea')
+                  || document.querySelector('[contenteditable="true"]')
+                  || document.querySelector('.chat-input')
+                  || document.activeElement;
+                if (!inputArea) return 'no-input';
+
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                const seedTarget = inputArea.closest('form') || inputArea.parentElement || inputArea;
+                seedTarget.dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: dt }));
+                seedTarget.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+
+                const isVisible = (el) => {
+                  if (!(el instanceof HTMLElement)) return false;
+                  const rect = el.getBoundingClientRect();
+                  return rect.width > 0 && rect.height > 0;
+                }
+                const candidates = Array.from(document.querySelectorAll('div, section, form, [role="dialog"]'));
+                const overlay = candidates.find((el) => {
+                  const text = (el.textContent || '').toLowerCase();
+                  return isVisible(el) && text.includes('drop any file here') && text.includes('conversation');
+                });
+
+                const dropTarget = overlay || seedTarget;
+                dropTarget.dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: dt }));
+                dropTarget.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+                dropTarget.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+                return overlay ? 'drop-overlay' : 'drop-seed';
+              } catch (err) {
+                return 'error: ' + (err.message || String(err));
+              }
+            })()
+          `)
+          sendLog('info', `[file-attach] ${ai}: JS drop fallback result for ${fileName}: ${injectedDrop}`)
+          attached = await waitForChip()
+        }
+
+        if (!attached) {
+          try {
+            view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+            view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+          } catch {
+            // best effort to dismiss drop overlay or duplicate modal
+          }
+        }
+
+        if (attached) {
+          if (ai === 'chatgpt') {
+            await dismissChatgptUploadOverlay(view)
+          }
+          sendLog('info', `[file-attach] ${ai}: JS drop attached ${fileName} (${(fileBuffer.length / 1024).toFixed(0)}KB)`)
+          successCount++
+        } else {
+          sendLog('warn', `[file-attach] ${ai}: JS drop did not create attachment chip for ${fileName}; paste=${injectedPaste}`)
+        }
+      } catch (err) {
+        sendLog('warn', `[file-attach] ${ai}: JS drop failed for ${path.basename(filePath)}: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    }
+    return successCount === filePaths.length && successCount > 0
+  } catch (err) {
+    sendLog('warn', `[file-attach] ${ai}: JS drop strategy failed: ${err instanceof Error ? err.message : String(err)}`)
+    return false
+  }
+}
+
+async function dismissChatgptUploadOverlay(view: BrowserView): Promise<void> {
+  try {
+    const result = await view.webContents.executeJavaScript(`
+      (() => {
+        const isVisible = (el) => {
+          if (!(el instanceof HTMLElement)) return false;
+          const rect = el.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) return false;
+          const style = window.getComputedStyle(el);
+          return style.visibility !== 'hidden' && style.display !== 'none' && style.opacity !== '0';
+        };
+
+        const candidates = Array.from(document.querySelectorAll('div, section, form, [role="dialog"]'));
+        const overlay = candidates.find((el) => {
+          const text = (el.textContent || '').toLowerCase();
+          return isVisible(el) && text.includes('add anything') && text.includes('drop any file here');
+        });
+
+        const duplicateDialog = candidates.find((el) => {
+          const text = (el.textContent || '').toLowerCase();
+          return isVisible(el) && text.includes('already uploaded this file');
+        });
+
+        let clickedOk = false;
+        if (duplicateDialog) {
+          const buttons = Array.from(duplicateDialog.querySelectorAll('button'));
+          const okButton = buttons.find((btn) => isVisible(btn) && (btn.textContent || '').trim().toLowerCase() === 'ok');
+          if (okButton instanceof HTMLElement) {
+            okButton.click();
+            clickedOk = true;
+          }
+        }
+
+        const input = document.querySelector('#prompt-textarea')
+          || document.querySelector('textarea')
+          || document.querySelector('[contenteditable="true"]');
+        if (input instanceof HTMLElement) {
+          input.focus();
+          input.click();
+        }
+
+        return {
+          hadOverlay: !!overlay,
+          hadDuplicateDialog: !!duplicateDialog,
+          clickedOk,
+        };
+      })()
+    `).catch(() => null)
+
+    try {
+      view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+      view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+    } catch {
+      // best-effort only
+    }
+
+    await sleep(150)
+
+    if (result?.hadOverlay || result?.hadDuplicateDialog) {
+      sendLog('info', `[file-attach] chatgpt: dismissed upload overlay state ${JSON.stringify(result)}`)
+    }
+  } catch (err) {
+    sendLog('warn', `[file-attach] chatgpt: failed to dismiss upload overlay: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
+/**
+ * Wait for any active file uploads to complete.
+ * Many AIs (especially ChatGPT) take time to process uploaded files and show
+ * a spinner or progress bar. If we send the message before this finishes,
+ * the send action either fails or the message is sent without the file.
+ */
+async function waitForFileUploadComplete(view: BrowserView, ai: AiName): Promise<void> {
+  // ChatGPT document uploads can take noticeably longer than image chips.
+  const maxWaitMs = ai === 'chatgpt' ? 90000 : 30000
+  const pollIntervalMs = 500
+  const startTime = Date.now()
+
+  while (Date.now() - startTime < maxWaitMs) {
+    try {
+      const isUploading = await view.webContents.executeJavaScript(`
+        (() => {
+          // Check for common progress indicators or spinners
+          const loaders = document.querySelectorAll(
+            '[role="progressbar"], ' + 
+            'progress, ' +
+            '.animate-spin, ' +
+            'svg[class*="spin"], ' +
+            '.spinner, ' + 
+            '.loading, ' + 
+            '[aria-busy="true"]'
+          );
+          
+          if (loaders.length > 0) {
+            // Filter out hidden loaders
+            for (const el of loaders) {
+              const rect = el.getBoundingClientRect();
+              if (rect.width > 0 && rect.height > 0) return true;
+            }
+          }
+
+          // For ChatGPT specifically: document uploads often show their spinner
+          // only inside the attachment pill instead of a global progress bar.
+          const chatgptPills = document.querySelectorAll('[data-testid^="file-"], [data-testid*="attachment"], [data-testid*="file-pill"]');
+          for (const pill of chatgptPills) {
+            const text = (pill.textContent || '').toLowerCase();
+            if (/upload|processing|analy|index|extract|reading/.test(text)) {
+              return true;
+            }
+            if (pill.querySelector('[role="progressbar"], progress, [aria-busy="true"], .animate-spin, svg[class*="spin"]')) {
+              return true;
+            }
+          }
+
+          return false;
+        })()
+      `)
+
+      if (!isUploading) {
+        // Additional small buffer after spinner disappears just to be safe
+        await sleep(1000)
+        return
+      }
+
+      await sleep(pollIntervalMs)
+    } catch (err) {
+      sendLog('warn', `[file-attach] ${ai}: error polling for upload status: ${err instanceof Error ? err.message : String(err)}`)
+      break
+    }
+  }
+
+  sendLog('warn', `[file-attach] ${ai}: timed out waiting for file upload to complete after ${maxWaitMs}ms`)
+}
+
+async function triggerFileInputEvents(
+  dbg: Electron.Debugger,
+  nodeId: number,
+  ai: AiName
+): Promise<void> {
+  try {
+    const resolved = await dbg.sendCommand('DOM.resolveNode', { nodeId }) as {
+      object?: { objectId?: string }
+    }
+    const objectId = resolved?.object?.objectId
+    if (!objectId) {
+      sendLog('warn', `[file-attach] ${ai}: could not resolve file input node ${nodeId} for event dispatch`)
+      return
+    }
+
+    const result = await dbg.sendCommand('Runtime.callFunctionOn', {
+      objectId,
+      returnByValue: true,
+      functionDeclaration: `
+        function() {
+          const input = this;
+          if (!(input instanceof HTMLInputElement)) {
+            return { ok: false, reason: 'not-input' };
+          }
+
+          const fire = (type) => {
+            const ev = new Event(type, { bubbles: true, cancelable: false, composed: true });
+            input.dispatchEvent(ev);
+          };
+
+          // ChatGPT appears to react badly when we replay multiple upload-ish
+          // signals. A single change event is enough for React-based uploaders.
+          fire('change');
+
+          return {
+            ok: true,
+            fileCount: input.files ? input.files.length : 0,
+            firstFile: input.files && input.files[0] ? input.files[0].name : null,
+            connected: !!input.isConnected,
+            disabled: !!input.disabled,
+          };
+        }
+      `,
+    }) as { result?: { value?: unknown } }
+
+    sendLog('info', `[file-attach] ${ai}: dispatched file input events on nodeId=${nodeId} result=${JSON.stringify(result?.result?.value ?? null)}`)
+
+    try {
+      await dbg.sendCommand('Runtime.releaseObject', { objectId })
+    } catch {
+      // best-effort cleanup
+    }
+  } catch (err) {
+    sendLog('warn', `[file-attach] ${ai}: failed to dispatch file input events: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
+function prepareUploadFilePaths(ai: AiName, filePaths: string[]): string[] {
+  return filePaths
+}
+
+function shouldResetFileInputBeforeAttach(ai: AiName): boolean {
+  // chatgpt: JS-drop strategy is used first; CDP reset is N/A.
+  // claude: setFileInputFiles already fires a native change event.
+  //         A redundant empty-reset triggers a spurious upload cycle
+  //         that causes the file to appear twice in the composer.
+  return ai !== 'chatgpt' && ai !== 'claude'
+}
+
+function shouldDispatchFileInputEvents(ai: AiName): boolean {
+  // chatgpt: JS-drop strategy handles its own events.
+  // claude: setFileInputFiles natively fires change; an extra manual
+  //         dispatch causes Claude's React uploader to process the
+  //         file a second time, resulting in duplicate attachment chips.
+  return ai !== 'chatgpt' && ai !== 'claude'
+}
+
+function getMimeTypeForFile(filePath: string): string {
+  const ext = path.extname(filePath).replace('.', '').toLowerCase()
+  switch (ext) {
+    case 'png': return 'image/png'
+    case 'jpg':
+    case 'jpeg': return 'image/jpeg'
+    case 'webp': return 'image/webp'
+    case 'gif': return 'image/gif'
+    case 'bmp': return 'image/bmp'
+    case 'pdf': return 'application/pdf'
+    case 'txt': return 'text/plain'
+    case 'md': return 'text/markdown'
+    case 'csv': return 'text/csv'
+    case 'json': return 'application/json'
+    case 'doc': return 'application/msword'
+    case 'docx': return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    case 'xls': return 'application/vnd.ms-excel'
+    case 'xlsx': return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    case 'ppt': return 'application/vnd.ms-powerpoint'
+    case 'pptx': return 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    default: return 'application/octet-stream'
+  }
+}
+
+/** Strategy A: Find <input type="file"> via CDP and set files on it. */
+async function attachFilesViaCDPFileInput(
+  view: BrowserView,
+  ai: AiName,
+  filePaths: string[]
+): Promise<boolean> {
   const dbg = view.webContents.debugger
   const wasAlreadyAttached = dbg.isAttached()
+  const uploadFilePaths = prepareUploadFilePaths(ai, filePaths)
 
   try {
     if (!wasAlreadyAttached) dbg.attach('1.3')
 
-    // Helper: find file input nodeIds from current DOM
     const findFileInputs = async (): Promise<number[]> => {
-      const { root } = await dbg.sendCommand('DOM.getDocument', { depth: 3 }) as { root: { nodeId: number } }
+      const { root } = await dbg.sendCommand('DOM.getDocument', { depth: -1 }) as { root: { nodeId: number } }
       const { nodeIds } = await dbg.sendCommand('DOM.querySelectorAll', {
         nodeId: root.nodeId,
         selector: 'input[type="file"]',
@@ -4600,22 +5370,171 @@ async function attachFilesViaCDP(
       return nodeIds ?? []
     }
 
-    const nodeIds = await findFileInputs()
+    // Step 1: click the upload-trigger button to reveal <input type="file">
+    const revealUploadInput = async () => {
+      const selectors = FILE_UPLOAD_BUTTON_SELECTORS[ai] ?? []
+      for (const selector of selectors) {
+        try {
+          const clicked = await executeWithTimeout(view.webContents, `
+            (() => {
+              const button = document.querySelector(${JSON.stringify(selector)});
+              if (!(button instanceof HTMLElement)) return false;
+              if (button.disabled) return false;
+              if (button.getAttribute('aria-disabled') === 'true') return false;
+              const rect = button.getBoundingClientRect();
+              if (rect.width < 4 || rect.height < 4) return false;
+              button.click();
+              return true;
+            })()
+          `)
+          if (!clicked) continue
+          sendLog('info', `[file-attach] ${ai}: clicked upload trigger via ${selector}`)
+          await sleep(900)
+
+          // Check if file input already appeared
+          let postClickInputs = await findFileInputs()
+          if (postClickInputs.length > 0) return
+
+          // Two-step: many composers open a menu → click an "Upload file" item
+          sendLog('info', `[file-attach] ${ai}: no file input yet — trying menu item click`)
+          try {
+            await executeWithTimeout(view.webContents, `
+              (() => {
+                const KEY = /(upload from device|upload from this|upload file|upload image|attach file|from your device|from device|기기에서|업로드|파일 업로드|이미지 업로드)/i;
+                const sels = ['[role="menuitem"]','[role="option"]','mat-menu-item','.mat-mdc-menu-item','li[role="menuitem"]','li','button','a','div[role="button"]'];
+                const seen = new Set();
+                for (const s of sels) {
+                  for (const item of document.querySelectorAll(s)) {
+                    if (seen.has(item)) continue; seen.add(item);
+                    const t = (item.textContent||'').trim();
+                    const aria = (item.getAttribute('aria-label')||'').trim();
+                    if (t.length > 0 && t.length < 60 && (KEY.test(t) || KEY.test(aria))) {
+                      item.click(); return true;
+                    }
+                  }
+                }
+                return false;
+              })()
+            `)
+            sendLog('info', `[file-attach] ${ai}: clicked upload menu item (two-step reveal)`)
+            await sleep(900)
+            postClickInputs = await findFileInputs()
+            if (postClickInputs.length > 0) return
+          } catch { /* menu click optional */ }
+
+          // Don't bail — the click might have hit an unrelated button.  Try
+          // the next selector instead of returning early.
+        } catch (err) {
+          sendLog('warn', `[file-attach] ${ai}: selector ${selector} failed: ${err instanceof Error ? err.message : String(err)}`)
+        }
+      }
+
+      // DeepSeek DOM heuristic: find the paperclip SVG icon button by position
+      if (ai === 'deepseek') {
+        try {
+          const clicked = await executeWithTimeout(view.webContents, `
+            (() => {
+              const inputArea = document.querySelector('#chat-input, textarea');
+              if (!inputArea) return false;
+              const container = inputArea.closest('form') || inputArea.parentElement?.parentElement;
+              if (!container) return false;
+              const btns = container.querySelectorAll('.ds-icon-button, [class*="icon-button"]');
+              for (const btn of btns) {
+                const svg = btn.querySelector('svg');
+                const text = btn.textContent?.trim() || '';
+                if (svg && !text.includes('DeepThink') && !text.includes('Search') &&
+                    !text.includes('搜索') && !text.includes('深度思考') && text.length < 3) {
+                  btn.click(); return true;
+                }
+              }
+              return false;
+            })()
+          `)
+          if (clicked) {
+            sendLog('info', `[file-attach] deepseek: clicked attachment via DOM heuristic`)
+            await sleep(900)
+          }
+        } catch { /* ignore */ }
+      }
+
+      // Gemini DOM heuristic: find the "+" button near the input area
+      if (ai === 'gemini') {
+        try {
+          const clicked = await executeWithTimeout(view.webContents, `
+            (() => {
+              const inputArea = document.querySelector('rich-textarea, div[contenteditable]');
+              if (!inputArea) return false;
+              const container = inputArea.closest('form') || inputArea.parentElement?.parentElement?.parentElement;
+              if (!container) return false;
+              for (const btn of container.querySelectorAll('button')) {
+                const label = (btn.getAttribute('aria-label')||'').toLowerCase();
+                const text = (btn.textContent||'').trim();
+                if (text === '+' || text === '' || label.includes('add') || label.includes('upload') || label.includes('추가')) {
+                  btn.click(); return true;
+                }
+              }
+              return false;
+            })()
+          `)
+          if (clicked) {
+            sendLog('info', `[file-attach] gemini: clicked add button via DOM heuristic`)
+            await sleep(900)
+            // Now click the Upload file menu item
+            try {
+              await executeWithTimeout(view.webContents, `
+                (() => {
+                  for (const item of document.querySelectorAll('[role="menuitem"],[role="option"],button,li,a')) {
+                    const t = (item.textContent||'').trim().toLowerCase();
+                    if ((t.includes('upload') || t.includes('file') || t.includes('파일')) && t.length < 40) {
+                      item.click(); return true;
+                    }
+                  }
+                  return false;
+                })()
+              `)
+              await sleep(900)
+            } catch { /* ignore */ }
+          }
+        } catch { /* ignore */ }
+      }
+    }
+
+    let nodeIds = await findFileInputs()
+    if (nodeIds.length === 0) {
+      await revealUploadInput()
+      nodeIds = await findFileInputs()
+    }
 
     if (nodeIds.length === 0) {
-      sendLog('warn', `[file-attach] ${ai}: No <input type="file"> found — falling back to text`)
+      sendLog('warn', `[file-attach] ${ai}: No <input type="file"> found after reveal attempts`)
       return false
     }
 
-    // Set files on the first (most relevant) file input
+    // Use the LAST input found.  When a trigger click mounts a fresh input,
+    // it is appended to the document, so the last index is the most likely
+    // active uploader (the first index is often a stale or hidden one used
+    // for an avatar / settings picker elsewhere on the page).
+    const targetNodeId = nodeIds[nodeIds.length - 1]
+    sendLog('info', `[file-attach] ${ai}: setting files on input nodeId=${targetNodeId} (of ${nodeIds.length} candidate inputs)`)
+    if (shouldResetFileInputBeforeAttach(ai)) {
+      try {
+        await dbg.sendCommand('DOM.setFileInputFiles', {
+          nodeId: targetNodeId,
+          files: [],
+        })
+      } catch {
+        // Reset is best-effort. Some inputs reject empty resets through CDP.
+      }
+    }
     await dbg.sendCommand('DOM.setFileInputFiles', {
-      nodeId: nodeIds[0],
-      files: filePaths,
+      nodeId: targetNodeId,
+      files: uploadFilePaths,
     })
+    if (shouldDispatchFileInputEvents(ai)) {
+      await triggerFileInputEvents(dbg, targetNodeId, ai)
+    }
 
-    sendLog('info', `[file-attach] ${ai}: ${filePaths.length} file(s) attached via CDP`)
-
-    // Wait for the AI's upload handler to process the files
+    sendLog('info', `[file-attach] ${ai}: ${uploadFilePaths.length} file(s) attached via CDP`)
     await sleep(2500)
     return true
   } catch (err) {
@@ -4628,10 +5547,69 @@ async function attachFilesViaCDP(
   }
 }
 
+/**
+ * Strategy B: Paste images via clipboard (Ctrl+V) as a universal fallback.
+ * Works for any AI site that supports pasting images from clipboard.
+ */
+async function attachFilesViaClipboardPaste(
+  view: BrowserView,
+  ai: AiName,
+  filePaths: string[]
+): Promise<boolean> {
+  const { clipboard, nativeImage } = require('electron')
+  const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'])
+  const imageFiles = filePaths.filter((fp) => IMAGE_EXTS.has(path.extname(fp).replace('.', '').toLowerCase()))
+  if (imageFiles.length === 0) return false
+
+  try {
+    // Focus the input area
+    const config = getSelectors(ai)
+    const inputRes = await execWithFallback(
+      view, config.inputSelectors,
+      (sel) => `(() => { const el = document.querySelector(\`${sel}\`); if (el) { el.focus(); el.click(); return true; } return false; })()`
+    )
+    if (!inputRes.success) {
+      sendLog('warn', `[file-attach] ${ai}: could not focus input for clipboard paste`)
+      return false
+    }
+    // CRITICAL: Focus the BrowserView itself before dispatching keyboard input.
+    try { view.webContents.focus() } catch { /* view may be detached */ }
+    await sleep(300)
+
+    for (const imgPath of imageFiles) {
+      try {
+        const image = nativeImage.createFromPath(imgPath)
+        if (image.isEmpty()) { sendLog('warn', `[file-attach] ${ai}: nativeImage empty for ${path.basename(imgPath)}`); continue }
+        clipboard.writeImage(image)
+        await sleep(200)
+        // Use Electron's built-in paste command — more reliable than sendInputEvent
+        // for triggering Chromium's paste pipeline (which handles image clipboard data)
+        view.webContents.paste()
+        await sleep(2000)
+        sendLog('info', `[file-attach] ${ai}: pasted ${path.basename(imgPath)} via clipboard`)
+      } catch (err) {
+        sendLog('warn', `[file-attach] ${ai}: clipboard paste failed for ${path.basename(imgPath)}: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    }
+    return true
+  } catch (err) {
+    sendLog('warn', `[file-attach] ${ai}: clipboard paste strategy failed: ${err instanceof Error ? err.message : String(err)}`)
+    return false
+  }
+}
+
 // ─── File Content Extraction ──────────────────────────────────────────────────
 const FILE_CONTENT_MAX_CHARS = 80_000   // ~40-50 pages — prevents token overflow
+const IMAGE_FILE_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'])
 
 async function extractFileContent(filePath: string, ext: string): Promise<string> {
+  // Images can't be meaningfully reduced to text — return empty so the caller
+  // skips them and relies on attachFilesViaCDP / clipboard paste to deliver
+  // the actual binary to the AI.  Without this, the prompt would otherwise
+  // contain "[Unsupported file type: .png]" which confuses the AI into
+  // thinking nothing was attached when in fact the upload pipeline succeeded.
+  if (IMAGE_FILE_EXTS.has(ext)) return ''
+
   try {
     if (ext === 'pdf') {
       const pdfParse = require('pdf-parse')
@@ -5464,10 +6442,13 @@ export function apiLoadCouncilSnapshot(snapshotId: string) {
   }
 }
 
-export async function apiSendCouncilMessage(text: string) {
+export async function apiSendCouncilMessage(text: string, attachedFiles: Array<{ name: string; path: string; ext: string }> = []) {
   const payload = { text, participants: councilRoom.participants, primaryAi: councilRoom.primaryAi }
   const trimmedText = typeof payload?.text === 'string' ? payload.text.trim() : ''
   if (!trimmedText) return cloneCouncilRoomState()
+
+  const councilAttachedFiles = attachedFiles.filter((f) => typeof f.path === 'string' && f.path.length > 0)
+  const councilFilePaths = councilAttachedFiles.map((f) => f.path)
 
   syncCouncilRoomContext(payload.participants, payload.primaryAi)
   clearFailedCouncilTurn()
@@ -5500,8 +6481,13 @@ export async function apiSendCouncilMessage(text: string) {
     return cloneCouncilRoomState()
   }
 
+  // Multi-mention path: parser sets intent.targetAis to the user's explicit
+  // list (in mention order).  Pure @all (no specific list) falls back to all
+  // active participants in the standard sequential ordering.
   const targets = intent.kind === 'all'
-    ? getSequentialCouncilTargets(councilRoom.participants, councilRoom.primaryAi)
+    ? (intent.targetAis && intent.targetAis.length > 0
+        ? intent.targetAis
+        : getSequentialCouncilTargets(councilRoom.participants, councilRoom.primaryAi))
     : intent.targetAi
       ? [intent.targetAi]
       : []
@@ -5553,7 +6539,7 @@ export async function apiSendCouncilMessage(text: string) {
     }
 
     try {
-      await enqueueCouncilTurn(targetAi, trimmedText)
+      await enqueueCouncilTurn(targetAi, trimmedText, councilFilePaths, councilAttachedFiles)
     } catch (err) {
       recordCouncilTurnFailure(targetAi, trimmedText, err, {
         kind: intent.kind,

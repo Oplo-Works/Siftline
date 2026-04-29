@@ -27,12 +27,39 @@ export interface TgChat {
   last_name?: string
 }
 
+export interface TgPhotoSize {
+  file_id: string
+  file_unique_id: string
+  width: number
+  height: number
+  file_size?: number
+}
+
+export interface TgDocument {
+  file_id: string
+  file_unique_id: string
+  file_name?: string
+  mime_type?: string
+  file_size?: number
+}
+
+export interface TgFile {
+  file_id: string
+  file_unique_id: string
+  file_size?: number
+  file_path?: string
+}
+
 export interface TgMessage {
   message_id: number
   from?: TgUser
   chat: TgChat
   date: number
   text?: string
+  caption?: string
+  media_group_id?: string
+  photo?: TgPhotoSize[]
+  document?: TgDocument
   entities?: Array<{
     type: string
     offset: number
@@ -197,6 +224,23 @@ export function sendChatAction(
 /** Validate a token by hitting `getMe`.  Returns the bot's profile on success. */
 export function getMe(token: string): Promise<TgUser> {
   return tgCall<TgUser>(token, 'getMe', {}, { timeoutMs: 10_000 })
+}
+
+export function getFile(token: string, fileId: string): Promise<TgFile> {
+  return tgCall<TgFile>(token, 'getFile', { file_id: fileId }, { timeoutMs: 20_000 })
+}
+
+export async function downloadFileBytes(token: string, filePath: string): Promise<Uint8Array> {
+  if (!token) throw makeError('Bot token is empty')
+  if (!filePath) throw makeError('Telegram file path is empty')
+
+  const url = `${TELEGRAM_API_BASE}/file/bot${token}/${filePath}`
+  const res = await fetch(url)
+  if (!res.ok) {
+    throw makeError(`Telegram file download failed: HTTP ${res.status}`)
+  }
+
+  return new Uint8Array(await res.arrayBuffer())
 }
 
 /** Register a fixed slash-command list so Telegram clients show suggestions. */

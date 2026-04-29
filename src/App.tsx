@@ -93,6 +93,7 @@ export default function App() {
   const [selectedCouncilCandidateId, setSelectedCouncilCandidateId] = useState<string | null>(null)
   const [councilUiLoaded, setCouncilUiLoaded] = useState(false)
   const [isCouncilAutoSaving, setIsCouncilAutoSaving] = useState(false)
+  const [councilAttachedFiles, setCouncilAttachedFiles] = useState<AttachedFile[]>([])
   const isRunningRef = useRef(false)
   const councilAutoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -828,14 +829,29 @@ export default function App() {
     }
   }, [])
 
-  const handleSendCouncilMessage = useCallback(async (text: string) => {
+  const handleCouncilAttach = useCallback(async () => {
+    const files = await window.electronAPI.openFileDialog()
+    if (files.length === 0) return
+    setCouncilAttachedFiles((prev) => {
+      const existing = new Set(prev.map((f) => f.path))
+      return [...prev, ...files.filter((f) => !existing.has(f.path))]
+    })
+  }, [])
+
+  const handleCouncilRemoveFile = useCallback((index: number) => {
+    setCouncilAttachedFiles((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const handleSendCouncilMessage = useCallback(async (text: string, files?: AttachedFile[]) => {
     setStatus('Sending council message...')
     const room = await window.electronAPI.sendCouncilMessage({
       text,
       participants: enabledAis,
       primaryAi,
+      attachedFiles: files,
     })
     setCouncilRoom(room)
+    setCouncilAttachedFiles([])
   }, [enabledAis, primaryAi])
 
   const handleResetCouncilRoom = useCallback(async () => {
@@ -1010,6 +1026,9 @@ export default function App() {
             enabledAis={enabledAis}
             primaryAi={primaryAi}
             onSend={handleSendCouncilMessage}
+            attachedFiles={councilAttachedFiles}
+            onAttachFiles={handleCouncilAttach}
+            onRemoveAttachedFile={handleCouncilRemoveFile}
             onReset={handleResetCouncilRoom}
             onRetryFailed={handleRetryCouncilTurn}
             onSkipFailed={handleSkipCouncilTurn}

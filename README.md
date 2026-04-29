@@ -9,6 +9,8 @@
 | Feature | Description |
 |---------|-------------|
 | 📱 **Telegram Integration** | Control AI Council from your smartphone via a Telegram bot. Send messages, @mention specific AIs, and manage sessions — all from the Telegram app while the desktop app runs in the background. |
+| 📎 **Telegram File Sharing** | Send photos and documents (PDF, DOCX, XLSX, TXT, MD, CSV, PNG, JPG, …) directly from Telegram. Files are downloaded to a temp folder and attached to the Council Chat session automatically — AIs analyze them just like desktop-uploaded files. Media groups (multiple photos sent at once) are bundled and processed together. |
+| 📎 **Council Chat File Attachment** | A **+Attach** button in the Council Chat input bar lets you attach files before sending any message. Attached files are physically uploaded to each AI's browser interface via CDP and included in the prompt when CDP upload is unavailable. |
 | 🔵 **DeepSeek Support** | DeepSeek (`chat.deepseek.com`) replaces Groq as the 6th AI panel. DeepSeek is a high-quality open-weight model strong on reasoning, coding, and concise synthesis. |
 | 🤖 **Telegram Slash Commands** | Full session management via Telegram: `/new`, `/save`, `/save_and_new`, `/sessions`, `/load`, `/workflow`, `/status`, `/help`. |
 | 🔒 **Secure Token Storage** | Telegram bot token and chat ID are stored in an encrypted `electron-store` file — they never leave your machine and never appear in logs. |
@@ -149,6 +151,22 @@ Any plain-text message you send to the bot is routed to the active Council Chat 
 | `@Gemini explain this in simple terms` | Only Gemini responds |
 | `@Claude review my logic` | Only Claude responds |
 | `@all summarize what we've decided` | All active AIs respond simultaneously |
+
+### 📎 Sending files from Telegram
+
+You can send files directly from your Telegram chat — they are automatically downloaded and attached to the Council Chat session.
+
+| What to send | What happens |
+|-------------|-------------|
+| Photo (single) | Downloaded as `.jpg` and attached to the next council message |
+| Photo album (media group) | All photos bundled together and attached as a single message |
+| Document (PDF, DOCX, XLSX, TXT, MD, CSV, PNG, JPG, …) | Downloaded and attached; unsupported formats are ignored |
+| Photo + caption | Caption becomes the message text; photo becomes the attachment |
+| Document + caption | Caption becomes the message text; document becomes the attachment |
+
+**Supported document formats:** `pdf`, `doc`, `docx`, `xls`, `xlsx`, `txt`, `md`, `csv`, `json`, `html`, `htm`, and all common image types (`png`, `jpg`, `jpeg`, `webp`, `gif`, `bmp`).
+
+> Files are saved temporarily in the system temp folder under `ai-council-telegram/`. They are not persisted between app restarts.
 
 ### Security notes
 
@@ -433,6 +451,22 @@ Council Chat is a free-form group messaging interface — think WhatsApp for AI 
 
 Each AI reply shows as a chat bubble on the left, user messages on the right. Long responses show a **2-sentence preview** with a **▼ Read More** toggle to expand the full text.
 
+### 📎 File Attachment in Council Chat
+
+Click the **+Attach** button in the input bar to attach files before sending a message.
+
+- Files are physically uploaded to each AI's browser interface via CDP (same mechanism as Workflow mode)
+- When CDP upload succeeds, the file content is omitted from the prompt to avoid duplication
+- When CDP upload is unavailable, the extracted text content is included inline in the prompt
+- Multiple files can be attached at once; each shows as a chip with an ✕ to remove it before sending
+
+| Supported formats | Notes |
+|-------------------|-------|
+| `.pdf` | Text extracted via pdf-parse |
+| `.docx` | Body extracted via mammoth |
+| `.xlsx` | Sheets converted to CSV via xlsx |
+| `.txt` / `.md` / `.csv` / `.json` | Read as UTF-8 directly |
+
 ### Saved Sessions
 
 Every conversation can be saved as a **Session Snapshot** and restored at any time.
@@ -490,4 +524,153 @@ Click the **🔑 key icon** in the top-right of the title bar at any time.
 
 ### ⚡ API Keys tab
 
-- Enter API keys for Gemini, Claude, ChatGPT (OpenAI), DeepSeek, Per
+- Enter API keys for Gemini, Claude, ChatGPT (OpenAI), DeepSeek, Perplexity, and Grok
+- Toggle show / hide masking per key
+- Drag-and-drop rows to set provider priority for the recommendation engine
+- Click **Save** to persist — order is auto-saved immediately on drop
+
+---
+
+## AI Recommendation Engine
+
+When you type a query (≥ 8 characters) the app debounces for 800 ms and then calls the first available API provider in your configured key order.  
+A banner appears below the query input:
+
+- **Loading state** — spinner + "Analyzing query…"
+- **Result state** — recommended AI badge, reason, and an **Apply** button
+
+Click **Apply** (or the chip directly) to set the recommended AI as Primary before starting the workflow.
+
+**Fallback logic (no API key configured):** The engine uses keyword rules to pick the most suitable AI — e.g. analysis / documents → Gemini, creative writing → Claude, real-time news → Perplexity, code → ChatGPT.
+
+---
+
+## Response Language Detection
+
+Every prompt automatically includes a **Response Language Directive** that tells each AI which language to reply in.  
+The detection engine analyzes the script of your message:
+
+| Script detected | AI replies in |
+|----------------|---------------|
+| Hangul | Korean |
+| Hiragana / Katakana | Japanese |
+| Han characters only | Chinese |
+| Arabic script | Arabic |
+| Cyrillic script | Same dominant Cyrillic language |
+| Devanagari | Devanagari-script language |
+| Latin (English signals) | English |
+| Latin (non-English) | Same dominant Latin language |
+
+This applies to Workflow prompts, reviewer feedback, revisions, Council Chat messages, and messages sent via Telegram alike.
+
+---
+
+## File Attachment
+
+Files can be attached in **all three entry points** — Workflow mode, Council Chat, and Telegram.
+
+| Entry point | How to attach |
+|------------|---------------|
+| **Workflow** | Click the 📎 **Attach** button in the toolbar before clicking ▶ Start |
+| **Council Chat** | Click **+Attach** in the Council Chat input bar before sending a message |
+| **Telegram** | Send a photo or document directly in your Telegram chat |
+
+### Supported formats
+
+| Format | Extraction method | Saved as (Workflow download) |
+|--------|------------------|-----------------------------|
+| `.pdf` | pdf-parse (text extraction) | `.txt` |
+| `.docx` | mammoth (body extraction) | `.docx` (regenerated) |
+| `.xlsx` | xlsx (sheets → CSV) | `.xlsx` (regenerated) |
+| `.txt` / `.md` / `.csv` | Read UTF-8 directly | Keep original extension |
+| `.png` / `.jpg` / `.jpeg` / `.webp` / `.gif` / `.bmp` | Uploaded as image directly to AI | — |
+
+> **How it works:** The app first tries to physically upload the file to each AI's browser interface via CDP (`DOM.setFileInputFiles`). When that succeeds the raw file is visible to the AI's own document reader and the prompt omits the extracted text to avoid duplication. When CDP upload fails, extracted text content is included inline in the prompt as a fallback.
+
+- 📎 Attach multiple files at once
+- ⬇ Download each revised file separately (Workflow mode)
+- 80,000-character context limit per file context block
+
+---
+
+## Final Result Panel
+
+A collapsible panel pinned to the bottom of the screen. Toggle it by clicking the header or the ▲/▼ button.
+
+| State | Height | Displayed |
+|------|------|-----------| 
+| Collapsed | 36 px | Title · Primary AI name · complete/in-progress badge |
+| Expanded | 260 px | Preview (Markdown render) / Raw tab · Copy button · Per-file save buttons |
+
+> **Preview / Markdown tab:** Toggle between rendered HTML and the raw Markdown text.  
+> **Per-file save:** When attachments exist, each revised file can be saved via an individual button.
+
+---
+
+## Selector Maintenance
+
+> DOM selectors are defined in `electron/selectors.json` and inlined at build time.  
+> To override without rebuilding, place a custom `selectors.json` in the app's userData directory:
+>
+> **🪟 Windows:** `%APPDATA%\ai-council\selectors.json`  
+> **🍎 macOS:** `~/Library/Application Support/ai-council/selectors.json`
+
+---
+
+## Prompt Templates
+
+**Primary Prompt (when files are attached):**
+```text
+Please answer the following question.
+Question: {query}
+
+[Attached file content]
+--- {filename} ---
+{file content}
+---
+```
+
+**Reviewer Prompt (role-based):**
+```text
+You are acting as {Reviewer AI} in AI Council.
+Your reviewer role is: {role name}.
+Your reviewer focus is: {role focus}.
+
+Question: {query}
+[Attached file content]: {fileContext}   ← include only when files are attached
+Primary answer: {draft}
+
+Give feedback from your role only. Be specific and avoid repeating the same generic checklist for every AI.
+```
+
+**Final Revision Prompt (when files are attached):**
+```text
+Other AIs provided feedback on your previous answer.
+[Feedback from each AI] ...
+Incorporate the feedback and output the revised version of each file in the following format:
+
+<<<FILE:filename.ext>>>
+(full revised content)
+<<<END_FILE>>>
+```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Shell | Electron 41 |
+| UI | React 18 + TypeScript |
+| Build | Vite 5 + vite-plugin-electron |
+| Markdown | marked 18 (GFM + breaks) |
+| Storage | electron-store (encrypted for Telegram config) |
+| Styling | Vanilla CSS (dark glassmorphism) |
+| Browser embeds | `BrowserView` (not headless, persistent sessions) |
+| DOM automation | `executeJavaScript` + CDP `DOM.setFileInputFiles` |
+| File parsing | pdf-parse · mammoth · xlsx |
+| File generation | docx · xlsx |
+| OAuth compatibility | preload-chrome-spoof.js (Chrome identity masking) |
+| Language detection | Unicode script analysis (responseLanguage.ts) |
+| Telegram bridge | Native `fetch` long-poll (zero extra dependencies) |
+| AI inference (recommendation) | Gemini · Claude · OpenAI · Perplexity · Grok · DeepSeek APIs |

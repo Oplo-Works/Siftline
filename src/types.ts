@@ -114,6 +114,7 @@ export interface CouncilSendPayload {
   text: string
   participants: AiName[]
   primaryAi: AiName
+  attachedFiles?: AttachedFile[]
 }
 
 export interface WorkflowCouncilBridgeResult {

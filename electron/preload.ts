@@ -175,7 +175,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('delete-council-snapshot', snapshotId),
   syncCouncilRoomContext: (payload: { participants: AiName[]; primaryAi: AiName }): Promise<CouncilRoomState> =>
     ipcRenderer.invoke('sync-council-room-context', payload),
-  sendCouncilMessage: (payload: { text: string; participants: AiName[]; primaryAi: AiName }): Promise<CouncilRoomState> =>
+  sendCouncilMessage: (payload: {
+    text: string
+    participants: AiName[]
+    primaryAi: AiName
+    attachedFiles?: Array<{ name: string; path: string; ext: string }>
+  }): Promise<CouncilRoomState> =>
     ipcRenderer.invoke('send-council-message', payload),
   bridgeWorkflowToCouncil: (payload: { participants: AiName[]; primaryAi: AiName }): Promise<WorkflowCouncilBridgeResult> =>
     ipcRenderer.invoke('bridge-workflow-to-council', payload),

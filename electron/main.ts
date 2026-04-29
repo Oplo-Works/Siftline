@@ -203,12 +203,18 @@ const DEFAULT_SELECTORS: Record<AiName, AiConfig> = {
     ],
     responseContainerSelectors: [
       // Confirmed via DOM dump (2026-04): response lives inside
-      // <div id="markdown-content-0"> (and subsequent -1, -2 for follow-ups)
+      // <div id="markdown-content-0"> (and subsequent -1, -2 for follow-ups).
+      // Keep this list tight — broader fallbacks like `[class*="prose"]`
+      // also match Perplexity's landing-page placeholder ("What do you want
+      // to know? / Type @ for connectors..."), which we'd otherwise capture
+      // and relay as the AI's "answer".
       '[id^="markdown-content"]',
-      // prose block wrapping each answer paragraph
-      '.prose.dark\\:prose-invert',
-      '[class*="prose"][class*="inline"]',
-      '[class*="prose"]',
+      // Answer text wrapper that only renders once a response begins streaming
+      'div[data-testid*="answer" i] .prose',
+      'div[data-testid*="result" i] .prose',
+      // Generic prose ONLY inside an answer/turn container — never bare on
+      // the landing page.
+      '[data-testid="thread"] .prose',
     ],
     loadedIndicatorSelectors: ['textarea', 'div[contenteditable]', '[contenteditable]'],
   },
@@ -809,12 +815,37 @@ const DISCLAIMER_PATTERNS: RegExp[] = [
   /may produce inaccurate information/i,
   /ai can make mistakes/i,
   /responses may be inaccurate/i,
-  // Perplexity landing page placeholder text — not a real answer
-  /^what do you want to know\??$/i,
-  /^ask anything$/i,
-  /^search the web$/i,
-  /^type.*search.*shortcuts$/i,
+  // Perplexity landing-page placeholder hints — appear when no answer has
+  // been generated yet.  Patterns are unanchored so they match even when
+  // the empty composer surfaces several hint lines at once
+  // (e.g. "What do you want to know?\nType @ for connectors...\nType / ...").
+  /what do you want to know\??/i,
+  /\btype\s*@\s*for\s+connectors/i,
+  /\btype\s*\/\s*for\s+search/i,
+  /\bask anything\b/i,
 ]
+
+/**
+ * Returns true if the text matches multiple Perplexity landing-page hint
+ * markers — meaning the captured "response" is actually the empty search
+ * composer placeholder, not an answer to our prompt.  We use a 2+ marker
+ * rule so a real answer that happens to mention the phrase "what do you
+ * want to know" once doesn't get rejected.
+ */
+function isPerplexityPlaceholder(text: string): boolean {
+  if (!text) return false
+  if (text.length > 600) return false  // real answers are longer
+  const markers = [
+    /what do you want to know\??/i,
+    /\btype\s*@\s*for\s+connectors/i,
+    /\btype\s*\/\s*for\s+search/i,
+    /\bsearch the web\b/i,
+    /\bask anything\b/i,
+  ]
+  let hits = 0
+  for (const re of markers) if (re.test(text)) hits++
+  return hits >= 2
+}
 
 // ─── Data Constants ───────────────────────────────────────────────────────────
 const HISTORY_MAX_ITEMS = 50
@@ -935,6 +966,11 @@ function sanitizeClaudeFeedback(text: string): string {
 /** Returns true if the text is a real AI answer (not a disclaimer / too short). */
 function isQualityResponse(text: string): boolean {
   if (text.length < 50) return false
+  // Reject Perplexity's empty-composer placeholder before anything else.
+  // Without this guard the polling loop accepts the landing-page hint text
+  // ("What do you want to know? / Type @ for connectors / Type / for search…")
+  // as the AI's "answer" and we relay that back to the user.
+  if (isPerplexityPlaceholder(text)) return false
   // Reject if the text is ONLY a disclaimer phrase (guards against footer bleed-through)
   const isOnlyDisclaimer = DISCLAIMER_PATTERNS.some((p) => p.test(text)) && text.length < 400
   return !isOnlyDisclaimer

@@ -207,28 +207,28 @@ export const AI_ICONS: Record<AiName, string> = {
 
 export const AI_ROLE_PRESETS: Record<AiName, AiRolePreset> = {
   chatgpt: {
-    title: 'Practical Coach',
-    detail: 'Checks practical usefulness and clarity.',
+    title: 'Practical UX Coach',
+    detail: 'Makes answers clear, useful, actionable, and easy for a real user to follow.',
   },
   claude: {
-    title: 'Logic Auditor',
-    detail: 'Checks reasoning and structural rigor.',
+    title: 'Nuanced Reasoner',
+    detail: 'Weighs tradeoffs, preserves nuance, and checks correctness, ethics, and subtle risks.',
   },
   gemini: {
-    title: 'Systems Synthesizer',
-    detail: 'Adds big-picture context and framing.',
+    title: 'Broad-Context Synthesizer',
+    detail: 'Connects large bodies of context, missing background, system patterns, and audience fit.',
   },
   grok: {
-    title: 'Adversarial Critic',
-    detail: 'Pushes on assumptions and edge cases.',
+    title: 'Adversarial Reality Critic',
+    detail: 'Stress-tests assumptions against objections, incentives, friction, and real-world failure modes.',
   },
   deepseek: {
-    title: 'Code / Logic Expert',
-    detail: 'Provides strong analytical and coding perspectives.',
+    title: 'First-Principles Solver',
+    detail: 'Re-derives logic, math, code, and systems problems from fundamentals to find the cleanest route.',
   },
   perplexity: {
-    title: 'Fact / Freshness',
-    detail: 'Verifies accuracy and freshness.',
+    title: 'Source-Grounded Verifier',
+    detail: 'Checks factual claims, freshness, evidence quality, and unsupported assumptions with sources.',
   },
 }
 

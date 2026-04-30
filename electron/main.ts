@@ -4418,52 +4418,52 @@ ${query}${fileContext}`
 
 const AI_REVIEWER_BRIEFS: Record<AiName, { role: string; focus: string; outputGuide: string }> = {
   gemini: {
-    role: 'Systems Synthesizer',
-    focus: 'Look for missing context, weak framing, audience fit problems, and big-picture gaps that would matter to a thoughtful user.',
+    role: 'Broad-Context Systems Synthesizer',
+    focus: 'Connect dots across large bodies of information, surface missing context, identify system-level patterns, and check audience, workflow, and constraint fit.',
     outputGuide: `Respond with three short sections:
-- Coverage gaps
-- Better framing
-- Upgrade path`,
+- Context connections
+- Missing context
+- System fit`,
   },
   claude: {
-    role: 'Logic and Precision Auditor',
-    focus: 'Stress-test the reasoning. Focus on contradictions, unsupported leaps, missing assumptions, vague wording, and whether the answer is actually defensible.',
+    role: 'Nuanced Reasoner and Safety Analyst',
+    focus: 'Weigh tradeoffs, preserve subtle distinctions, check correctness, and flag ethical, safety, reputational, or human-impact concerns without losing practical direction.',
     outputGuide: `Respond with three short sections:
-- Reasoning issues
-- Missing assumptions
-- Tightened revision advice`,
+- Nuance to preserve
+- Correctness or risk concerns
+- Better tradeoff framing`,
   },
   chatgpt: {
     role: 'Practical UX and Communication Coach',
-    focus: 'Focus on usefulness, clarity, tone, and whether the answer helps the user act. Flag what is technically okay but not helpful in practice.',
+    focus: 'Make the answer clear, useful, actionable, and easy for a real user to follow. Improve framing, tone, structure, and next steps.',
     outputGuide: `Respond with three short sections:
 - What will land well
 - What feels impractical or vague
 - A stronger version`,
   },
   perplexity: {
-    role: 'Fact Checker and Freshness Monitor',
-    focus: 'Prioritize factual accuracy, recency-sensitive claims, unsupported statements, and places where the answer should hedge or verify.',
+    role: 'Source-Grounded Fact Verifier',
+    focus: 'Verify factual claims with current, credible sources. Flag outdated or unsupported assumptions, distinguish evidence from inference, and identify where citations are needed.',
     outputGuide: `Respond with three short sections:
-- Likely solid
-- Needs verification
-- Research additions`,
+- Verified or supportable
+- Needs evidence
+- Source-grounded additions`,
   },
   grok: {
-    role: 'Adversarial Critic',
-    focus: 'Take a skeptical stance. Surface hidden risks, edge cases, counterarguments, and what breaks if the assumptions are wrong.',
+    role: 'Adversarial Reality Critic',
+    focus: 'Challenge assumptions, expose weak points, identify practical and social failure modes, and offer sharper alternatives. Be direct, skeptical, and useful.',
     outputGuide: `Respond with three short sections:
 - Hidden risks
 - Strongest objection
 - Stress test fix`,
   },
   deepseek: {
-    role: 'Concise Alternative Solver',
-    focus: 'Optimize for speed and simplicity. Look for a cleaner route, a sharper summary, or a more efficient answer without losing substance.',
+    role: 'First-Principles Reasoning Solver',
+    focus: 'Re-derive the problem from fundamentals, especially for logic, math, code, systems, and optimization questions. Find the cleanest route and be concise without becoming shallow.',
     outputGuide: `Respond with three short sections:
-- What to simplify
-- Faster or cleaner alternative
-- Best condensed recommendation`,
+- Core reasoning
+- Cleaner route
+- Minimal correct recommendation`,
   },
 }
 
@@ -4491,7 +4491,7 @@ ${brief.outputGuide}`
     : `
 
 ⚠️ FINAL LANGUAGE RULE — read this last and obey it above all else:
-The user wrote in ${preferredLanguage}. Your ENTIRE reply must be in ${preferredLanguage}, including every section header. If your reply opens with an English phrase taken from the template above (such as "Likely solid", "Needs verification", "Research additions", "What to simplify", "Faster or cleaner alternative", "Best condensed recommendation", "Coverage gaps", "Better framing", "Upgrade path", "Reasoning issues", "Missing assumptions", "Tightened revision advice", "What will land well", "What feels impractical or vague", "A stronger version", "Hidden risks", "Strongest objection", "Stress test fix"), you have violated this instruction. Translate those labels into natural ${preferredLanguage}.`
+The user wrote in ${preferredLanguage}. Your ENTIRE reply must be in ${preferredLanguage}, including every section header. If your reply opens with an English phrase taken from the template above (such as "Verified or supportable", "Needs evidence", "Source-grounded additions", "Core reasoning", "Cleaner route", "Minimal correct recommendation", "Context connections", "Missing context", "System fit", "Nuance to preserve", "Correctness or risk concerns", "Better tradeoff framing", "What will land well", "What feels impractical or vague", "A stronger version", "Hidden risks", "Strongest objection", "Stress test fix"), you have violated this instruction. Translate those labels into natural ${preferredLanguage}.`
 
   return `${languageDirective}
 
@@ -4575,52 +4575,52 @@ ${fileBlocks}`
 // is diverse and complementary rather than echo-chamber repetitions.
 const AI_REVIEWER_PERSONAS: Record<AiName, { role: string; focus: string; outputGuide: string }> = {
   gemini: {
-    role: 'Systems Synthesizer',
-    focus: 'Look for missing context, weak framing, audience fit problems, and big-picture gaps that would matter to a thoughtful user.',
+    role: 'Broad-Context Systems Synthesizer',
+    focus: 'Connect dots across large bodies of information, surface missing context, identify system-level patterns, and check audience, workflow, and constraint fit.',
     outputGuide: `Respond with three short sections:
-- Coverage gaps
-- Better framing
-- Upgrade path`,
+- Context connections
+- Missing context
+- System fit`,
   },
   claude: {
-    role: 'Logic and Precision Auditor',
-    focus: 'Stress-test the reasoning. Focus on contradictions, unsupported leaps, missing assumptions, vague wording, and whether the answer is actually defensible.',
+    role: 'Nuanced Reasoner and Safety Analyst',
+    focus: 'Weigh tradeoffs, preserve subtle distinctions, check correctness, and flag ethical, safety, reputational, or human-impact concerns without losing practical direction.',
     outputGuide: `Respond with three short sections:
-- Reasoning issues
-- Missing assumptions
-- Tightened revision advice`,
+- Nuance to preserve
+- Correctness or risk concerns
+- Better tradeoff framing`,
   },
   chatgpt: {
     role: 'Practical UX and Communication Coach',
-    focus: 'Focus on usefulness, clarity, tone, and whether the answer helps the user act. Flag what is technically okay but not helpful in practice.',
+    focus: 'Make the answer clear, useful, actionable, and easy for a real user to follow. Improve framing, tone, structure, and next steps.',
     outputGuide: `Respond with three short sections:
 - What will land well
 - What feels impractical or vague
 - A stronger version`,
   },
   perplexity: {
-    role: 'Fact Checker and Freshness Monitor',
-    focus: 'Prioritize factual accuracy, recency-sensitive claims, unsupported statements, and places where the answer should hedge or verify.',
+    role: 'Source-Grounded Fact Verifier',
+    focus: 'Verify factual claims with current, credible sources. Flag outdated or unsupported assumptions, distinguish evidence from inference, and identify where citations are needed.',
     outputGuide: `Respond with three short sections:
-- Likely solid
-- Needs verification
-- Research additions`,
+- Verified or supportable
+- Needs evidence
+- Source-grounded additions`,
   },
   grok: {
-    role: 'Adversarial Critic',
-    focus: 'Take a skeptical stance. Surface hidden risks, edge cases, counterarguments, and what breaks if the assumptions are wrong.',
+    role: 'Adversarial Reality Critic',
+    focus: 'Challenge assumptions, expose weak points, identify practical and social failure modes, and offer sharper alternatives. Be direct, skeptical, and useful.',
     outputGuide: `Respond with three short sections:
 - Hidden risks
 - Strongest objection
 - Stress test fix`,
   },
   deepseek: {
-    role: 'Concise Alternative Solver',
-    focus: 'Optimize for speed and simplicity. Look for a cleaner route, a sharper summary, or a more efficient answer without losing substance.',
+    role: 'First-Principles Reasoning Solver',
+    focus: 'Re-derive the problem from fundamentals, especially for logic, math, code, systems, and optimization questions. Find the cleanest route and be concise without becoming shallow.',
     outputGuide: `Respond with three short sections:
-- What to simplify
-- Faster or cleaner alternative
-- Best condensed recommendation`,
+- Core reasoning
+- Cleaner route
+- Minimal correct recommendation`,
   },
 }
 
@@ -4752,82 +4752,126 @@ interface AiRecommendationResult {
   roundSuggestions: Array<{ ai: AiName; reason: string }>
 }
 
+const ROUTING_PROFILE_DETAILS: Record<AiName, AiRecommendationResult> = {
+  chatgpt: {
+    recommended: 'chatgpt',
+    reason: 'Recommended for practical UX, communication, writing, and turning the answer into clear next steps.',
+    roundSuggestions: [
+      { ai: 'claude', reason: 'Nuance, correctness, and tradeoff review' },
+      { ai: 'grok', reason: 'Reality check for weak spots' },
+    ],
+  },
+  claude: {
+    recommended: 'claude',
+    reason: 'Recommended for nuanced reasoning, correctness, safety, ethics, and careful tradeoff analysis.',
+    roundSuggestions: [
+      { ai: 'grok', reason: 'Adversarial failure-mode pressure' },
+      { ai: 'chatgpt', reason: 'Practical communication polish' },
+    ],
+  },
+  gemini: {
+    recommended: 'gemini',
+    reason: 'Recommended for broad-context synthesis across documents, systems, workflows, and large bodies of information.',
+    roundSuggestions: [
+      { ai: 'claude', reason: 'Nuance, correctness, and tradeoff critique' },
+      { ai: 'perplexity', reason: 'Source-grounded fact verification' },
+    ],
+  },
+  grok: {
+    recommended: 'grok',
+    reason: 'Recommended for adversarial critique, contrarian review, hidden assumptions, and real-world failure modes.',
+    roundSuggestions: [
+      { ai: 'claude', reason: 'Balanced nuance and safety analysis' },
+      { ai: 'perplexity', reason: 'Source-grounded claim verification' },
+    ],
+  },
+  deepseek: {
+    recommended: 'deepseek',
+    reason: 'Recommended for first-principles reasoning in logic, math, code, systems, and optimization problems.',
+    roundSuggestions: [
+      { ai: 'claude', reason: 'Correctness, edge-case, and safety review' },
+      { ai: 'chatgpt', reason: 'Practical implementation and communication polish' },
+    ],
+  },
+  perplexity: {
+    recommended: 'perplexity',
+    reason: 'Recommended for current facts, source-grounded verification, citations, and freshness-sensitive claims.',
+    roundSuggestions: [
+      { ai: 'gemini', reason: 'Broad-context synthesis of the findings' },
+      { ai: 'claude', reason: 'Nuanced tradeoff and correctness analysis' },
+    ],
+  },
+}
+
+function countRoutingMatches(query: string, patterns: RegExp[]): number {
+  return patterns.reduce((score, pattern) => score + (pattern.test(query) ? 1 : 0), 0)
+}
+
 /**
  * Rule-based fallback recommendation — used when no API key is configured
- * or when the API call fails.
+ * or when the API call fails. Keep this aligned with the AI Council roles:
+ * DeepSeek solves, Gemini connects, Claude nuances, Grok attacks,
+ * Perplexity verifies, and ChatGPT makes it usable.
  */
 function ruleBasedRecommendation(query: string): AiRecommendationResult {
   const q = query.toLowerCase()
-
-  // Coding / technical
-  if (/\b(code|coding|program|function|bug|error|debug|algorithm|api|typescript|javascript|python|react|node|sql|database|refactor|implement|class|module|async|await)\b/.test(q)) {
-    return {
-      recommended: 'claude',
-      reason: 'Coding & technical tasks — Claude excels at logic, structure, and code quality.',
-      roundSuggestions: [
-        { ai: 'chatgpt', reason: 'Practical implementation strategies' },
-        { ai: 'gemini', reason: 'Big-picture architecture review' },
-      ],
-    }
+  const scores: Record<AiName, number> = {
+    chatgpt: 0,
+    claude: 0,
+    gemini: 0,
+    grok: 0,
+    deepseek: 0,
+    perplexity: 0,
   }
 
-  // Latest news / real-time facts
-  if (/\b(news|latest|recent|today|current|2024|2025|2026|trending|stock|price|weather|event|happen)\b/.test(q)) {
-    return {
-      recommended: 'perplexity',
-      reason: 'Real-time search & fact-checking — Perplexity retrieves the latest information.',
-      roundSuggestions: [
-        { ai: 'gemini', reason: 'Context & big-picture synthesis' },
-        { ai: 'claude', reason: 'Logical analysis of the findings' },
-      ],
-    }
-  }
+  scores.perplexity += countRoutingMatches(q, [
+    /\b(news|latest|recent|today|yesterday|current|trending|stock|price|weather|event|happen|source|sources|citation|cite|verify|fact-?check|evidence)\b/i,
+    /\b(2024|2025|2026)\b/i,
+    /최신|최근|오늘|어제|현재|뉴스|트렌드|주가|가격|날씨|일정|사실\s*확인|검증|출처|근거|인용|증거/i,
+  ]) * 3
 
-  // Creative writing / storytelling
-  if (/\b(write|story|creative|poem|script|novel|fiction|blog|essay|marketing|copy|slogan|brand|advertisement|content)\b/.test(q)) {
-    return {
-      recommended: 'chatgpt',
-      reason: 'Creative writing & strategy — ChatGPT has strong creative and practical writing skills.',
-      roundSuggestions: [
-        { ai: 'claude', reason: 'Structure & logical coherence review' },
-        { ai: 'grok', reason: 'Unconventional angles & edge case check' },
-      ],
-    }
-  }
+  scores.deepseek += countRoutingMatches(q, [
+    /\b(code|coding|program|function|bug|error|debug|algorithm|api|typescript|javascript|python|react|node|sql|database|refactor|implement|class|module|async|await|math|logic|proof|optimi[sz]e|complexity)\b/i,
+    /코드|코딩|프로그래밍|버그|디버그|알고리즘|수학|계산|논리|추론|증명|최적화|복잡도|구현|리팩터|타입스크립트|자바스크립트|파이썬|데이터베이스/i,
+  ]) * 3
 
-  // Controversial / sensitive / debate
-  if (/\b(debate|controversial|opinion|argument|pros.*cons|cons.*pros|ethical|moral|should|vs\.?|versus|compare|which is better)\b/.test(q)) {
-    return {
-      recommended: 'grok',
-      reason: 'Controversial & debate topics — Grok provides bold, unfiltered perspectives.',
-      roundSuggestions: [
-        { ai: 'claude', reason: 'Balanced logical analysis' },
-        { ai: 'perplexity', reason: 'Fact-checking & grounding claims' },
-      ],
-    }
-  }
+  scores.gemini += countRoutingMatches(q, [
+    /\b(long|large|document|documents|file|files|report|spreadsheet|dataset|analyze|analysis|summari[sz]e|synthesis|synthesize|system|workflow|architecture|compare|context|multimodal|pdf|csv|xlsx)\b/i,
+    /긴|장문|대량|문서|자료|파일|보고서|스프레드시트|데이터셋|분석|요약|종합|시스템|워크플로우|아키텍처|비교|맥락|컨텍스트/i,
+  ]) * 2
 
-  // Long documents / data analysis
-  if (/\b(analyze|analysis|report|document|file|data|spreadsheet|summarize|summary|review|evaluate|assess)\b/.test(q)) {
-    return {
-      recommended: 'gemini',
-      reason: 'Document analysis & synthesis — Gemini handles long contexts and integration best.',
-      roundSuggestions: [
-        { ai: 'claude', reason: 'Logical & structural critique' },
-        { ai: 'perplexity', reason: 'Fact verification' },
-      ],
-    }
-  }
+  scores.claude += countRoutingMatches(q, [
+    /\b(nuance|nuanced|trade-?off|ethical|ethics|moral|safety|policy|correctness|careful|subtle|ambiguous|risk assessment|human impact|reputation|review)\b/i,
+    /뉘앙스|미묘|트레이드오프|윤리|도덕|안전|정책|정확성|신중|애매|모호|품질|검토|리뷰|인간적|평판/i,
+  ]) * 2
 
-  // Default: Gemini for general questions
-  return {
-    recommended: 'gemini',
-    reason: 'General question — Gemini provides a broad, well-rounded starting point.',
-    roundSuggestions: [
-      { ai: 'claude', reason: 'Logical depth & structure review' },
-      { ai: 'perplexity', reason: 'Fact-checking & research validation' },
-    ],
-  }
+  scores.grok += countRoutingMatches(q, [
+    /\b(adversarial|critic|critique|contrarian|devil'?s advocate|stress test|objection|weakness|failure mode|assumption|skeptical|debate|controversial|pros.*cons|cons.*pros|versus|vs\.?)\b/i,
+    /반박|비판|허점|약점|실패\s*모드|가정|회의적|논쟁|논란|찬반|반대|현실적|스트레스\s*테스트/i,
+  ]) * 2
+
+  scores.chatgpt += countRoutingMatches(q, [
+    /\b(write|writing|email|message|copy|blog|essay|marketing|brand|story|script|explain|communicat(e|ion)|ux|user|practical|actionable|plan|next step|tone|rewrite|polish)\b/i,
+    /글쓰기|이메일|메시지|카피|블로그|에세이|마케팅|브랜드|스토리|스크립트|설명|커뮤니케이션|소통|사용자|UX|실용|실행|계획|다음\s*단계|말투|톤|고쳐쓰기|다듬/i,
+  ]) * 2
+
+  // High-signal tie breakers that reflect the upgraded role ownership.
+  if (/출처|인용|최신|현재|today|latest|source|citation/i.test(q)) scores.perplexity += 2
+  if (/코드|알고리즘|수학|logic|algorithm|code|math/i.test(q)) scores.deepseek += 2
+  if (/윤리|안전|trade-?off|nuance|ethical|safety/i.test(q)) scores.claude += 2
+  if (/반박|허점|실패|contrarian|adversarial|failure mode/i.test(q)) scores.grok += 2
+  if (/문서|자료|종합|시스템|document|synthesis|system|context/i.test(q)) scores.gemini += 1
+  if (/실행|사용자|글쓰기|communication|actionable|ux|writing/i.test(q)) scores.chatgpt += 1
+
+  const priority: AiName[] = ['perplexity', 'deepseek', 'gemini', 'claude', 'grok', 'chatgpt']
+  const recommended = priority.reduce((best, ai) => {
+    if (scores[ai] > scores[best]) return ai
+    return best
+  }, 'gemini' as AiName)
+
+  return scores[recommended] > 0
+    ? ROUTING_PROFILE_DETAILS[recommended]
+    : ROUTING_PROFILE_DETAILS.gemini
 }
 
 /**
@@ -4844,12 +4888,21 @@ async function analyzeQueryForPrimaryAi(query: string): Promise<AiRecommendation
 Analyze the query and recommend the BEST Primary AI from: chatgpt, claude, gemini, grok, deepseek, perplexity.
 
 AI strengths:
-- gemini: Large document analysis, broad knowledge synthesis, accessibility
-- claude: Coding, logic, structure, long-form reasoning, technical writing
-- chatgpt: Creative writing, practical strategies, implementation advice
-- grok: Controversial topics, devil's advocate, edge cases, unfiltered analysis
-- deepseek: Advanced coding logic, strong reasoning
-- perplexity: Real-time facts, latest news, research & fact-checking
+- chatgpt: Practical UX and communication; clear, actionable, human-facing guidance
+- claude: Nuanced reasoning, long-form analysis, correctness, ethics, and safety tradeoffs
+- gemini: Broad-context synthesis across long documents, multimodal context, and system-level patterns
+- grok: Adversarial reality critique; assumptions, objections, incentives, and failure modes
+- deepseek: First-principles reasoning for logic, math, code, systems, and optimization
+- perplexity: Source-grounded fact verification, current information, citations, and freshness checks
+
+Routing rules:
+- Choose deepseek for code, algorithms, math, logic, debugging, implementation, optimization, or first-principles problem solving.
+- Choose gemini for long documents, many files, broad-context synthesis, multimodal context, systems, workflows, architecture, or cross-source integration.
+- Choose claude for nuanced tradeoffs, correctness, safety, ethics, policy, ambiguity, careful review, or human-impact analysis.
+- Choose grok for adversarial critique, contrarian review, hidden assumptions, objections, debates, incentives, or real-world failure modes.
+- Choose perplexity for latest/current information, factual verification, source-grounding, citations, or freshness-sensitive claims.
+- Choose chatgpt for practical UX, writing, communication, tone, user-facing explanation, action plans, or making the answer easy to use.
+- If a query matches multiple roles, pick the AI whose unique strength is most central to producing the first draft. Put complementary reviewers in roundSuggestions.
 
 User Query: "${query.slice(0, 500)}"
 
@@ -4863,7 +4916,20 @@ Respond ONLY with valid JSON (no markdown, no explanation):
     try {
       const jsonText = text.replace(/```json?\s*/g, '').replace(/```\s*/g, '').trim()
       const parsed = JSON.parse(jsonText) as AiRecommendationResult
-      return validAis.includes(parsed.recommended) ? parsed : null
+      if (!validAis.includes(parsed.recommended)) return null
+      const fallback = ROUTING_PROFILE_DETAILS[parsed.recommended]
+      const suggestions = Array.isArray(parsed.roundSuggestions)
+        ? parsed.roundSuggestions
+            .filter((item) => validAis.includes(item.ai) && item.ai !== parsed.recommended)
+            .slice(0, 2)
+        : []
+      return {
+        recommended: parsed.recommended,
+        reason: typeof parsed.reason === 'string' && parsed.reason.trim().length > 0
+          ? parsed.reason.trim()
+          : fallback.reason,
+        roundSuggestions: suggestions.length > 0 ? suggestions : fallback.roundSuggestions,
+      }
     } catch {
       return null
     }

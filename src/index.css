@@ -1395,6 +1395,23 @@ body,
   text-shadow: 0 0 8px rgba(0, 0, 0, 0.25);
 }
 
+.rec-reviewer-suggestions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.rec-reviewer-chip {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 1px 6px;
+  border: 1px solid;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
 .rec-apply-btn {
   background: rgba(var(--rec-color, 108, 99, 255), 0.12);
   border: 1px solid color-mix(in srgb, var(--rec-color, #6c63ff) 40%, transparent);
@@ -4324,6 +4341,108 @@ body,
 .council-failure-btn.skip {
   background: rgba(255, 255, 255, 0.06);
   color: rgba(241, 245, 249, 0.88);
+}
+
+.council-recommendation-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.045);
+  border-radius: 12px;
+  padding: 9px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.council-recommendation-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.council-recommendation-copy {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.council-recommendation-label {
+  font-size: 10px;
+  color: rgba(203, 213, 225, 0.76);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.council-recommendation-ai,
+.council-recommendation-reviewer {
+  border: 1px solid;
+  border-radius: 999px;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.council-recommendation-ai {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+.council-recommendation-inactive {
+  font-size: 10px;
+  color: rgba(252, 211, 77, 0.9);
+}
+
+.council-recommendation-apply {
+  border: 1px solid color-mix(in srgb, var(--council-rec-color, #60a5fa) 48%, transparent);
+  background: color-mix(in srgb, var(--council-rec-color, #60a5fa) 18%, transparent);
+  color: var(--council-rec-color, #bfdbfe);
+  border-radius: 10px;
+  padding: 5px 9px;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.council-recommendation-apply:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.council-recommendation-reason {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: rgba(203, 213, 225, 0.82);
+}
+
+.council-recommendation-reviewers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.council-recommendation-reviewer {
+  font-size: 10px;
+  padding: 1px 7px;
+}
+
+.council-recommendation-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: rgba(203, 213, 225, 0.84);
+}
+
+.council-rec-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.09);
+  border-top-color: #60a5fa;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
 }
 
 .council-quick-mentions {

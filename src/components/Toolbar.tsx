@@ -335,6 +335,24 @@ export default function Toolbar({
                   {AI_ICONS[recommendation.recommended]} {AI_DISPLAY_NAMES[recommendation.recommended]}
                 </span>
                 <span className="rec-reason">{recommendation.reason}</span>
+                {recommendation.roundSuggestions.length > 0 && (
+                  <span className="rec-reviewer-suggestions" aria-label="Suggested reviewer lenses">
+                    {recommendation.roundSuggestions.map((suggestion) => (
+                      <span
+                        key={`${suggestion.ai}-${suggestion.reason}`}
+                        className="rec-reviewer-chip"
+                        title={suggestion.reason}
+                        style={{
+                          color: AI_COLORS[suggestion.ai].primary,
+                          borderColor: `${AI_COLORS[suggestion.ai].primary}80`,
+                          background: `${AI_COLORS[suggestion.ai].primary}12`,
+                        }}
+                      >
+                        + {AI_DISPLAY_NAMES[suggestion.ai]}
+                      </span>
+                    ))}
+                  </span>
+                )}
               </div>
               <button
                 id="btn-apply-recommendation"

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import {
   AiName,
+  AiRecommendation,
   AI_COLORS,
   AI_DISPLAY_NAMES,
   AI_ICONS,
@@ -146,6 +147,8 @@ export default function CouncilChatPanel({
   const [isCandidatesOpen, setIsCandidatesOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const [isSending, setIsSending] = useState(false)
+  const [recommendation, setRecommendation] = useState<AiRecommendation | null>(null)
+  const [analysisLoading, setAnalysisLoading] = useState(false)
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0)
   const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(null)
@@ -156,6 +159,7 @@ export default function CouncilChatPanel({
   const [saveNotice, setSaveNotice] = useState<string | null>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const analyzeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const previousActiveSnapshotRef = useRef<{ id: string; savedAt: number } | null>(null)
 
   useEffect(() => {
@@ -185,6 +189,13 @@ export default function CouncilChatPanel({
     () => buildCouncilModeratorSnapshot(room.messages, enabledAis, primaryAi),
     [enabledAis, primaryAi, room.messages]
   )
+  const hasExplicitMention = useMemo(
+    () => /(^|\s)@(all|chatgpt|chat-gpt|chat_gpt|claude|gemini|grok|deepseek|perplexity)(?=\b)/i.test(draft),
+    [draft]
+  )
+  const recommendationIsActive = recommendation
+    ? enabledAis.includes(recommendation.recommended)
+    : false
   const activeSnapshot = useMemo(
     () => snapshots.find((snapshot) => snapshot.isActive) ?? null,
     [snapshots]
@@ -311,6 +322,35 @@ export default function CouncilChatPanel({
     setBulkDeleteArmed(false)
   }, [snapshotFilter, snapshotLabelFilter, snapshotSearch, snapshotSort, snapshotSortKey])
 
+  useEffect(() => {
+    if (analyzeDebounceRef.current) clearTimeout(analyzeDebounceRef.current)
+
+    const trimmed = draft.trim()
+    if (trimmed.length < 8 || hasExplicitMention || room.status === 'running' || isSending) {
+      setRecommendation(null)
+      setAnalysisLoading(false)
+      return
+    }
+
+    setAnalysisLoading(true)
+    let canceled = false
+    analyzeDebounceRef.current = setTimeout(async () => {
+      try {
+        const result = await window.electronAPI.analyzeQuery(trimmed)
+        if (!canceled) setRecommendation(result)
+      } catch {
+        if (!canceled) setRecommendation(null)
+      } finally {
+        if (!canceled) setAnalysisLoading(false)
+      }
+    }, 800)
+
+    return () => {
+      canceled = true
+      if (analyzeDebounceRef.current) clearTimeout(analyzeDebounceRef.current)
+    }
+  }, [draft, hasExplicitMention, isSending, room.status])
+
   const submit = async () => {
     const text = draft.trim()
     const hasFiles = attachedFiles.length > 0
@@ -376,6 +416,25 @@ export default function CouncilChatPanel({
     requestAnimationFrame(() => {
       const nextCaret = next.indexOf(`@${label}`) + label.length + 2
       inputRef.current?.focus()
+      inputRef.current?.setSelectionRange(nextCaret, nextCaret)
+    })
+  }
+
+  const applyRecommendedMention = () => {
+    if (!recommendation || !recommendationIsActive) return
+    const label = AI_DISPLAY_NAMES[recommendation.recommended]
+    const text = draft.trim()
+    const next = text.length > 0
+      ? `@${label}, ${text}`
+      : `@${label} `
+    setDraft(next)
+    setRecommendation(null)
+    setAnalysisLoading(false)
+    setMentionQuery(null)
+    setSelectedMentionIndex(0)
+    requestAnimationFrame(() => {
+      inputRef.current?.focus()
+      const nextCaret = next.length
       inputRef.current?.setSelectionRange(nextCaret, nextCaret)
     })
   }
@@ -1300,6 +1359,65 @@ export default function CouncilChatPanel({
                 Skip
               </button>
             </div>
+          </div>
+        )}
+
+        {(analysisLoading || recommendation) && (
+          <div className="council-recommendation-card">
+            {analysisLoading ? (
+              <div className="council-recommendation-loading">
+                <span className="council-rec-spinner" />
+                <span>Finding the best AI for this prompt...</span>
+              </div>
+            ) : recommendation ? (
+              <>
+                <div className="council-recommendation-main">
+                  <div className="council-recommendation-copy">
+                    <span className="council-recommendation-label">Recommended AI</span>
+                    <span
+                      className="council-recommendation-ai"
+                      style={{
+                        color: AI_COLORS[recommendation.recommended].primary,
+                        borderColor: AI_COLORS[recommendation.recommended].primary,
+                        background: `${AI_COLORS[recommendation.recommended].primary}16`,
+                      }}
+                    >
+                      {AI_ICONS[recommendation.recommended]} {AI_DISPLAY_NAMES[recommendation.recommended]}
+                    </span>
+                    {!recommendationIsActive && (
+                      <span className="council-recommendation-inactive">not active</span>
+                    )}
+                  </div>
+                  <button
+                    className="council-recommendation-apply"
+                    onClick={applyRecommendedMention}
+                    disabled={!recommendationIsActive || room.status === 'running' || isSending}
+                    style={{ '--council-rec-color': AI_COLORS[recommendation.recommended].primary } as CSSProperties}
+                  >
+                    Add Mention
+                  </button>
+                </div>
+                <div className="council-recommendation-reason">{recommendation.reason}</div>
+                {recommendation.roundSuggestions.length > 0 && (
+                  <div className="council-recommendation-reviewers">
+                    {recommendation.roundSuggestions.map((suggestion) => (
+                      <span
+                        key={`${suggestion.ai}-${suggestion.reason}`}
+                        className="council-recommendation-reviewer"
+                        title={suggestion.reason}
+                        style={{
+                          color: AI_COLORS[suggestion.ai].primary,
+                          borderColor: `${AI_COLORS[suggestion.ai].primary}66`,
+                          background: `${AI_COLORS[suggestion.ai].primary}10`,
+                        }}
+                      >
+                        + {AI_DISPLAY_NAMES[suggestion.ai]}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : null}
           </div>
         )}
 

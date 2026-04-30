@@ -389,7 +389,18 @@
     </ol>
     <div class="callout">
       <span class="callout-icon">⚠️</span>
-      <span><strong>macOS Gatekeeper:</strong> The app is not code-signed. Go to <em>System Settings → Privacy &amp; Security → Open Anyway</em>, or run <code>xattr -cr "/Applications/AI Council.app"</code> in Terminal.</span>
+      <div>
+        <strong>macOS Gatekeeper &amp; "Damaged" Error</strong>
+        <p style="font-size:13px; margin: 8px 0 10px;">Because the app is not code-signed, macOS may block it or show an error saying the app is "damaged".</p>
+        <ul style="margin: 0 0 10px 16px; font-size:13px;">
+          <li style="color:inherit; margin-bottom:4px;"><strong>Install First:</strong> Move the app to the <code>/Applications</code> folder.</li>
+          <li style="color:inherit; margin-bottom:4px;"><strong>Open Terminal:</strong> Press <code>Cmd + Space</code> and search for <strong>Terminal</strong>.</li>
+          <li style="color:inherit; margin-bottom:4px;"><strong>Run Command:</strong> Paste <code>xattr -cr "/Applications/AI Council.app"</code> and press Enter.</li>
+          <li style="color:inherit; margin-bottom:4px;"><strong>Enter Password:</strong> Type your Mac password (it will be invisible) and press Enter.</li>
+          <li style="color:inherit; margin-bottom:0;"><strong>Launch:</strong> Double-click AI Council in your Applications folder.</li>
+        </ul>
+        <p style="font-size:12px; opacity:0.8; margin:0;"><em>Still won't open?</em> <strong>Right-click</strong> &rarr; <strong>Open</strong> &rarr; <strong>Open</strong>.</p>
+      </div>
     </div>
     <h3>🪟 Windows — Install from EXE</h3>
     <ol>

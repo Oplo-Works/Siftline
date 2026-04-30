@@ -20,6 +20,9 @@ import {
   summarizeCouncilMessages as summarizeCouncilMessagesPure,
   renderCouncilTranscript as renderCouncilTranscriptPure,
   buildCouncilPrompt as buildCouncilPromptPure,
+  buildCouncilBroadcastPrompt as buildCouncilBroadcastPromptPure,
+  extractPreviousRoundReplies as extractPreviousRoundRepliesPure,
+  summarizeContextBeforePreviousRound as summarizeContextBeforePreviousRoundPure,
 } from './councilPrompt.js'
 import { buildResponseLanguageDirective, detectPreferredReplyLanguage } from '../src/responseLanguage.js'
 
@@ -1360,27 +1363,75 @@ function buildCouncilPrompt(aiName: AiName, promptText: string): string {
   })
 }
 
+/**
+ * Build the broadcast / fan-out prompt for a single AI.  The previous-round
+ * snapshot is captured by the caller (before any new placeholders are added)
+ * so peer AIs in the SAME round are never visible to each other — every AI
+ * in the round sees the exact same prompt, including the same view of the
+ * previous round's answers.
+ */
+function buildCouncilBroadcastPromptForAi(
+  aiName: AiName,
+  userQuestion: string,
+  messagesSnapshot: CouncilMessage[],
+): string {
+  const previousRoundReplies = extractPreviousRoundRepliesPure(messagesSnapshot)
+  const earlierContextSummary = summarizeContextBeforePreviousRoundPure(
+    messagesSnapshot,
+    AI_DISPLAY_NAMES,
+    1600,
+  )
+  return buildCouncilBroadcastPromptPure(aiName, userQuestion, {
+    displayNames: AI_DISPLAY_NAMES,
+    brief: AI_REVIEWER_BRIEFS[aiName],
+    previousRoundReplies,
+    earlierContextSummary,
+  })
+}
+
+interface ProcessCouncilTurnOptions {
+  /** When true, the caller manages councilRoom.status / pendingAi / lastIntent
+   * and supplies a placeholder. Used by the broadcast orchestrator so that
+   * parallel turns do not stomp on shared state. */
+  skipStatusMgmt?: boolean
+  /** Pre-built placeholder message already pushed onto councilRoom.messages.
+   * Required when skipStatusMgmt is true. */
+  prebuiltPlaceholder?: CouncilMessage
+  /** When provided, this exact text (after optional file-context append) is
+   * sent to the AI instead of the default per-AI buildCouncilPrompt() output.
+   * Used by broadcast so every AI in the round receives the same prompt and
+   * is not influenced by peers' just-generated replies. */
+  prebuiltPrompt?: string
+}
+
 async function processCouncilTurn(
   aiName: AiName,
   promptText: string,
   filePaths: string[] = [],
-  attachedFiles: Array<{ name: string; path: string; ext: string }> = []
+  attachedFiles: Array<{ name: string; path: string; ext: string }> = [],
+  options: ProcessCouncilTurnOptions = {},
 ): Promise<void> {
   const view = views.get(aiName)
   if (!view) throw new Error(`No BrowserView found for ${aiName}`)
 
-  councilRoom.status = 'running'
-  councilRoom.pendingAi = aiName
-  councilRoom.lastIntent = {
-    kind: 'mention',
-    targetAi: aiName,
-    note: `${AI_DISPLAY_NAMES[aiName]} is replying...`,
+  const manageStatus = !options.skipStatusMgmt
+  if (manageStatus) {
+    councilRoom.status = 'running'
+    councilRoom.pendingAi = aiName
+    councilRoom.lastIntent = {
+      kind: 'mention',
+      targetAi: aiName,
+      note: `${AI_DISPLAY_NAMES[aiName]} is replying...`,
+    }
   }
-  const placeholder = makeCouncilMessage('assistant', 'Waiting for reply...', {
-    ai: aiName,
-    pending: true,
-  })
-  councilRoom.messages.push(placeholder)
+  const placeholder = options.prebuiltPlaceholder ?? (() => {
+    const ph = makeCouncilMessage('assistant', 'Waiting for reply...', {
+      ai: aiName,
+      pending: true,
+    })
+    councilRoom.messages.push(ph)
+    return ph
+  })()
   emitCouncilRoomUpdate()
 
   try {
@@ -1422,8 +1473,10 @@ async function processCouncilTurn(
       await sleep(800)
     }
 
-    // Build council prompt; if CDP failed, extract document text and append it
-    let councilPrompt = buildCouncilPrompt(aiName, promptText)
+    // Build council prompt; if CDP failed, extract document text and append it.
+    // Broadcast mode supplies a prebuilt prompt so every AI in the round sees
+    // the exact same input and isn't influenced by peers' just-generated text.
+    let councilPrompt = options.prebuiltPrompt ?? buildCouncilPrompt(aiName, promptText)
     if (attachedFiles.length > 0 && !filesAttachedViaCDP) {
       const fileContext = await buildFileContext(attachedFiles)
       if (fileContext.trim().length > 0) {
@@ -1479,22 +1532,27 @@ async function processCouncilTurn(
     }
 
     councilRoom.deliveredCount[aiName] = councilRoom.messages.length
-    councilRoom.status = 'idle'
-    councilRoom.pendingAi = null
-    councilRoom.lastIntent = {
-      kind: 'mention',
-      targetAi: aiName,
-      note: `${AI_DISPLAY_NAMES[aiName]} replied and the transcript is shared with the council.`,
+    if (manageStatus) {
+      councilRoom.status = 'idle'
+      councilRoom.pendingAi = null
+      councilRoom.lastIntent = {
+        kind: 'mention',
+        targetAi: aiName,
+        note: `${AI_DISPLAY_NAMES[aiName]} replied and the transcript is shared with the council.`,
+      }
     }
     emitCouncilRoomUpdate()
   } catch (err) {
-    // Guaranteed cleanup: remove this turn's placeholder and reset room state
-    // so callers only need to record the failure — they don't risk drifting
-    // from the transcript shape.
+    // Guaranteed cleanup: remove this turn's placeholder so the caller only
+    // needs to record the failure — they don't risk drifting from the
+    // transcript shape.  Status mutation is left to the caller in broadcast
+    // mode so peers' running turns aren't reset prematurely.
     const idx = councilRoom.messages.findIndex((message) => message.id === placeholder.id)
     if (idx !== -1) councilRoom.messages.splice(idx, 1)
-    if (councilRoom.pendingAi === aiName) councilRoom.pendingAi = null
-    councilRoom.status = 'idle'
+    if (manageStatus) {
+      if (councilRoom.pendingAi === aiName) councilRoom.pendingAi = null
+      councilRoom.status = 'idle'
+    }
     emitCouncilRoomUpdate()
     throw err
   }
@@ -1510,6 +1568,132 @@ async function enqueueCouncilTurn(
     .catch(() => undefined)
     .then(() => processCouncilTurn(aiName, promptText, filePaths, attachedFiles))
   return councilTurnChain
+}
+
+interface CouncilBroadcastResult {
+  successes: AiName[]
+  failures: Array<{ ai: AiName; error: unknown }>
+}
+
+/**
+ * Fan-out / broadcast dispatcher.
+ *
+ * Sends the SAME prompt to every target AI in parallel — never the sequential
+ * pipeline that would let AI #2 see AI #1's just-generated reply.  The prompt
+ * for each AI is built from a snapshot of the transcript taken BEFORE any
+ * round placeholders are added, so peers in the same round are invisible to
+ * each other.  Between rounds, every AI sees a "Previous round — what every
+ * active AI just answered" block so they can integrate / re-organize.
+ */
+async function runCouncilBroadcast(
+  targets: AiName[],
+  userText: string,
+  filePaths: string[],
+  attachedFiles: Array<{ name: string; path: string; ext: string }>,
+): Promise<CouncilBroadcastResult> {
+  if (targets.length === 0) return { successes: [], failures: [] }
+
+  // Snapshot transcript state before adding placeholders so every AI in this
+  // round receives the identical prompt — including the same view of the
+  // previous round's per-AI replies.
+  const messagesSnapshot = councilRoom.messages.slice()
+
+  const targetLabels = targets.map((ai) => AI_DISPLAY_NAMES[ai]).join(', ')
+  councilRoom.status = 'running'
+  councilRoom.pendingAi = targets[0] ?? null
+  councilRoom.lastIntent = targets.length === 1
+    ? {
+        kind: 'mention',
+        targetAi: targets[0],
+        note: `${AI_DISPLAY_NAMES[targets[0]]} is replying...`,
+      }
+    : {
+        kind: 'all',
+        targetAis: targets,
+        note: `Broadcasting the same prompt in parallel to ${targetLabels}.`,
+      }
+
+  // Create placeholders for ALL targets up-front so the UI shows every AI as
+  // pending immediately.  Insertion order matches the user's mention order.
+  const placeholders: CouncilMessage[] = targets.map((ai) =>
+    makeCouncilMessage('assistant', 'Waiting for reply...', { ai, pending: true })
+  )
+  councilRoom.messages.push(...placeholders)
+  emitCouncilRoomUpdate()
+
+  const successes: AiName[] = []
+  const failures: Array<{ ai: AiName; error: unknown }> = []
+
+  // Serialize the channel queue so the existing councilTurnChain still settles
+  // sequentially with respect to OTHER queued turns (retry, telegram), but
+  // the targets within THIS broadcast are launched in parallel.
+  const broadcastPromise = (async () => {
+    const promptByAi = new Map<AiName, string>()
+    for (const ai of targets) {
+      promptByAi.set(ai, buildCouncilBroadcastPromptForAi(ai, userText, messagesSnapshot))
+    }
+
+    const settled = await Promise.allSettled(
+      targets.map((ai, index) =>
+        processCouncilTurn(ai, userText, filePaths, attachedFiles, {
+          skipStatusMgmt: true,
+          prebuiltPlaceholder: placeholders[index],
+          prebuiltPrompt: promptByAi.get(ai),
+        })
+      )
+    )
+
+    settled.forEach((res, i) => {
+      const ai = targets[i]
+      if (res.status === 'fulfilled') {
+        successes.push(ai)
+      } else {
+        failures.push({ ai, error: res.reason })
+      }
+    })
+  })()
+
+  // Drain the existing chain first, then run the broadcast.  This keeps
+  // retry/telegram turns sequenced relative to broadcasts.
+  councilTurnChain = councilTurnChain.catch(() => undefined).then(() => broadcastPromise)
+  await councilTurnChain
+
+  // Failures are recorded after the parallel run completes so error system
+  // messages don't interleave with live placeholder updates.
+  for (const { ai, error } of failures) {
+    recordCouncilTurnFailure(ai, userText, error, {
+      kind: targets.length === 1 ? 'mention' : 'all',
+      targetAi: ai,
+      targetAis: targets.length === 1 ? undefined : targets,
+      note: `${AI_DISPLAY_NAMES[ai]} failed to reply.`,
+    })
+  }
+
+  councilRoom.status = 'idle'
+  councilRoom.pendingAi = null
+
+  if (targets.length > 1) {
+    const successList = successes.length > 0
+      ? successes.map((ai) => AI_DISPLAY_NAMES[ai]).join(', ')
+      : 'no AI'
+    councilRoom.lastIntent = {
+      kind: 'all',
+      targetAis: targets,
+      note: failures.length === 0
+        ? `Broadcast finished: ${successList} replied in parallel.`
+        : `Broadcast finished: ${successList} replied; ${failures.length} failed.`,
+    }
+  } else if (successes.length === 1) {
+    const ai = successes[0]
+    councilRoom.lastIntent = {
+      kind: 'mention',
+      targetAi: ai,
+      note: `${AI_DISPLAY_NAMES[ai]} replied and the transcript is shared with the council.`,
+    }
+  }
+  emitCouncilRoomUpdate()
+
+  return { successes, failures }
 }
 
 /**
@@ -3615,7 +3799,7 @@ ipcMain.handle('send-council-message', async (_e, payload: { text: string; parti
     councilRoom.messages.push(
       makeCouncilMessage(
         'system',
-        'Saved to the shared transcript. Mention one active AI like @Gemini, or use @all for sequential council replies.'
+        'Saved to the shared transcript. Mention one active AI like @Gemini, or use @all to broadcast in parallel.'
       )
     )
     emitCouncilRoomUpdate()
@@ -3635,8 +3819,8 @@ ipcMain.handle('send-council-message', async (_e, payload: { text: string; parti
   }
 
   // Multi-mention path: parser sets intent.targetAis to the user's explicit
-  // list (in mention order).  Pure @all (no specific list) falls back to all
-  // active participants in the standard sequential ordering.
+  // list (in mention order).  Pure @all (no specific list) fans out to every
+  // active participant — every target receives the SAME prompt in parallel.
   const targets = intent.kind === 'all'
     ? (intent.targetAis && intent.targetAis.length > 0
         ? intent.targetAis
@@ -3674,44 +3858,13 @@ ipcMain.handle('send-council-message', async (_e, payload: { text: string; parti
     councilRoom.messages.push(
       makeCouncilMessage(
         'system',
-        `Queued sequential council replies from ${targets.map((ai) => AI_DISPLAY_NAMES[ai]).join(', ')}.`
+        `Broadcasting in parallel to ${targets.map((ai) => AI_DISPLAY_NAMES[ai]).join(', ')}. Each AI receives the same prompt with a summary of the previous round's answers.`
       )
     )
     emitCouncilRoomUpdate()
   }
 
-  for (let index = 0; index < targets.length; index++) {
-    const targetAi = targets[index]
-    if (intent.kind === 'all') {
-      councilRoom.lastIntent = {
-        kind: 'all',
-        targetAis: targets,
-        note: `Sequential council turn ${index + 1}/${targets.length}: ${AI_DISPLAY_NAMES[targetAi]} is up next.`,
-      }
-      emitCouncilRoomUpdate()
-    }
-
-    try {
-      await enqueueCouncilTurn(targetAi, text, councilFilePaths, councilAttachedFiles)
-    } catch (err) {
-      recordCouncilTurnFailure(targetAi, text, err, {
-        kind: intent.kind,
-        targetAi,
-        targetAis: intent.kind === 'all' ? targets : undefined,
-        note: `${AI_DISPLAY_NAMES[targetAi]} failed to reply.`,
-      })
-      if (intent.kind !== 'all') break
-    }
-  }
-
-  if (intent.kind === 'all') {
-    councilRoom.lastIntent = {
-      kind: 'all',
-      targetAis: targets,
-      note: `Sequential council replies finished for ${targets.length} active AI${targets.length > 1 ? 's' : ''}.`,
-    }
-    emitCouncilRoomUpdate()
-  }
+  await runCouncilBroadcast(targets, text, councilFilePaths, councilAttachedFiles)
 
   return cloneCouncilRoomState()
 })
@@ -6498,7 +6651,7 @@ export async function apiSendCouncilMessage(text: string, attachedFiles: Array<{
     councilRoom.messages.push(
       makeCouncilMessage(
         'system',
-        'Saved to the shared transcript. Mention one active AI like @Gemini, or use @all for sequential council replies.'
+        'Saved to the shared transcript. Mention one active AI like @Gemini, or use @all to broadcast in parallel.'
       )
     )
     emitCouncilRoomUpdate()
@@ -6518,8 +6671,8 @@ export async function apiSendCouncilMessage(text: string, attachedFiles: Array<{
   }
 
   // Multi-mention path: parser sets intent.targetAis to the user's explicit
-  // list (in mention order).  Pure @all (no specific list) falls back to all
-  // active participants in the standard sequential ordering.
+  // list (in mention order).  Pure @all (no specific list) fans out to every
+  // active participant — every target receives the SAME prompt in parallel.
   const targets = intent.kind === 'all'
     ? (intent.targetAis && intent.targetAis.length > 0
         ? intent.targetAis
@@ -6557,44 +6710,13 @@ export async function apiSendCouncilMessage(text: string, attachedFiles: Array<{
     councilRoom.messages.push(
       makeCouncilMessage(
         'system',
-        `Queued sequential council replies from ${targets.map((ai) => AI_DISPLAY_NAMES[ai]).join(', ')}.`
+        `Broadcasting in parallel to ${targets.map((ai) => AI_DISPLAY_NAMES[ai]).join(', ')}. Each AI receives the same prompt with a summary of the previous round's answers.`
       )
     )
     emitCouncilRoomUpdate()
   }
 
-  for (let index = 0; index < targets.length; index++) {
-    const targetAi = targets[index]
-    if (intent.kind === 'all') {
-      councilRoom.lastIntent = {
-        kind: 'all',
-        targetAis: targets,
-        note: `Sequential council turn ${index + 1}/${targets.length}: ${AI_DISPLAY_NAMES[targetAi]} is up next.`,
-      }
-      emitCouncilRoomUpdate()
-    }
-
-    try {
-      await enqueueCouncilTurn(targetAi, trimmedText, councilFilePaths, councilAttachedFiles)
-    } catch (err) {
-      recordCouncilTurnFailure(targetAi, trimmedText, err, {
-        kind: intent.kind,
-        targetAi,
-        targetAis: intent.kind === 'all' ? targets : undefined,
-        note: `${AI_DISPLAY_NAMES[targetAi]} failed to reply.`,
-      })
-      if (intent.kind !== 'all') break
-    }
-  }
-
-  if (intent.kind === 'all') {
-    councilRoom.lastIntent = {
-      kind: 'all',
-      targetAis: targets,
-      note: `Sequential council replies finished for ${targets.length} active AI${targets.length > 1 ? 's' : ''}.`,
-    }
-    emitCouncilRoomUpdate()
-  }
+  await runCouncilBroadcast(targets, trimmedText, councilFilePaths, councilAttachedFiles)
 
   return cloneCouncilRoomState()
 }

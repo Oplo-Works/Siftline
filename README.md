@@ -70,14 +70,19 @@ No build required. Download the latest installer from [GitHub Releases](https://
 4. Launch AI Council from Launchpad or Finder → Applications.
 ```
 
-> **⚠️ macOS Gatekeeper warning ("cannot verify the developer")**  
-> The app is not code-signed, so macOS may block it on first launch. Use either method below:
+> **⚠️ macOS Gatekeeper & "Damaged" Error**  
+> Because the app is not code-signed, macOS may block it or show an error saying the app is "damaged". Use the steps below to fix it:
 >
-> **Method 1 (GUI):** System Settings → Privacy & Security → scroll down → click *"Open Anyway"*  
-> **Method 2 (Terminal):**
-> ```bash
-> xattr -cr "/Applications/AI Council.app"
-> ```
+> 1. **Install First:** Ensure the app is moved to the `/Applications` folder.
+> 2. **Open Terminal:** Press `Cmd + Space`, search for **Terminal**, and open it.
+> 3. **Run Command:** Paste the following and press Enter:
+>    ```bash
+>    xattr -cr "/Applications/AI Council.app"
+>    ```
+> 4. **Enter Password:** If asked, type your Mac login password (it will remain invisible) and press Enter.
+> 5. **Launch:** Double-click AI Council in your Applications folder.
+>
+> *Still won't open?* **Right-click** the app and select **Open** → **Open**.
 
 ### 🪟 Windows — Install from EXE
 

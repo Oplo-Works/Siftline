@@ -6,7 +6,7 @@ interface Props {
 }
 
 export default function TelegramSettings({ onClose }: Props) {
-  const [config, setConfig] = useState<TelegramConfig>({ enabled: false, botToken: '', chatId: '', lastUpdateId: 0 })
+  const [config, setConfig] = useState<TelegramConfig>({ enabled: false, botToken: '', chatId: '', allowedChatIds: '', lastUpdateId: 0 })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -70,16 +70,30 @@ export default function TelegramSettings({ onClose }: Props) {
           </div>
           
           <div>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--text-secondary)' }}>Allowed Chat ID (Your User ID)</label>
-            <input 
-              type="text" 
-              value={config.chatId} 
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--text-secondary)' }}>Default Chat ID (Your User ID)</label>
+            <input
+              type="text"
+              value={config.chatId}
               onChange={(e) => setConfig({ ...config, chatId: e.target.value })}
               style={{ width: '100%', padding: '8px 10px', background: 'rgba(0, 0, 0, 0.3)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 'var(--radius-sm)', outline: 'none', fontFamily: 'var(--font-mono)', fontSize: 12 }}
               placeholder="Leave blank to allow any, or enter your Chat ID"
             />
             <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: 6, fontSize: 11, lineHeight: 1.4 }}>
               Send a message to your bot and check the console logs to find your chat ID, or use @userinfobot.
+            </small>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--text-secondary)' }}>Additional Allowed Chat IDs (comma-separated)</label>
+            <input
+              type="text"
+              value={config.allowedChatIds ?? ''}
+              onChange={(e) => setConfig({ ...config, allowedChatIds: e.target.value })}
+              style={{ width: '100%', padding: '8px 10px', background: 'rgba(0, 0, 0, 0.3)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 'var(--radius-sm)', outline: 'none', fontFamily: 'var(--font-mono)', fontSize: 12 }}
+              placeholder="e.g. 123456789, 987654321"
+            />
+            <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: 6, fontSize: 11, lineHeight: 1.4 }}>
+              Optional. Whitelist a second device or backup chat. Each whitelisted chat receives its own replies independently.
             </small>
           </div>
         </div>

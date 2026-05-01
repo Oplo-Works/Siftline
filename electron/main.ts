@@ -97,6 +97,8 @@ interface StoreSchema {
     enabled: boolean
     botToken: string
     chatId: string   // stored as string (Telegram chat IDs can exceed JS safe int)
+    /** Comma-separated additional whitelisted chat IDs.  Empty = only `chatId` is allowed. */
+    allowedChatIds?: string
     lastUpdateId: number
   }
 }
@@ -6798,6 +6800,51 @@ export function apiGetPrimaryAi() {
 export let telegramAiReplyCallback: ((aiName: string, text: string) => void) | null = null
 export function setTelegramAiReplyCallback(cb: (aiName: string, text: string) => void) {
   telegramAiReplyCallback = cb
+}
+
+// ─── Pre-flight session health check ─────────────────────────────────────────
+// Probes whether each target AI's BrowserView has a usable composer (input
+// selector present in the DOM).  When an AI is logged out / hit a captcha /
+// stuck on a billing wall, the input selector won't render — letting Telegram
+// flows fail fast rather than wait for the full broadcast timeout.
+export type AiSessionHealth = 'ok' | 'unavailable' | 'no-view'
+export async function apiCheckAiSessions(targets: AiName[]): Promise<Record<string, AiSessionHealth>> {
+  const result: Record<string, AiSessionHealth> = {}
+  await Promise.all(
+    targets.map(async (ai) => {
+      const view = views.get(ai)
+      if (!view) {
+        result[ai] = 'no-view'
+        return
+      }
+      try {
+        const inputSelectors = getSelectors(ai).inputSelectors
+        const found = await Promise.race([
+          view.webContents.executeJavaScript(`
+            (() => {
+              const sels = ${JSON.stringify(inputSelectors)};
+              for (const s of sels) {
+                try {
+                  const el = document.querySelector(s);
+                  if (el instanceof HTMLElement) {
+                    const rect = el.getBoundingClientRect();
+                    if (rect.width > 0 && rect.height > 0) return true;
+                  }
+                } catch (e) {}
+              }
+              return false;
+            })()
+          `),
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3000)),
+        ])
+        result[ai] = found ? 'ok' : 'unavailable'
+      } catch (err) {
+        sendLog('warn', `[health-check] ${ai}: ${err instanceof Error ? err.message : String(err)}`)
+        result[ai] = 'unavailable'
+      }
+    })
+  )
+  return result
 }
 
 import { startTelegramBridge, getTelegramConfig, setTelegramConfig } from './telegram/bridge.js'

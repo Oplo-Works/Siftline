@@ -6,10 +6,12 @@ import {
   apiSendCouncilMessage,
   apiSwitchInteractionModeToWorkflow,
   apiGetCouncilRoom,
+  apiCheckAiSessions,
   AI_DISPLAY_NAMES,
 } from '../main.js'
 import { parseCouncilIntent, getSequentialCouncilTargets } from '../councilPrompt.js'
 import type { AiName } from '../councilPrompt.js'
+import { beginCouncilSession, endCouncilSession } from './bridge.js'
 
 interface TelegramAttachedFile {
   name: string
@@ -21,6 +23,7 @@ export async function handleTelegramCommand(
   text: string,
   sendMessage: (text: string) => Promise<void>,
   attachedFiles: TelegramAttachedFile[] = [],
+  chatId: string = '',
 ) {
   const normalizedText = text.trim()
   const [command, ...args] = normalizedText.length > 0 ? normalizedText.split(/\s+/) : ['']
@@ -88,6 +91,7 @@ export async function handleTelegramCommand(
 
       let ack: string
       let willRunTurns = false
+      let liveTargets: AiName[] = []
 
       if (!intent || intent.kind === 'none') {
         ack = attachmentSummary
@@ -111,21 +115,59 @@ export async function handleTelegramCommand(
           if (inactive) {
             ack = `${AI_DISPLAY_NAMES[inactive]} is not active right now. Activate that AI first, then try again.`
           } else {
-            const names = targets.map((ai) => AI_DISPLAY_NAMES[ai]).join(', ')
-            ack = attachmentSummary
-              ? `Adding to Council Chat with ${attachmentSummary} - waiting for ${names}...`
-              : `Adding to Council Chat - waiting for ${names}...`
-            willRunTurns = true
+            // Pre-flight session health check.  Probes each target AI's
+            // BrowserView for a usable composer before kicking off the
+            // broadcast.  Logged-out / captcha-stuck AIs are skipped with a
+            // notice instead of stalling the whole turn at the broadcast
+            // timeout.
+            const health = await apiCheckAiSessions(targets)
+            const okTargets = targets.filter((ai) => health[ai] === 'ok')
+            const blockedTargets = targets.filter((ai) => health[ai] !== 'ok')
+
+            if (blockedTargets.length > 0) {
+              const blockedSummary = blockedTargets
+                .map((ai) => {
+                  const reason = health[ai] === 'no-view' ? 'panel inactive' : 'login/captcha needed'
+                  return `${AI_DISPLAY_NAMES[ai]} (${reason})`
+                })
+                .join(', ')
+              await sendMessage(`Pre-flight check skipped: ${blockedSummary}`)
+            }
+
+            if (okTargets.length === 0) {
+              ack = 'No AI session is currently usable. Please log in to at least one AI in the desktop app, then retry.'
+            } else {
+              const names = okTargets.map((ai) => AI_DISPLAY_NAMES[ai]).join(', ')
+              ack = attachmentSummary
+                ? `Adding to Council Chat with ${attachmentSummary} - waiting for ${names}...`
+                : `Adding to Council Chat - waiting for ${names}...`
+              willRunTurns = true
+              liveTargets = okTargets
+            }
           }
         }
       }
 
       await sendMessage(ack)
 
-      if (willRunTurns) {
-        apiSendCouncilMessage(normalizedText, attachedFiles).catch((err) => {
-          console.error('[Telegram] Error during council turn:', err)
+      if (willRunTurns && liveTargets.length > 0 && chatId) {
+        // Begin the streaming session BEFORE the council call so the status
+        // checklist message exists by the time per-AI replies start arriving.
+        await beginCouncilSession({
+          chatId,
+          targets: liveTargets,
+          displayNames: AI_DISPLAY_NAMES as Record<string, string>,
         })
+
+        apiSendCouncilMessage(normalizedText, attachedFiles)
+          .catch((err) => {
+            console.error('[Telegram] Error during council turn:', err)
+          })
+          .finally(() => {
+            endCouncilSession().catch((err) =>
+              console.error('[Telegram] Failed to finalize council session:', err)
+            )
+          })
       } else {
         apiSendCouncilMessage(normalizedText, attachedFiles).catch((err) => {
           console.error('[Telegram] Error recording council message:', err)

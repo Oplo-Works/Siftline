@@ -4,6 +4,8 @@ export interface TelegramConfig {
   enabled: boolean
   botToken: string
   chatId: string
+  /** Comma-separated additional whitelisted chat IDs.  Empty = only `chatId` is allowed. */
+  allowedChatIds?: string
   lastUpdateId: number
 }
 

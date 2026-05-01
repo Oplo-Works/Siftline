@@ -4,6 +4,7 @@ import path from 'path'
 import Store from 'electron-store'
 import {
   downloadFileBytes,
+  editMessageText,
   getFile,
   getUpdates,
   sendMessage,
@@ -21,6 +22,8 @@ export interface TelegramConfig {
   enabled: boolean
   botToken: string
   chatId: string
+  /** Comma-separated additional whitelisted chat IDs.  Empty = only `chatId` is allowed. */
+  allowedChatIds?: string
   lastUpdateId: number
 }
 
@@ -44,6 +47,7 @@ const tgStore = new Store<{ telegram: TelegramConfig }>({
       enabled: false,
       botToken: '',
       chatId: '',
+      allowedChatIds: '',
       lastUpdateId: 0,
     },
   },
@@ -69,14 +73,154 @@ export function setTelegramConfig(config: Partial<TelegramConfig>) {
   return next
 }
 
-export async function sendTelegramReply(text: string) {
+// ─── Whitelist resolution ────────────────────────────────────────────────────
+// Returns the effective set of allowed chat_ids.  If neither `chatId` nor
+// `allowedChatIds` is set, returns null which signals legacy "accept any chat"
+// behavior — preserved so existing setups don't break, but flagged with a log.
+function resolveAllowedChatIds(config: TelegramConfig): Set<string> | null {
+  const ids = new Set<string>()
+  if (config.chatId && config.chatId.trim()) {
+    ids.add(config.chatId.trim())
+  }
+  if (config.allowedChatIds && config.allowedChatIds.trim()) {
+    for (const raw of config.allowedChatIds.split(',')) {
+      const trimmed = raw.trim()
+      if (trimmed) ids.add(trimmed)
+    }
+  }
+  return ids.size > 0 ? ids : null
+}
+
+// ─── Active session: tracks which chat we're replying to right now and the
+// progressive-streaming "checklist" status message that gets edited as each
+// AI in the broadcast completes.  Set by commands.ts before kicking off
+// council work; cleared after the broadcast resolves.
+interface CouncilSession {
+  chatId: string
+  targets: string[]                  // AiName[] — kept as string here to avoid circular import
+  remaining: Set<string>
+  done: Map<string, number>           // AiName -> elapsed ms
+  failed: Set<string>
+  statusMessageId: number | null
+  startedAt: number
+  displayNames: Record<string, string>
+}
+let activeSession: CouncilSession | null = null
+
+function getActiveChatId(): string {
+  if (activeSession) return activeSession.chatId
+  return getTelegramConfig().chatId
+}
+
+export async function sendTelegramReply(text: string, overrideChatId?: string) {
   const config = getTelegramConfig()
-  if (!config.enabled || !config.botToken || !config.chatId) return
+  if (!config.enabled || !config.botToken) return
+  const chatId = overrideChatId || getActiveChatId()
+  if (!chatId) return
 
   const chunks = formatForTelegram(text)
   for (const chunk of chunks) {
-    await sendMessage(config.botToken, config.chatId, chunk)
+    await sendMessage(config.botToken, chatId, chunk)
   }
+}
+
+function renderStatusBlock(session: CouncilSession): string {
+  const lines: string[] = []
+  const elapsedSec = Math.max(0, Math.round((Date.now() - session.startedAt) / 1000))
+  const allDone = session.remaining.size === 0
+  const header = allDone
+    ? `Council 완료 (${formatDuration(elapsedSec)})`
+    : `Council 처리 중... (${formatDuration(elapsedSec)} 경과)`
+  lines.push(header)
+  for (const ai of session.targets) {
+    const display = session.displayNames[ai] ?? ai
+    if (session.done.has(ai)) {
+      const ms = session.done.get(ai) ?? 0
+      lines.push(`  [완료] ${display} (${formatDuration(Math.round(ms / 1000))})`)
+    } else if (session.failed.has(ai)) {
+      lines.push(`  [실패] ${display}`)
+    } else {
+      lines.push(`  [대기] ${display}...`)
+    }
+  }
+  return lines.join('\n')
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}초`
+  const min = Math.floor(seconds / 60)
+  const sec = seconds % 60
+  return sec === 0 ? `${min}분` : `${min}분 ${sec}초`
+}
+
+export async function beginCouncilSession(params: {
+  chatId: string
+  targets: string[]
+  displayNames: Record<string, string>
+}): Promise<void> {
+  // Initialize the session and post the initial status message.  Subsequent
+  // per-AI completions will edit this message in place.
+  const config = getTelegramConfig()
+  if (!config.enabled || !config.botToken) return
+
+  activeSession = {
+    chatId: params.chatId,
+    targets: params.targets.slice(),
+    remaining: new Set(params.targets),
+    done: new Map(),
+    failed: new Set(),
+    statusMessageId: null,
+    startedAt: Date.now(),
+    displayNames: params.displayNames,
+  }
+
+  try {
+    const initialText = renderStatusBlock(activeSession)
+    const sent = await sendMessage(config.botToken, params.chatId, initialText)
+    activeSession.statusMessageId = sent.message_id
+  } catch (err) {
+    console.error('[Telegram] Failed to post initial status message:', err)
+  }
+}
+
+async function refreshStatusMessage(): Promise<void> {
+  if (!activeSession || activeSession.statusMessageId === null) return
+  const config = getTelegramConfig()
+  if (!config.enabled || !config.botToken) return
+
+  const text = renderStatusBlock(activeSession)
+  try {
+    await editMessageText(config.botToken, activeSession.chatId, activeSession.statusMessageId, text)
+  } catch (err: any) {
+    // "message is not modified" is harmless; everything else gets logged once
+    if (!String(err?.description ?? err?.message ?? '').includes('not modified')) {
+      console.error('[Telegram] editMessageText failed:', err?.message ?? err)
+    }
+  }
+}
+
+export function markSessionAiDone(ai: string): void {
+  if (!activeSession) return
+  if (!activeSession.remaining.has(ai)) return
+  const elapsedMs = Date.now() - activeSession.startedAt
+  activeSession.done.set(ai, elapsedMs)
+  activeSession.remaining.delete(ai)
+  // Edit fires through the queue so it serializes with reply messages, keeping
+  // the order on the user's screen consistent.
+  queue.enqueue(() => refreshStatusMessage())
+}
+
+export async function endCouncilSession(): Promise<void> {
+  if (!activeSession) return
+  // Anything still in `remaining` after the broadcast resolves is treated as
+  // failed — covers AIs whose processCouncilTurn rejected before firing the
+  // reply callback.
+  for (const ai of activeSession.remaining) {
+    activeSession.failed.add(ai)
+  }
+  activeSession.remaining.clear()
+  await new Promise<void>((resolve) => queue.enqueue(async () => { await refreshStatusMessage(); resolve() }))
+  activeSession = null
 }
 
 function ensureTelegramTempDir() {
@@ -176,7 +320,7 @@ async function extractBundleAttachments(token: string, messages: TgMessage[]): P
   return attachments
 }
 
-function buildTelegramBundles(updates: TgUpdate[], allowedChatId: string): TelegramMessageBundle[] {
+function buildTelegramBundles(updates: TgUpdate[], allowedChatIds: Set<string> | null): TelegramMessageBundle[] {
   const bundles: TelegramMessageBundle[] = []
 
   for (let index = 0; index < updates.length; index += 1) {
@@ -184,7 +328,7 @@ function buildTelegramBundles(updates: TgUpdate[], allowedChatId: string): Teleg
     if (!message) continue
 
     const chatId = message.chat.id.toString()
-    if (allowedChatId && chatId !== allowedChatId) {
+    if (allowedChatIds && !allowedChatIds.has(chatId)) {
       console.log(`[Telegram] Rejected message from unauthorized chat_id: ${chatId}`)
       continue
     }
@@ -230,9 +374,12 @@ export function startTelegramBridge() {
   setTelegramAiReplyCallback((aiName, text) => {
     const prefix = `**${aiName}**:\n\n`
     queue.enqueue(() => sendTelegramReply(prefix + text))
+    // Mark this AI as done in the active session (no-op if no session active
+    // or if this AI wasn't part of the broadcast).
+    markSessionAiDone(aiName)
   })
 
-  poll(config.botToken, config.chatId, pollingAbortController.signal)
+  poll(config.botToken, pollingAbortController.signal)
 }
 
 export function stopTelegramBridge() {
@@ -243,7 +390,7 @@ export function stopTelegramBridge() {
   setTelegramAiReplyCallback(() => {})
 }
 
-async function poll(token: string, allowedChatId: string, signal: AbortSignal) {
+async function poll(token: string, signal: AbortSignal) {
   let backoffMs = 1000
 
   while (!signal.aborted) {
@@ -258,7 +405,14 @@ async function poll(token: string, allowedChatId: string, signal: AbortSignal) {
         }
       }
 
-      const bundles = buildTelegramBundles(updates, allowedChatId)
+      // Resolve whitelist on every batch so config changes take effect on the
+      // next poll without needing a bridge restart.
+      const allowedChatIds = resolveAllowedChatIds(config)
+      if (allowedChatIds === null && updates.length > 0) {
+        console.warn('[Telegram] No chat_id whitelist configured — accepting messages from any chat. Set chatId or allowedChatIds in Telegram settings.')
+      }
+
+      const bundles = buildTelegramBundles(updates, allowedChatIds)
       for (const bundle of bundles) {
         queue.enqueue(async () => {
           const text = pickBundleText(bundle.messages)
@@ -266,8 +420,8 @@ async function poll(token: string, allowedChatId: string, signal: AbortSignal) {
           if (!text && attachments.length === 0) return
 
           await handleTelegramCommand(text, async (replyText: string) => {
-            await sendTelegramReply(replyText)
-          }, attachments)
+            await sendTelegramReply(replyText, bundle.chatId)
+          }, attachments, bundle.chatId)
         })
       }
     } catch (err: any) {

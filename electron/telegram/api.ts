@@ -210,6 +210,25 @@ export function sendMessage(
 }
 
 /**
+ * Edit the text of a previously sent message.  Used for the "checklist" status
+ * message that gets updated as each AI completes.  Telegram silently no-ops if
+ * the new text is identical to the old, and rejects edits older than ~48h.
+ */
+export function editMessageText(
+  token: string,
+  chatId: string | number,
+  messageId: number,
+  text: string
+): Promise<TgMessage | true> {
+  return tgCall<TgMessage | true>(token, 'editMessageText', {
+    chat_id: chatId,
+    message_id: messageId,
+    text,
+    disable_web_page_preview: true,
+  })
+}
+
+/**
  * Send a "typing" / "upload_photo" indicator.  Telegram shows it for ~5 seconds.
  * Useful to acknowledge that a slow request is in progress.
  */

@@ -178,12 +178,13 @@ jobs:
             > **Windows SmartScreen:** Click "More info" -> "Run anyway".
 
   # ================================================================
-  #  Job 4: Upload macOS DMGs to existing v1.0.8 release
-  #  Runs only on workflow_dispatch (manual trigger — no tag needed)
+  #  Job 4: Upload both macOS DMGs and Windows EXE to existing
+  #  v1.0.8 release.  Runs only on workflow_dispatch (manual
+  #  trigger — no tag needed).
   # ================================================================
-  upload-mac-to-release:
-    name: Upload macOS DMGs to v1.0.8 Release
-    needs: [build-mac]
+  upload-installers-to-release:
+    name: Upload Installers to v1.0.8 Release
+    needs: [build-mac, build-windows]
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'
 
@@ -194,10 +195,16 @@ jobs:
           name: mac-dmg
           path: dist-mac
 
-      - name: List files
-        run: find dist-mac -type f
+      - name: Download windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: dist-win
 
-      - name: Delete existing DMG assets and upload new ones
+      - name: List files
+        run: find dist-mac dist-win -type f
+
+      - name: Upload all installers to v1.0.8 release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -207,4 +214,10 @@ jobs:
               --repo MinkyuTheBuilder/ai-council \
               --clobber
           done
-          echo "macOS DMG upload complete"
+          for EXE in dist-win/*.exe; do
+            echo "Uploading $EXE..."
+            gh release upload v1.0.8 "$EXE" \
+              --repo MinkyuTheBuilder/ai-council \
+              --clobber
+          done
+          echo "All installers uploaded."

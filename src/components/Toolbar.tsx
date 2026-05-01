@@ -95,7 +95,11 @@ export default function Toolbar({
   const selectedColor = AI_COLORS[primaryAi]
   const canStart = isReadyNextRound || hasQuery
   const btnDisabled = isRunning || (!isAtPausePoint && !canStart)
-  const reviewerAis = AI_NAMES.filter((ai) => ai !== primaryAi && enabledAis.includes(ai))
+  // Workflow mode: exclude the primary AI (it's the drafter, not a reviewer).
+  // Council mode: show every active AI — all roles are equally relevant.
+  const reviewerAis = AI_NAMES.filter((ai) =>
+    enabledAis.includes(ai) && (isWorkflowMode ? ai !== primaryAi : true)
+  )
 
   const btnLabel = isWaitingNext
     ? 'Next'

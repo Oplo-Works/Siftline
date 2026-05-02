@@ -212,32 +212,32 @@ export const AI_ICONS: Record<AiName, string> = {
 
 export const AI_ROLE_PRESETS: Record<AiName, AiRolePreset> = {
   chatgpt: {
-    title: 'Practical UX Coach',
-    detail: 'Makes answers clear, useful, actionable, and easy for a real user to follow.',
+    title: 'Versatile Creative Generalist',
+    detail: 'Brings broad versatility to writing, brainstorming, coding, and general tasks — refines framing, tone, and practical clarity for any audience.',
   },
   claude: {
-    title: 'Nuanced Reasoner',
-    detail: 'Weighs tradeoffs, preserves nuance, and checks correctness, ethics, and subtle risks.',
+    title: 'Long-Document Analyst',
+    detail: 'Delivers careful drafting, deep analysis, and nuanced reasoning for contracts, summaries, and complex long-form content.',
   },
   gemini: {
-    title: 'Broad-Context Synthesizer',
-    detail: 'Connects large bodies of context, missing background, system patterns, and audience fit.',
+    title: 'Multimodal Context Synthesizer',
+    detail: 'Synthesizes large bodies of context with multimodal awareness — integrating text, data, and long-document patterns across complex workflows.',
   },
   grok: {
-    title: 'Adversarial Reality Critic',
-    detail: 'Stress-tests assumptions against objections, incentives, friction, and real-world failure modes.',
+    title: 'Real-Time Reality Critic',
+    detail: 'Stress-tests assumptions against current events, social dynamics, trending cultural context, and real-world failure modes.',
   },
   deepseek: {
-    title: 'First-Principles Solver',
-    detail: 'Re-derives logic, math, code, and systems problems from fundamentals to find the cleanest route.',
+    title: 'Technical Reasoning Solver',
+    detail: 'Re-derives logic, math, code, and systems problems from first principles for precise, efficient technical answers.',
   },
   perplexity: {
     title: 'Source-Grounded Verifier',
-    detail: 'Checks factual claims, freshness, evidence quality, and unsupported assumptions with sources.',
+    detail: 'Verifies factual claims with citations, distinguishes evidence from inference, and grounds every assertion in current, credible sources.',
   },
   kimi: {
-    title: 'Agentic Execution Architect',
-    detail: 'Decomposes complex tasks into step-by-step agentic execution plans with tool calls, file dependencies, failure modes, and recovery paths.',
+    title: 'Long-Context Deep Analyst',
+    detail: 'Processes and synthesizes large documents and extended-context research, surfacing insights that limited-context reviewers would miss.',
   },
 }
 

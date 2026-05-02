@@ -36,9 +36,10 @@ export interface ReviewerBrief {
 export const COUNCIL_MENTION_ALIASES: Array<{ ai: AiName; aliases: string[] }> = [
   { ai: 'chatgpt', aliases: ['chatgpt', 'chat-gpt', 'chat_gpt'] },
   { ai: 'claude', aliases: ['claude'] },
+  { ai: 'deepseek', aliases: ['deepseek'] },
   { ai: 'gemini', aliases: ['gemini'] },
   { ai: 'grok', aliases: ['grok'] },
-  { ai: 'deepseek', aliases: ['deepseek'] },
+  { ai: 'kimi', aliases: ['kimi'] },
   { ai: 'perplexity', aliases: ['perplexity'] },
 ]
 

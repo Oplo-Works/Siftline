@@ -2370,65 +2370,96 @@ async function clickSend(view: BrowserView, selectors: string[], aiName?: AiName
   `)
   if (res.success) return true
 
-  // ── Kimi: skip the DOM heuristic and go straight to native Enter ──────────
+  // ── Kimi: skip the DOM heuristic and dispatch Enter via CDP ───────────────
   // Kimi's composer footer has multiple icon buttons (model selector, emoji,
-  // "+", send arrow) and the heuristic can pick the wrong one (e.g. the K2.6
-  // model dropdown). Standard chat UIs accept Enter to send, so use that
-  // directly for Kimi — it's the most reliable path.
+  // "+", send arrow) and the generic heuristic can pick the wrong one.
+  // sendInputEvent Enter is unreliable for Kimi's React handler, but CDP
+  // Input.dispatchKeyEvent produces a fully trusted keyboard event that
+  // mirrors a real key press — manual Enter works, this matches it exactly.
   if (aiName === 'kimi') {
+    let attached = false
     try {
-      view.webContents.focus()
-      const fallbackState = await view.webContents.executeJavaScript(`
+      // Focus the actual contenteditable composer, NOT some other element
+      const focused = await view.webContents.executeJavaScript(`
         (() => {
-          const inputEl = document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.isContentEditable
-            ? document.activeElement
-            : document.querySelector('textarea, div[contenteditable="true"]');
-          if (inputEl) {
-            inputEl.focus();
-            const text = 'value' in inputEl
-              ? String(inputEl.value || '')
-              : String(inputEl.innerText || inputEl.textContent || '');
-            const r = inputEl.getBoundingClientRect();
-            return {
-              x: r.x + r.width / 2,
-              y: r.y + r.height / 2,
-              hadText: text.trim().length > 0,
-            };
-          }
-          return null;
+          const el = document.querySelector('div[contenteditable="true"][data-testid="msh-chatinput-editor"]')
+                  || document.querySelector('div.chat-input-editor[contenteditable="true"]')
+                  || document.querySelector('div[contenteditable="true"][role="textbox"]')
+                  || document.querySelector('div[contenteditable="true"]');
+          if (!el) return { ok: false };
+          el.focus();
+          const text = String(el.innerText || el.textContent || '');
+          // Place caret at end so Enter triggers send, not split
+          try {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            range.collapse(false);
+            const sel = window.getSelection();
+            if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+          } catch (e) { /* best-effort */ }
+          return { ok: true, hadText: text.trim().length > 0 };
         })()
-      `)
+      `).catch(() => ({ ok: false }))
 
-      if (fallbackState?.x != null && fallbackState?.hadText) {
-        view.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(fallbackState.x), y: Math.round(fallbackState.y), button: 'left', clickCount: 1 })
-        view.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(fallbackState.x), y: Math.round(fallbackState.y), button: 'left', clickCount: 1 })
-        await sleep(50)
-        view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return' })
-        view.webContents.sendInputEvent({ type: 'char', keyCode: 'Return' })
-        view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return' })
-        await sleep(250)
+      if (focused?.ok && focused?.hadText) {
+        try { view.webContents.focus() } catch { /* ignore */ }
 
-        const postEnterState = await view.webContents.executeJavaScript(`
-          (() => {
-            const inputEl = document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.isContentEditable
-              ? document.activeElement
-              : document.querySelector('textarea, div[contenteditable="true"]');
-            const text = inputEl
-              ? ('value' in inputEl ? String(inputEl.value || '') : String(inputEl.innerText || inputEl.textContent || ''))
-              : '';
-            return { textLength: text.trim().length };
-          })()
-        `).catch(() => null)
-
-        // If the input cleared, Enter submitted the message.
-        if (postEnterState?.textLength === 0) {
-          sendLog('info', '[clickSend] kimi: Enter-key submission succeeded')
-          return true
+        // Attach CDP debugger if not already attached (file upload uses it too)
+        const dbg = view.webContents.debugger
+        if (!dbg.isAttached()) {
+          try { dbg.attach('1.3'); attached = true } catch (e) {
+            sendLog('warn', '[clickSend] kimi: debugger attach failed: ' + (e instanceof Error ? e.message : String(e)))
+          }
         }
-        sendLog('warn', '[clickSend] kimi: Enter-key submission left text in composer — falling through to heuristic')
+
+        if (dbg.isAttached()) {
+          // Dispatch a real Enter key via CDP — produces isTrusted=true events
+          await dbg.sendCommand('Input.dispatchKeyEvent', {
+            type: 'rawKeyDown',
+            key: 'Enter',
+            code: 'Enter',
+            windowsVirtualKeyCode: 13,
+            nativeVirtualKeyCode: 13,
+            text: '\r',
+            unmodifiedText: '\r',
+          }).catch((e) => sendLog('warn', '[clickSend] kimi: CDP keyDown failed: ' + e.message))
+
+          await dbg.sendCommand('Input.dispatchKeyEvent', {
+            type: 'keyUp',
+            key: 'Enter',
+            code: 'Enter',
+            windowsVirtualKeyCode: 13,
+            nativeVirtualKeyCode: 13,
+          }).catch((e) => sendLog('warn', '[clickSend] kimi: CDP keyUp failed: ' + e.message))
+
+          await sleep(400)
+
+          const postEnterState = await view.webContents.executeJavaScript(`
+            (() => {
+              const el = document.querySelector('div[contenteditable="true"][data-testid="msh-chatinput-editor"]')
+                      || document.querySelector('div.chat-input-editor[contenteditable="true"]')
+                      || document.querySelector('div[contenteditable="true"][role="textbox"]')
+                      || document.querySelector('div[contenteditable="true"]');
+              if (!el) return { textLength: 0 };
+              const text = String(el.innerText || el.textContent || '');
+              return { textLength: text.trim().length };
+            })()
+          `).catch(() => null)
+
+          if (postEnterState?.textLength === 0) {
+            sendLog('info', '[clickSend] kimi: CDP Enter-key submission succeeded')
+            if (attached) { try { dbg.detach() } catch { /* ignore */ } }
+            return true
+          }
+          sendLog('warn', `[clickSend] kimi: CDP Enter left ${postEnterState?.textLength ?? '?'} chars in composer — falling through`)
+        }
       }
     } catch (err) {
-      sendLog('warn', '[clickSend] kimi enter-key error: ' + (err instanceof Error ? err.message : String(err)))
+      sendLog('warn', '[clickSend] kimi CDP enter error: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      if (attached) {
+        try { view.webContents.debugger.detach() } catch { /* ignore */ }
+      }
     }
   }
 

@@ -2111,9 +2111,23 @@ async function waitForStableResponse(
           try {
             text = await view.webContents.executeJavaScript(`
               (() => {
-                const els = document.querySelectorAll(\`${sel}\`);
+                const els = Array.from(document.querySelectorAll(\`${sel}\`));
                 if (!els.length) return '';
-                return els[els.length - 1]?.innerText?.trim() || '';
+                // Drop elements that are descendants of another match — prefer
+                // the outermost container when the selector matches both a parent
+                // and its children.
+                const outermost = els.filter(el => !els.some(other => other !== el && other.contains(el)));
+                const lastEl = outermost[outermost.length - 1];
+                if (!lastEl) return '';
+                // If multiple sibling matches share the same direct parent (e.g. a
+                // bilingual response rendered as two sibling blocks with the same
+                // class), join them so both the English and Korean portions are
+                // captured rather than only the last sibling.
+                const siblings = outermost.filter(el => el.parentElement === lastEl.parentElement);
+                if (siblings.length > 1) {
+                  return siblings.map(el => el.innerText?.trim() || '').filter(Boolean).join('\\n\\n');
+                }
+                return lastEl.innerText?.trim() || '';
               })()
             `)
             if (text && text.length > 10) break

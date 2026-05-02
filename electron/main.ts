@@ -1541,7 +1541,7 @@ async function processCouncilTurn(
     }
     await sleep(CLICK_SEND_DELAY_MS)
 
-    const sent = await clickSend(view, config.sendButtonSelectors)
+    const sent = await clickSend(view, config.sendButtonSelectors, aiName)
     if (!sent) {
       throw new Error(`Send button not found for ${aiName}`)
     }
@@ -2348,7 +2348,7 @@ async function waitForStableResponse(
 }
 
 /** Click the send button using fallback selectors */
-async function clickSend(view: BrowserView, selectors: string[]): Promise<boolean> {
+async function clickSend(view: BrowserView, selectors: string[], aiName?: AiName): Promise<boolean> {
   // Ensure the BrowserView has OS-level focus before any input dispatch.
   // Without this, when multiple AI panels are visible the synthetic click
   // can succeed at the DOM level but the page never registers the action
@@ -2369,6 +2369,68 @@ async function clickSend(view: BrowserView, selectors: string[]): Promise<boolea
     })()
   `)
   if (res.success) return true
+
+  // ── Kimi: skip the DOM heuristic and go straight to native Enter ──────────
+  // Kimi's composer footer has multiple icon buttons (model selector, emoji,
+  // "+", send arrow) and the heuristic can pick the wrong one (e.g. the K2.6
+  // model dropdown). Standard chat UIs accept Enter to send, so use that
+  // directly for Kimi — it's the most reliable path.
+  if (aiName === 'kimi') {
+    try {
+      view.webContents.focus()
+      const fallbackState = await view.webContents.executeJavaScript(`
+        (() => {
+          const inputEl = document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.isContentEditable
+            ? document.activeElement
+            : document.querySelector('textarea, div[contenteditable="true"]');
+          if (inputEl) {
+            inputEl.focus();
+            const text = 'value' in inputEl
+              ? String(inputEl.value || '')
+              : String(inputEl.innerText || inputEl.textContent || '');
+            const r = inputEl.getBoundingClientRect();
+            return {
+              x: r.x + r.width / 2,
+              y: r.y + r.height / 2,
+              hadText: text.trim().length > 0,
+            };
+          }
+          return null;
+        })()
+      `)
+
+      if (fallbackState?.x != null && fallbackState?.hadText) {
+        view.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(fallbackState.x), y: Math.round(fallbackState.y), button: 'left', clickCount: 1 })
+        view.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(fallbackState.x), y: Math.round(fallbackState.y), button: 'left', clickCount: 1 })
+        await sleep(50)
+        view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return' })
+        view.webContents.sendInputEvent({ type: 'char', keyCode: 'Return' })
+        view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return' })
+        await sleep(250)
+
+        const postEnterState = await view.webContents.executeJavaScript(`
+          (() => {
+            const inputEl = document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.isContentEditable
+              ? document.activeElement
+              : document.querySelector('textarea, div[contenteditable="true"]');
+            const text = inputEl
+              ? ('value' in inputEl ? String(inputEl.value || '') : String(inputEl.innerText || inputEl.textContent || ''))
+              : '';
+            return { textLength: text.trim().length };
+          })()
+        `).catch(() => null)
+
+        // If the input cleared, Enter submitted the message.
+        if (postEnterState?.textLength === 0) {
+          sendLog('info', '[clickSend] kimi: Enter-key submission succeeded')
+          return true
+        }
+        sendLog('warn', '[clickSend] kimi: Enter-key submission left text in composer — falling through to heuristic')
+      }
+    } catch (err) {
+      sendLog('warn', '[clickSend] kimi enter-key error: ' + (err instanceof Error ? err.message : String(err)))
+    }
+  }
 
   // Second attempt: DOM heuristic — works for DeepSeek-style composers where
   // the send button has no aria-label and shares a class (e.g. `ds-button`)
@@ -4208,7 +4270,7 @@ ipcMain.handle(
       // small pause before send
       await sleep(CLICK_SEND_DELAY_MS)
       sendStatus(MSG.sending(currentPrimary))
-      await clickSend(primaryView, primaryConfig.sendButtonSelectors)
+      await clickSend(primaryView, primaryConfig.sendButtonSelectors, currentPrimary)
 
       // ── STEP 4: Wait for Primary AI response ─────────────────────────────
       sendStatus(MSG.waitingPrimary(currentPrimary))
@@ -4335,7 +4397,7 @@ ipcMain.handle(
 
         await sleep(REVIEWER_SEND_DELAY_MS)
 
-        const sent = await clickSend(reviewerView, reviewerConfig.sendButtonSelectors)
+        const sent = await clickSend(reviewerView, reviewerConfig.sendButtonSelectors, reviewerName as AiName)
         sendLog('info', `[Step 5] ${reviewerName}: Send ${sent ? 'succeeded' : 'failed'}`)
 
         if (!sent) {
@@ -4428,7 +4490,7 @@ ipcMain.handle(
 
       await pasteText(finalPrimaryView, finalPrompt, finalInputRes.selector!, currentPrimary)
       await sleep(CLICK_SEND_DELAY_MS)
-      await clickSend(finalPrimaryView, finalPrimaryConfig.sendButtonSelectors)
+      await clickSend(finalPrimaryView, finalPrimaryConfig.sendButtonSelectors, currentPrimary)
 
       // ── STEP 8: Extract final revised answer ──────────────────────────────
       sendStatus(MSG.waitingFinal(currentPrimary))
@@ -6543,7 +6605,7 @@ async function collectReviewerFeedbacksForAnswer(params: {
 
     await sleep(REVIEWER_SEND_DELAY_MS)
 
-    const sent = await clickSend(reviewerView, reviewerConfig.sendButtonSelectors)
+    const sent = await clickSend(reviewerView, reviewerConfig.sendButtonSelectors, reviewerName)
     sendLog('info', `[Step 5] ${reviewerName}: Send ${sent ? 'succeeded' : 'failed'}`)
 
     sendStatus(MSG.waitingReviewer(reviewerName))
@@ -6622,7 +6684,7 @@ async function requestFinalRevisionFromPrimary(params: {
 
   await pasteText(finalPrimaryView, finalPrompt, finalInputRes.selector!, currentPrimary)
   await sleep(CLICK_SEND_DELAY_MS)
-  await clickSend(finalPrimaryView, finalPrimaryConfig.sendButtonSelectors)
+  await clickSend(finalPrimaryView, finalPrimaryConfig.sendButtonSelectors, currentPrimary)
 
   sendStatus(MSG.waitingFinal(currentPrimary))
   sendLog('info', `[Step 8] Waiting ${INITIAL_RESPONSE_WAIT_MS}ms before polling...`)

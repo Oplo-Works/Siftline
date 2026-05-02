@@ -111,30 +111,47 @@ function languageLabelForBucket(bucket: ScriptBucket, text: string): string {
   }
 }
 
+const NON_LATIN_BUCKETS: ScriptBucket[] = [
+  'korean', 'japanese', 'chinese', 'arabic',
+  'cyrillic', 'devanagari', 'thai', 'hebrew', 'greek',
+]
+
+function countNonLatinWords(text: string): Partial<Record<ScriptBucket, number>> {
+  const wordCounts: Partial<Record<ScriptBucket, number>> = {}
+  for (const token of text.split(/\s+/).filter(t => t.length > 0)) {
+    for (const bucket of NON_LATIN_BUCKETS) {
+      let matched = false
+      for (const char of token) {
+        if (detectBucketForChar(char) === bucket) {
+          matched = true
+          break
+        }
+      }
+      if (matched) {
+        wordCounts[bucket] = (wordCounts[bucket] ?? 0) + 1
+        break
+      }
+    }
+  }
+  return wordCounts
+}
+
 export function detectPreferredReplyLanguage(text: string): string {
   const explicitLanguage = extractExplicitPreferredLanguage(text)
   if (explicitLanguage) return explicitLanguage
 
   const cleaned = stripExistingDirective(text)
-  const counts = getBucketCounts(cleaned)
-  const ranked = Object.entries(counts)
-    .filter((entry): entry is [ScriptBucket, number] => entry[1] > 0)
+  const wordCounts = countNonLatinWords(cleaned)
+
+  const qualifying = (Object.entries(wordCounts) as [ScriptBucket, number][])
+    .filter(([, count]) => count >= 3)
     .sort((a, b) => b[1] - a[1])
 
-  if (ranked.length === 0) {
-    return 'the same language as the user'
+  if (qualifying.length > 0) {
+    return languageLabelForBucket(qualifying[0][0], cleaned)
   }
 
-  const [topBucket, topCount] = ranked[0]
-  const [, secondCount = 0] = ranked[1] ?? []
-  const shouldUseTieBreak = secondCount > 0
-    && (Math.abs(topCount - secondCount) <= 2 || topCount < secondCount * 1.15)
-
-  const resolvedBucket = shouldUseTieBreak
-    ? detectFirstSubstantialBucket(cleaned) ?? topBucket
-    : topBucket
-
-  return languageLabelForBucket(resolvedBucket, cleaned)
+  return 'English'
 }
 
 export function buildResponseLanguageDirective(text: string): string {
@@ -142,8 +159,7 @@ export function buildResponseLanguageDirective(text: string): string {
 
   return `${DIRECTIVE_HEADER}
 - Match the language of the user's latest instruction.
-- If the user mixes multiple languages, reply in the language that appears more.
-- If the mix is close, follow the language used in the first substantial sentence.
+- If the user includes 3 or more words in a non-English language, reply in that language — even if the rest of the query contains English words or names.
 - Apply this same rule to casual chat, workflow answers, reviewer feedback, revisions, and follow-up turns.
 - Translate any English section headers, labels, or formatting templates from these instructions into the user's language. Do NOT copy English headers (e.g. "What to simplify", "Coverage gaps", "Hidden risks") verbatim when the user's language is not English.
 ${PREFERRED_LANGUAGE_PREFIX}${preferredLanguage}`

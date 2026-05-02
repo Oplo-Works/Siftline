@@ -4666,12 +4666,12 @@ const AI_REVIEWER_BRIEFS: Record<AiName, { role: string; focus: string; outputGu
 - Minimal correct recommendation`,
   },
   kimi: {
-    role: 'Long-Context Agent and Coding Specialist',
-    focus: 'Reason across long documents and codebases, surface coverage gaps a shorter-context reviewer would miss, and check coding, tool-use, and agentic workflow soundness.',
+    role: 'Agentic Execution Architect',
+    focus: 'Decompose the request into a concrete agentic execution plan — ordered steps, tool calls, file/state dependencies, and recovery paths. Surface where multi-step automation would actually break down (race conditions, missed prerequisites, brittle ordering, unhandled failure modes) that single-shot reasoners ignore.',
     outputGuide: `Respond with three short sections:
-- Long-context coverage
-- Coding or tool-use risks
-- Tighter agentic plan`,
+- Execution plan (ordered steps with tools)
+- Failure modes (where the agent loop breaks)
+- Tighter sequence (refined order, dependencies, recovery)`,
   },
 }
 
@@ -4831,12 +4831,12 @@ const AI_REVIEWER_PERSONAS: Record<AiName, { role: string; focus: string; output
 - Minimal correct recommendation`,
   },
   kimi: {
-    role: 'Long-Context Agent and Coding Specialist',
-    focus: 'Reason across long documents and codebases, surface coverage gaps a shorter-context reviewer would miss, and check coding, tool-use, and agentic workflow soundness.',
+    role: 'Agentic Execution Architect',
+    focus: 'Decompose the request into a concrete agentic execution plan — ordered steps, tool calls, file/state dependencies, and recovery paths. Surface where multi-step automation would actually break down (race conditions, missed prerequisites, brittle ordering, unhandled failure modes) that single-shot reasoners ignore.',
     outputGuide: `Respond with three short sections:
-- Long-context coverage
-- Coding or tool-use risks
-- Tighter agentic plan`,
+- Execution plan (ordered steps with tools)
+- Failure modes (where the agent loop breaks)
+- Tighter sequence (refined order, dependencies, recovery)`,
   },
 }
 
@@ -5020,10 +5020,10 @@ const ROUTING_PROFILE_DETAILS: Record<AiName, AiRecommendationResult> = {
   },
   kimi: {
     recommended: 'kimi',
-    reason: 'Recommended for autonomous coding, long-horizon tasks, and tool-use across long documents and codebases.',
+    reason: 'Recommended for tasks that require a concrete agentic execution plan — multi-step automation, tool-use sequences, long-horizon coding, and failure-mode analysis across complex workflows.',
     roundSuggestions: [
-      { ai: 'deepseek', reason: 'First-principles correctness check on the logic' },
-      { ai: 'claude', reason: 'Nuance, correctness, and safety review' },
+      { ai: 'deepseek', reason: 'First-principles correctness check on the execution logic' },
+      { ai: 'claude', reason: 'Nuance, correctness, and safety review of the plan' },
     ],
   },
 }
@@ -5051,8 +5051,8 @@ function ruleBasedRecommendation(query: string): AiRecommendationResult {
   }
 
   scores.kimi += countRoutingMatches(q, [
-    /\b(agent|agentic|autonomous|long[-\s]?context|long[-\s]?horizon|tool[-\s]?use|repo|repository|codebase|monorepo|multi[-\s]?file)\b/i,
-    /에이전트|장문맥|장기간|자율|툴\s*사용|레포|레포지토리|코드베이스|다중\s*파일/i,
+    /\b(agent|agentic|autonomous|execution[-\s]?plan|workflow|automation|pipeline|tool[-\s]?use|tool[-\s]?call|orchestrat|step[-\s]?by[-\s]?step|failure[-\s]?mode|recovery|dependency|multi[-\s]?step|long[-\s]?horizon|repo|repository|codebase|monorepo|multi[-\s]?file)\b/i,
+    /에이전트|자동화|파이프라인|툴\s*사용|단계별|실패\s*모드|복구|의존성|다단계|장기간|레포|레포지토리|코드베이스|다중\s*파일/i,
   ]) * 2
 
   scores.perplexity += countRoutingMatches(q, [
@@ -5125,7 +5125,7 @@ AI strengths:
 - grok: Adversarial reality critique; assumptions, objections, incentives, and failure modes
 - deepseek: First-principles reasoning for logic, math, code, systems, and optimization
 - perplexity: Source-grounded fact verification, current information, citations, and freshness checks
-- kimi: Long-context agentic coding, autonomous tool-use, and long-horizon tasks across large documents and codebases
+- kimi: Agentic execution planning — decomposing complex tasks into ordered steps with tool calls, dependencies, failure modes, and recovery paths
 
 Routing rules:
 - Choose deepseek for code, algorithms, math, logic, debugging, implementation, optimization, or first-principles problem solving.
@@ -5134,7 +5134,7 @@ Routing rules:
 - Choose grok for adversarial critique, contrarian review, hidden assumptions, objections, debates, incentives, or real-world failure modes.
 - Choose perplexity for latest/current information, factual verification, source-grounding, citations, or freshness-sensitive claims.
 - Choose chatgpt for practical UX, writing, communication, tone, user-facing explanation, action plans, or making the answer easy to use.
-- Choose kimi for autonomous agentic coding, long-horizon planning, multi-file repository work, and tool-use across long contexts.
+- Choose kimi for agentic execution planning: multi-step automation, tool-use sequences, failure-mode analysis of complex workflows, or long-horizon coding tasks that require decomposing dependencies and recovery paths.
 - If a query matches multiple roles, pick the AI whose unique strength is most central to producing the first draft. Put complementary reviewers in roundSuggestions.
 
 User Query: "${query.slice(0, 500)}"

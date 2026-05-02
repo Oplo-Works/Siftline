@@ -236,8 +236,8 @@ export const AI_ROLE_PRESETS: Record<AiName, AiRolePreset> = {
     detail: 'Checks factual claims, freshness, evidence quality, and unsupported assumptions with sources.',
   },
   kimi: {
-    title: 'Long-Context Agent',
-    detail: 'Excels at autonomous coding, long-horizon tasks, and tool-use across large documents and codebases.',
+    title: 'Agentic Execution Architect',
+    detail: 'Decomposes complex tasks into step-by-step agentic execution plans with tool calls, file dependencies, failure modes, and recovery paths.',
   },
 }
 

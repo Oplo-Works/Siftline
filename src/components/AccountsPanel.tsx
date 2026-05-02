@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { AiName, AI_DISPLAY_NAMES, AI_COLORS, AI_ICONS } from '../types'
 
-const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity']
-const DEFAULT_ORDER = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity']
+const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'kimi', 'perplexity']
+const DEFAULT_ORDER = ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'kimi', 'perplexity']
 
 type ProviderId = AiName | 'deepseek'
 type Tab = 'accounts' | 'apikeys'
@@ -67,6 +67,15 @@ const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
     color: AI_COLORS.perplexity.primary,
     glow: AI_COLORS.perplexity.glow,
   },
+  kimi: {
+    label: 'Kimi (Moonshot) API Key',
+    placeholder: 'sk-...',
+    href: 'https://platform.moonshot.ai/console/api-keys',
+    icon: AI_ICONS.kimi,
+    color: AI_COLORS.kimi.primary,
+    glow: AI_COLORS.kimi.glow,
+    isInference: true,
+  },
 }
 
 interface Props {
@@ -82,6 +91,7 @@ export default function AccountsPanel({ onClose }: Props) {
     grok: false,
     deepseek: false,
     perplexity: false,
+    kimi: false,
   })
   const [loading, setLoading] = useState(true)
   const [busyAi, setBusyAi] = useState<AiName | null>(null)

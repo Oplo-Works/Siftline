@@ -45,7 +45,7 @@ app.commandLine.appendSwitch('disable-quic')
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled')
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'deepseek' | 'perplexity'
+export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'deepseek' | 'perplexity' | 'kimi'
 type InteractionMode = 'workflow' | 'chat'
 
 interface AiConfig {
@@ -296,6 +296,44 @@ const DEFAULT_SELECTORS: Record<AiName, AiConfig> = {
     ],
     loadedIndicatorSelectors: ['#chat-input', 'textarea', '[contenteditable]'],
   },
+  kimi: {
+    url: 'https://kimi.com',
+    newChatUrl: 'https://kimi.com',
+    inputSelectors: [
+      // Kimi's main composer (2025 UI — bilingual EN/中文)
+      'div[contenteditable="true"][data-testid="msh-chatinput-editor"]',
+      'div[contenteditable="true"][role="textbox"]',
+      'div.chat-input-editor[contenteditable="true"]',
+      'textarea[placeholder*="Kimi" i]',
+      'textarea[placeholder*="Ask" i]',
+      'textarea[placeholder*="Message" i]',
+      'textarea[placeholder*="问"]',
+      'textarea[placeholder*="发送"]',
+      'div[contenteditable="true"][data-placeholder]',
+      'div[contenteditable="true"]',
+      'textarea',
+    ],
+    sendButtonSelectors: [
+      'div[data-testid="msh-chatinput-send-button"]',
+      'button[data-testid="msh-chatinput-send-button"]',
+      'button[aria-label*="Send" i]',
+      'button[aria-label*="Submit" i]',
+      'button[aria-label*="发送"]',
+      'div[role="button"][aria-label*="Send" i]',
+      'div[role="button"][aria-label*="发送"]',
+      'button[type="submit"]',
+    ],
+    responseContainerSelectors: [
+      // Kimi response container — markdown-rendered assistant turn
+      '.markdown',
+      '[class*="markdown-body"]',
+      '[class*="segment-assistant"] .markdown',
+      '[data-role="assistant"] .markdown',
+      '.prose',
+      'article',
+    ],
+    loadedIndicatorSelectors: ['div[contenteditable="true"]', 'textarea', '[contenteditable]'],
+  },
 }
 
 /** Load selectors: use userData override if present, else use bundled defaults */
@@ -318,7 +356,7 @@ const store = new Store<StoreSchema>({
     chatHistory: [],
     windowBounds: { x: 0, y: 0, width: 1280, height: 720 },
     apiKeys: {},
-    apiKeyOrder: ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity'],
+    apiKeyOrder: ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'kimi', 'perplexity'],
     councilRoomSnapshot: null,
     councilUiState: {
       pinnedCandidateIds: [],
@@ -337,7 +375,7 @@ const store = new Store<StoreSchema>({
 
 let mainWindow: BrowserWindow | null = null
 const views: Map<AiName, BrowserView> = new Map()
-const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity']
+const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'kimi', 'perplexity']
 const DEFAULT_ENABLED_AI_NAMES: AiName[] = ['chatgpt', 'claude', 'gemini']
 export const AI_DISPLAY_NAMES: Record<AiName, string> = {
   chatgpt: 'ChatGPT',
@@ -346,6 +384,7 @@ export const AI_DISPLAY_NAMES: Record<AiName, string> = {
   grok: 'Grok',
   deepseek: 'DeepSeek',
   perplexity: 'Perplexity',
+  kimi: 'Kimi',
 }
 // Which AIs are currently visible — user can toggle panels on/off
 let enabledAiNames: AiName[] = [...DEFAULT_ENABLED_AI_NAMES]
@@ -807,6 +846,13 @@ const STREAMING_INDICATOR_SELECTORS: Partial<Record<AiName, string[]>> = {
   deepseek: [
     'button[aria-label*="Stop"]',
     '[data-testid="stop-button"]',
+  ],
+  kimi: [
+    'button[aria-label*="Stop" i]',
+    'button[aria-label*="停止"]',
+    'div[role="button"][aria-label*="Stop" i]',
+    'div[role="button"][aria-label*="停止"]',
+    '[data-testid*="stop" i]',
   ],
 }
 
@@ -2995,6 +3041,7 @@ const LOGIN_COPY_DOMAINS: Record<AiName, string[]> = {
   grok: ['.grok.com', 'grok.com', '.x.com', 'x.com', '.twitter.com', 'twitter.com'],
   deepseek: ['.deepseek.com', 'deepseek.com', 'chat.deepseek.com'],
   perplexity: ['.perplexity.ai'],
+  kimi: ['.kimi.com', 'kimi.com', '.moonshot.cn', 'moonshot.cn'],
 }
 
 const LOGIN_START_URLS: Record<AiName, string> = {
@@ -3004,6 +3051,7 @@ const LOGIN_START_URLS: Record<AiName, string> = {
   grok: 'https://grok.com',
   deepseek: 'https://chat.deepseek.com',
   perplexity: 'https://www.perplexity.ai',
+  kimi: 'https://kimi.com',
 }
 
 const LOGIN_TITLES = {
@@ -3014,6 +3062,7 @@ const LOGIN_TITLES = {
   grok: 'Grok Login — AI Council',
 } as Record<AiName, string>
 LOGIN_TITLES.deepseek = 'DeepSeek Login - AI Council'
+LOGIN_TITLES.kimi = 'Kimi Login - AI Council'
 
 /** Check whether the login session already has valid session cookies.
  *  Uses loginSes.cookies.get({}) (no domain filter) to catch cookies set on
@@ -3056,6 +3105,16 @@ async function isLoginComplete(aiName: AiName, loginSes: Electron.Session, url: 
     const deepseekCookies = all.filter((c) => c.domain.includes('deepseek.com'))
     return deepseekCookies.some((c) =>
       c.name.toLowerCase().includes('session') || c.name.toLowerCase().includes('token') || c.name.toLowerCase().includes('user')
+    )
+  }
+  if (aiName === 'kimi') {
+    const kimiCookies = all.filter((c) => c.domain.includes('kimi.com') || c.domain.includes('moonshot.cn'))
+    return kimiCookies.some((c) =>
+      c.name.toLowerCase().includes('session') ||
+      c.name.toLowerCase().includes('token') ||
+      c.name.toLowerCase().includes('access') ||
+      c.name.toLowerCase().includes('refresh') ||
+      c.name.toLowerCase().includes('user')
     )
   }
   return false
@@ -3340,6 +3399,7 @@ const STANDALONE_LOGIN_SCRIPTS: Partial<Record<AiName, string>> = {
   grok: 'grok-login.mjs',
   deepseek: 'deepseek-login.mjs',
   perplexity: 'perplexity-login.mjs',
+  kimi: 'kimi-login.mjs',
 }
 
 ipcMain.handle('open-login-window', (_e, aiName: AiName) => {
@@ -4481,6 +4541,14 @@ const AI_REVIEWER_BRIEFS: Record<AiName, { role: string; focus: string; outputGu
 - Cleaner route
 - Minimal correct recommendation`,
   },
+  kimi: {
+    role: 'Long-Context Agent and Coding Specialist',
+    focus: 'Reason across long documents and codebases, surface coverage gaps a shorter-context reviewer would miss, and check coding, tool-use, and agentic workflow soundness.',
+    outputGuide: `Respond with three short sections:
+- Long-context coverage
+- Coding or tool-use risks
+- Tighter agentic plan`,
+  },
 }
 
 function buildReviewerPromptV2(
@@ -4638,6 +4706,14 @@ const AI_REVIEWER_PERSONAS: Record<AiName, { role: string; focus: string; output
 - Cleaner route
 - Minimal correct recommendation`,
   },
+  kimi: {
+    role: 'Long-Context Agent and Coding Specialist',
+    focus: 'Reason across long documents and codebases, surface coverage gaps a shorter-context reviewer would miss, and check coding, tool-use, and agentic workflow soundness.',
+    outputGuide: `Respond with three short sections:
+- Long-context coverage
+- Coding or tool-use risks
+- Tighter agentic plan`,
+  },
 }
 
 function buildReviewerPrompt(
@@ -4754,6 +4830,7 @@ function primaryAiDisplayName(ai: AiName): string {
     grok: 'Grok',
     deepseek: 'DeepSeek',
     perplexity: 'Perplexity',
+    kimi: 'Kimi',
   }
   return map[ai] ?? ai
 }
@@ -4817,6 +4894,14 @@ const ROUTING_PROFILE_DETAILS: Record<AiName, AiRecommendationResult> = {
       { ai: 'claude', reason: 'Nuanced tradeoff and correctness analysis' },
     ],
   },
+  kimi: {
+    recommended: 'kimi',
+    reason: 'Recommended for autonomous coding, long-horizon tasks, and tool-use across long documents and codebases.',
+    roundSuggestions: [
+      { ai: 'deepseek', reason: 'First-principles correctness check on the logic' },
+      { ai: 'claude', reason: 'Nuance, correctness, and safety review' },
+    ],
+  },
 }
 
 function countRoutingMatches(query: string, patterns: RegExp[]): number {
@@ -4838,7 +4923,13 @@ function ruleBasedRecommendation(query: string): AiRecommendationResult {
     grok: 0,
     deepseek: 0,
     perplexity: 0,
+    kimi: 0,
   }
+
+  scores.kimi += countRoutingMatches(q, [
+    /\b(agent|agentic|autonomous|long[-\s]?context|long[-\s]?horizon|tool[-\s]?use|repo|repository|codebase|monorepo|multi[-\s]?file)\b/i,
+    /에이전트|장문맥|장기간|자율|툴\s*사용|레포|레포지토리|코드베이스|다중\s*파일/i,
+  ]) * 2
 
   scores.perplexity += countRoutingMatches(q, [
     /\b(news|latest|recent|today|yesterday|current|trending|stock|price|weather|event|happen|source|sources|citation|cite|verify|fact-?check|evidence)\b/i,
@@ -4879,7 +4970,7 @@ function ruleBasedRecommendation(query: string): AiRecommendationResult {
   if (/문서|자료|종합|시스템|document|synthesis|system|context/i.test(q)) scores.gemini += 1
   if (/실행|사용자|글쓰기|communication|actionable|ux|writing/i.test(q)) scores.chatgpt += 1
 
-  const priority: AiName[] = ['perplexity', 'deepseek', 'gemini', 'claude', 'grok', 'chatgpt']
+  const priority: AiName[] = ['perplexity', 'deepseek', 'kimi', 'gemini', 'claude', 'grok', 'chatgpt']
   const recommended = priority.reduce((best, ai) => {
     if (scores[ai] > scores[best]) return ai
     return best
@@ -4896,12 +4987,12 @@ function ruleBasedRecommendation(query: string): AiRecommendationResult {
  */
 async function analyzeQueryForPrimaryAi(query: string): Promise<AiRecommendationResult> {
   const apiKeys = store.get('apiKeys') as StoreSchema['apiKeys']
-  const defaultOrder = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity']
+  const defaultOrder = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity', 'kimi']
   const apiKeyOrder: string[] = (store.get('apiKeyOrder') as string[] | undefined) ?? defaultOrder
 
   // Shared routing prompt — compact enough for fast/cheap models
   const ROUTING_PROMPT = `You are an AI routing expert. A user submitted this query to a multi-AI review system.
-Analyze the query and recommend the BEST Primary AI from: chatgpt, claude, gemini, grok, deepseek, perplexity.
+Analyze the query and recommend the BEST Primary AI from: chatgpt, claude, gemini, grok, deepseek, perplexity, kimi.
 
 AI strengths:
 - chatgpt: Practical UX and communication; clear, actionable, human-facing guidance
@@ -4910,6 +5001,7 @@ AI strengths:
 - grok: Adversarial reality critique; assumptions, objections, incentives, and failure modes
 - deepseek: First-principles reasoning for logic, math, code, systems, and optimization
 - perplexity: Source-grounded fact verification, current information, citations, and freshness checks
+- kimi: Long-context agentic coding, autonomous tool-use, and long-horizon tasks across large documents and codebases
 
 Routing rules:
 - Choose deepseek for code, algorithms, math, logic, debugging, implementation, optimization, or first-principles problem solving.
@@ -4918,6 +5010,7 @@ Routing rules:
 - Choose grok for adversarial critique, contrarian review, hidden assumptions, objections, debates, incentives, or real-world failure modes.
 - Choose perplexity for latest/current information, factual verification, source-grounding, citations, or freshness-sensitive claims.
 - Choose chatgpt for practical UX, writing, communication, tone, user-facing explanation, action plans, or making the answer easy to use.
+- Choose kimi for autonomous agentic coding, long-horizon planning, multi-file repository work, and tool-use across long contexts.
 - If a query matches multiple roles, pick the AI whose unique strength is most central to producing the first draft. Put complementary reviewers in roundSuggestions.
 
 User Query: "${query.slice(0, 500)}"
@@ -4925,7 +5018,7 @@ User Query: "${query.slice(0, 500)}"
 Respond ONLY with valid JSON (no markdown, no explanation):
 {"recommended":"<ai_name>","reason":"<one sentence>","roundSuggestions":[{"ai":"<ai_name>","reason":"<brief>"},{"ai":"<ai_name>","reason":"<brief>"}]}`
 
-  const validAis: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity']
+  const validAis: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity', 'kimi']
 
   /** Parse LLM text -> AiRecommendationResult or null */
   const parseResult = (text: string): AiRecommendationResult | null => {
@@ -5111,6 +5204,20 @@ const FILE_UPLOAD_BUTTON_SELECTORS: Partial<Record<AiName, string[]>> = {
     'button[aria-label*="media" i]',
   ],
   perplexity: [],   // no reliable file upload in free tier
+  kimi: [
+    // Kimi composer attachment button (paperclip / "+")
+    'button[aria-label*="attach" i]',
+    'button[aria-label*="upload" i]',
+    'button[aria-label*="file" i]',
+    'button[aria-label*="附件"]',
+    'button[aria-label*="上传"]',
+    'div[role="button"][aria-label*="attach" i]',
+    'div[role="button"][aria-label*="upload" i]',
+    'div[role="button"][aria-label*="附件"]',
+    'div[role="button"][aria-label*="上传"]',
+    'div[data-testid*="upload" i]',
+    'div[data-testid*="attach" i]',
+  ],
 }
 
 /**
@@ -6132,7 +6239,7 @@ async function classifySessionRelationWithAi(
   if (!currentSession || !query.trim()) return null
 
   const apiKeys = store.get('apiKeys') as StoreSchema['apiKeys']
-  const defaultOrder = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity']
+  const defaultOrder = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity', 'kimi']
   const apiKeyOrder: string[] = (store.get('apiKeyOrder') as string[] | undefined) ?? defaultOrder
 
   const RELATION_PROMPT = `You are classifying whether a user's new message should continue the current AI conversation or start a brand-new session.

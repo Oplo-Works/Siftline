@@ -7,6 +7,7 @@ const RENDERER_MENTION_ALIASES: Record<AiName, string[]> = {
   grok: ['grok'],
   deepseek: ['deepseek'],
   perplexity: ['perplexity'],
+  kimi: ['kimi'],
 }
 
 export function getMentionQuery(text: string, caretIndex: number): string | null {

@@ -1,4 +1,4 @@
-export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'deepseek' | 'perplexity'
+export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'deepseek' | 'perplexity' | 'kimi'
 
 export interface TelegramConfig {
   enabled: boolean
@@ -176,7 +176,7 @@ export interface CouncilSnapshotPayload {
   insight?: Partial<CouncilSnapshotInsight>
 }
 
-export const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity']
+export const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'kimi', 'perplexity']
 
 export const DEFAULT_ENABLED_AIS: AiName[] = ['chatgpt', 'claude', 'gemini']
 
@@ -187,6 +187,7 @@ export const AI_DISPLAY_NAMES: Record<AiName, string> = {
   grok: 'Grok',
   deepseek: 'DeepSeek',
   perplexity: 'Perplexity',
+  kimi: 'Kimi',
 }
 
 export const AI_COLORS: Record<AiName, { primary: string; glow: string; badge: string }> = {
@@ -196,6 +197,7 @@ export const AI_COLORS: Record<AiName, { primary: string; glow: string; badge: s
   grok: { primary: '#7c3aed', glow: 'rgba(124,58,237,0.35)', badge: '#7c3aed' },
   deepseek: { primary: '#4D6BFE', glow: 'rgba(77,107,254,0.35)', badge: '#4D6BFE' },
   perplexity: { primary: '#20b2aa', glow: 'rgba(32,178,170,0.35)', badge: '#20b2aa' },
+  kimi: { primary: '#1d6dff', glow: 'rgba(29,109,255,0.35)', badge: '#1d6dff' },
 }
 
 export const AI_ICONS: Record<AiName, string> = {
@@ -205,6 +207,7 @@ export const AI_ICONS: Record<AiName, string> = {
   grok: 'X',
   deepseek: 'D',
   perplexity: 'P',
+  kimi: 'K',
 }
 
 export const AI_ROLE_PRESETS: Record<AiName, AiRolePreset> = {
@@ -231,6 +234,10 @@ export const AI_ROLE_PRESETS: Record<AiName, AiRolePreset> = {
   perplexity: {
     title: 'Source-Grounded Verifier',
     detail: 'Checks factual claims, freshness, evidence quality, and unsupported assumptions with sources.',
+  },
+  kimi: {
+    title: 'Long-Context Agent',
+    detail: 'Excels at autonomous coding, long-horizon tasks, and tool-use across large documents and codebases.',
   },
 }
 

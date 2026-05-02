@@ -1534,7 +1534,7 @@ async function processCouncilTurn(
     }
 
     sendLog('info', `[council] ${aiName}: injecting ${councilPrompt.length} chars`)
-    await pasteText(view, councilPrompt, inputRes.selector)
+    await pasteText(view, councilPrompt, inputRes.selector, aiName)
     if (filePaths.length > 0) {
       sendLog('info', `[council] ${aiName}: waiting for composer to become send-ready after attachment`)
       await waitForComposerReadyToSend(view, aiName, config.sendButtonSelectors)
@@ -1800,7 +1800,7 @@ async function execWithFallback(
  *  For React-controlled textareas (e.g. Perplexity) the native value setter
  *  must be used AND a full synthetic event chain dispatched so React's
  *  internal fiber state is updated and the submit button is enabled. */
-async function pasteText(view: BrowserView, text: string, selector: string) {
+async function pasteText(view: BrowserView, text: string, selector: string, aiName?: AiName) {
   const jsonSelector = JSON.stringify(selector)
 
   // Focus the target element first using DOM methods (which might be ignored by anti-bot, but good as a first step)
@@ -1814,7 +1814,7 @@ async function pasteText(view: BrowserView, text: string, selector: string) {
       if (typeof target.select === 'function') {
         target.select();
       }
-      
+
       // Return bounding rect for native click
       const r = target.getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2, isContentEditable: target.isContentEditable };
@@ -1824,12 +1824,43 @@ async function pasteText(view: BrowserView, text: string, selector: string) {
   // CRITICAL: Focus the BrowserView itself before dispatching keyboard/mouse input.
   try { view.webContents.focus() } catch { /* view may be detached */ }
   await sleep(30)
-  
+
   // NATIVE CLICK on the text area to defeat anti-bot focus restrictions (like DeepSeek)
   if (inputRect) {
     view.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(inputRect.x), y: Math.round(inputRect.y), button: 'left', clickCount: 1 })
     view.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(inputRect.x), y: Math.round(inputRect.y), button: 'left', clickCount: 1 })
     await sleep(50)
+  }
+
+  // ── Kimi: use execCommand('insertText') instead of Ctrl+V ────────────────
+  // Kimi converts clipboard pastes that exceed ~4000 bytes into a TXT file
+  // attachment, leaving the input empty and blocking send.  execCommand fires
+  // an 'input' event (not 'paste'), so Kimi's paste-size guard is bypassed.
+  if (aiName === 'kimi') {
+    const inserted = await view.webContents.executeJavaScript(`
+      (() => {
+        const target = document.querySelector(${jsonSelector});
+        if (!target) return false;
+        target.focus();
+        // Clear existing content with Ctrl+A + Delete via execCommand
+        document.execCommand('selectAll', false, null);
+        document.execCommand('delete', false, null);
+        // Insert text directly — fires 'input' event, bypasses paste handler
+        const ok = document.execCommand('insertText', false, ${JSON.stringify(text)});
+        if (!ok) {
+          // execCommand not supported: fall through to clipboard path
+          return false;
+        }
+        return true;
+      })()
+    `).catch(() => false)
+
+    if (inserted) {
+      await sleep(150)
+      return
+    }
+    // If execCommand failed, fall through to clipboard paste below
+    sendLog('warn', '[pasteText] kimi: execCommand insertText failed — falling back to clipboard paste')
   }
 
   // Use Electron clipboard + Ctrl+A/Ctrl+V via sendInputEvent.
@@ -1855,7 +1886,7 @@ async function pasteText(view: BrowserView, text: string, selector: string) {
       const expected = ${JSON.stringify(text)};
       // Already populated by the paste — nothing to do.
       if (currentValue && currentValue.includes(expected.slice(0, 32))) return 'paste-ok';
-      
+
       // Manual injection path ONLY for standard inputs/textareas
       if ('value' in target && !target.isContentEditable) {
         const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
@@ -4168,7 +4199,7 @@ ipcMain.handle(
       const primaryPrompt = needsContextBridge
         ? buildContextBridgePrompt(trimmedQuery, workflowSession!.latestFinalAnswer, primaryFileContext)
         : buildPrimaryPrompt(trimmedQuery, primaryFileContext)
-      await pasteText(primaryView, primaryPrompt, inputResult.selector!)
+      await pasteText(primaryView, primaryPrompt, inputResult.selector!, currentPrimary)
       if (primaryFilesAttached) {
         sendLog('info', `[Step 3] ${currentPrimary}: Waiting for composer to become send-ready after attachment`)
         await waitForComposerReadyToSend(primaryView, currentPrimary, primaryConfig.sendButtonSelectors)
@@ -4287,7 +4318,7 @@ ipcMain.handle(
         )
 
         sendLog('info', `[Step 5] ${reviewerName}: Starting prompt paste`)
-        await pasteText(reviewerView, prompt, inputRes.selector!)
+        await pasteText(reviewerView, prompt, inputRes.selector!, reviewerName as AiName)
         if (filesAttached) {
           sendLog('info', `[Step 5] ${reviewerName}: Waiting for composer to become send-ready after attachment`)
           await waitForComposerReadyToSend(reviewerView, reviewerName, reviewerConfig.sendButtonSelectors)
@@ -4395,7 +4426,7 @@ ipcMain.handle(
       )
       sendLog('info', `[Step 7] Final baseline captured (${finalBaseline.length} chars)`)
 
-      await pasteText(finalPrimaryView, finalPrompt, finalInputRes.selector!)
+      await pasteText(finalPrimaryView, finalPrompt, finalInputRes.selector!, currentPrimary)
       await sleep(CLICK_SEND_DELAY_MS)
       await clickSend(finalPrimaryView, finalPrimaryConfig.sendButtonSelectors)
 
@@ -6502,7 +6533,7 @@ async function collectReviewerFeedbacksForAnswer(params: {
     )
 
     sendLog('info', `[Step 5] ${reviewerName}: Starting prompt paste`)
-    await pasteText(reviewerView, prompt, inputRes.selector!)
+    await pasteText(reviewerView, prompt, inputRes.selector!, reviewerName)
 
     const reviewerBaseline = await captureCurrentText(
       reviewerView,
@@ -6589,7 +6620,7 @@ async function requestFinalRevisionFromPrimary(params: {
   )
   sendLog('info', `[Step 7] Final baseline captured (${finalBaseline.length} chars)`)
 
-  await pasteText(finalPrimaryView, finalPrompt, finalInputRes.selector!)
+  await pasteText(finalPrimaryView, finalPrompt, finalInputRes.selector!, currentPrimary)
   await sleep(CLICK_SEND_DELAY_MS)
   await clickSend(finalPrimaryView, finalPrimaryConfig.sendButtonSelectors)
 

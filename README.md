@@ -1,6 +1,6 @@
 # AI Council
 
-> Manual cross-verification workflow **and** free-form group discussion among up to 6 major LLMs using Electron BrowserViews and UI automation.
+> Manual cross-verification workflow **and** free-form group discussion among up to 7 major LLMs using Electron BrowserViews and UI automation.
 
 ---
 
@@ -12,6 +12,7 @@
 | 📎 **Telegram File Sharing** | Send photos and documents (PDF, DOCX, XLSX, TXT, MD, CSV, PNG, JPG, …) directly from Telegram. Files are downloaded to a temp folder and attached to the Council Chat session automatically — AIs analyze them just like desktop-uploaded files. Media groups (multiple photos sent at once) are bundled and processed together. |
 | 📎 **Council Chat File Attachment** | A **+Attach** button in the Council Chat input bar lets you attach files before sending any message. Attached files are physically uploaded to each AI's browser interface via CDP and included in the prompt when CDP upload is unavailable. |
 | 🔵 **DeepSeek Support** | DeepSeek (`chat.deepseek.com`) replaces Groq as the 6th AI panel. DeepSeek is a high-quality open-weight model strong on reasoning, coding, and concise synthesis. |
+| 🌙 **Kimi Support** | Kimi (`kimi.com`) by Moonshot AI joins as the 7th AI panel. Kimi excels at long-context deep research — it reads large documents and synthesizes insights that limited-context models miss. |
 | 🤖 **Telegram Slash Commands** | Full session management via Telegram: `/new`, `/save`, `/save_and_new`, `/sessions`, `/load`, `/workflow`, `/status`, `/help`. |
 | 🔒 **Secure Token Storage** | Telegram bot token and chat ID are stored in an encrypted `electron-store` file — they never leave your machine and never appear in logs. |
 | ◉ **Telegram Status Indicator** | When the Telegram bot is active, a `◉ Telegram` indicator lights up in the status bar at the bottom of the app. |
@@ -43,6 +44,7 @@
 | 🔵 | DeepSeek | chat.deepseek.com |
 | ◈ | Perplexity | perplexity.ai |
 | ⚡ | Grok | grok.com |
+| 🌙 | Kimi | kimi.com |
 
 ---
 
@@ -155,6 +157,7 @@ Any plain-text message you send to the bot is routed to the active Council Chat 
 | `What are the risks of this approach?` | Sent to the current session; the Primary AI responds |
 | `@Gemini explain this in simple terms` | Only Gemini responds |
 | `@Claude review my logic` | Only Claude responds |
+| `@Kimi analyze this document` | Only Kimi responds |
 | `@all summarize what we've decided` | All active AIs respond simultaneously |
 
 ### 📎 Sending files from Telegram
@@ -289,6 +292,7 @@ Sessions are persisted in the Electron `persist:` partition and survive app rest
 | DeepSeek | `sk-...` | [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys) |
 | Perplexity | `pplx-...` | [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api) |
 | Grok (xAI) | `xai-...` | [console.x.ai](https://console.x.ai/) |
+| Kimi (Moonshot) | `sk-...` | [platform.moonshot.cn/console/api-keys](https://platform.moonshot.cn/console/api-keys) |
 
 Drag-and-drop the rows to control which provider is tried **first** when analyzing a query.  
 API keys are stored in `electron-store` and never sent anywhere except the provider's own API.
@@ -304,6 +308,7 @@ chatgpt-login.bat     # ChatGPT
 deepseek-login.bat    # DeepSeek
 perplexity-login.bat  # Perplexity
 grok-login.bat        # Grok (X / Twitter account)
+kimi-login.bat        # Kimi (Moonshot account)
 ```
 
 ---
@@ -318,9 +323,9 @@ The **Toolbar** has two rows of AI chip buttons:
 | Bottom | **Active** | Toggle which AI panels are visible and participate in the workflow |
 
 - Click any chip in the **Active** row to show or hide that AI's panel.
-- You can run the workflow with **2, 3, 4, 5, or 6** AIs simultaneously.
+- You can run the workflow with **2 through 7** AIs simultaneously.
 - The **Primary AI** is always active (locked) — it cannot be toggled off.
-- On first launch, Gemini, Claude, and ChatGPT open by default; DeepSeek, Perplexity, and Grok start inactive until you enable them.
+- On first launch, Gemini, Claude, and ChatGPT open by default; DeepSeek, Perplexity, Grok, and Kimi start inactive until you enable them.
 
 ---
 
@@ -430,12 +435,13 @@ Each AI reviews from a different angle instead of using one generic checklist.
 
 | AI | Reviewer role | Focus |
 |----|--------------|-------|
-| Claude | Logic and Precision Auditor | Stress-tests reasoning, contradictions, and unsupported leaps |
-| Perplexity | Fact Checker and Freshness Monitor | Accuracy, recency-sensitive claims, unsupported statements |
-| Grok | Adversarial Critic | Hidden risks, edge cases, counterarguments |
-| ChatGPT | Practical UX and Communication Coach | Clarity, tone, and real-world usefulness |
-| Gemini | Systems Synthesizer | Big-picture gaps, framing, and audience fit |
-| DeepSeek | Concise Alternative Solver | Cleaner routes, sharper summaries, more efficient answers |
+| Claude | Nuanced Reasoner and Safety Analyst | Stress-tests reasoning, tradeoffs, and ethical/safety concerns |
+| Perplexity | Source-Grounded Fact Verifier | Accuracy, recency-sensitive claims, citation-backed additions |
+| Grok | Adversarial Reality Critic | Hidden risks, strongest objections, real-world failure modes |
+| ChatGPT | Practical UX and Communication Coach | Clarity, tone, actionability, and real-world usefulness |
+| Gemini | Broad-Context Systems Synthesizer | Big-picture gaps, framing, audience fit, and missing context |
+| DeepSeek | First-Principles Technical Reasoning Solver | Re-derives from fundamentals; cleanest, most efficient path |
+| Kimi | Agentic Execution Architect | Breaks down complex tasks into ordered steps with tool calls, dependencies, and failure-mode recovery |
 
 When a draft is sent to reviewers, the app briefly shows these roles so it is clear why each AI is being asked to respond.
 

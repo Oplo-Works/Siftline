@@ -306,7 +306,7 @@
   <header class="hero">
     <div class="hero-badge">⚖ AI Council · v1.0.8</div>
     <h1>Multi-LLM Cross-Verification<br>+ Telegram Remote Control</h1>
-    <p>Manual workflow and free-form group discussion among 6 major LLMs — now accessible from your smartphone via Telegram.</p>
+    <p>Manual workflow and free-form group discussion among 7 major LLMs — now accessible from your smartphone via Telegram.</p>
     <div class="hero-actions">
       <a class="btn btn-primary" href="https://github.com/MinkyuTheBuilder/ai-council/releases/latest">⬇ Download Latest</a>
       <a class="btn btn-secondary" href="https://github.com/MinkyuTheBuilder/ai-council">GitHub →</a>
@@ -338,6 +338,11 @@
         <div class="card-desc">DeepSeek (<code>chat.deepseek.com</code>) replaces Groq as the 6th AI panel. Optimized for reasoning, coding, and concise synthesis.</div>
       </div>
       <div class="card">
+        <div class="card-icon">🌙</div>
+        <div class="card-title">Kimi Support <span class="new-badge">NEW</span></div>
+        <div class="card-desc">Kimi (<code>kimi.com</code>) by Moonshot AI joins as the 7th AI panel. Specializes in long-context deep research — reads large documents and surfaces insights that limited-context models miss.</div>
+      </div>
+      <div class="card">
         <div class="card-icon">🤖</div>
         <div class="card-title">Telegram Slash Commands <span class="new-badge">NEW</span></div>
         <div class="card-desc"><code>/new</code> · <code>/save</code> · <code>/save_and_new</code> · <code>/sessions</code> · <code>/load</code> · <code>/workflow</code> · <code>/status</code> · <code>/help</code></div>
@@ -365,6 +370,7 @@
       <div class="chip"><span class="chip-dot" style="background:#4D6BFE"></span>DeepSeek</div>
       <div class="chip"><span class="chip-dot" style="background:#20b2aa"></span>Perplexity</div>
       <div class="chip"><span class="chip-dot" style="background:#e7c76f"></span>Grok</div>
+      <div class="chip"><span class="chip-dot" style="background:#1d6dff"></span>Kimi</div>
     </div>
   </section>
 
@@ -522,12 +528,13 @@
     <table>
       <thead><tr><th>AI</th><th>Reviewer Role</th><th>Focus</th></tr></thead>
       <tbody>
-        <tr><td>Claude</td><td>Logic and Precision Auditor</td><td>Stress-tests reasoning, contradictions, unsupported leaps</td></tr>
-        <tr><td>Perplexity</td><td>Fact Checker and Freshness Monitor</td><td>Accuracy, recency-sensitive claims, unsupported statements</td></tr>
-        <tr><td>Grok</td><td>Adversarial Critic</td><td>Hidden risks, edge cases, counterarguments</td></tr>
-        <tr><td>ChatGPT</td><td>Practical UX and Communication Coach</td><td>Clarity, tone, and real-world usefulness</td></tr>
-        <tr><td>Gemini</td><td>Systems Synthesizer</td><td>Big-picture gaps, framing, and audience fit</td></tr>
-        <tr><td>DeepSeek</td><td>Concise Alternative Solver</td><td>Cleaner routes, sharper summaries, more efficient answers</td></tr>
+        <tr><td>Claude</td><td>Nuanced Reasoner and Safety Analyst</td><td>Stress-tests reasoning, tradeoffs, and ethical/safety concerns</td></tr>
+        <tr><td>Perplexity</td><td>Source-Grounded Fact Verifier</td><td>Accuracy, recency-sensitive claims, citation-backed additions</td></tr>
+        <tr><td>Grok</td><td>Adversarial Reality Critic</td><td>Hidden risks, strongest objections, real-world failure modes</td></tr>
+        <tr><td>ChatGPT</td><td>Practical UX and Communication Coach</td><td>Clarity, tone, actionability, and real-world usefulness</td></tr>
+        <tr><td>Gemini</td><td>Broad-Context Systems Synthesizer</td><td>Big-picture gaps, framing, audience fit, and missing context</td></tr>
+        <tr><td>DeepSeek</td><td>First-Principles Technical Reasoning Solver</td><td>Re-derives from fundamentals; cleanest, most efficient path</td></tr>
+        <tr><td>Kimi</td><td>Agentic Execution Architect</td><td>Ordered execution steps, tool calls, dependencies, and failure-mode recovery</td></tr>
       </tbody>
     </table>
   </section>
@@ -542,6 +549,7 @@
       <tbody>
         <tr><td><code>@Gemini your question</code></td><td>Ask only Gemini</td></tr>
         <tr><td><code>@Claude your question</code></td><td>Ask only Claude</td></tr>
+        <tr><td><code>@Kimi analyze this document</code></td><td>Ask only Kimi</td></tr>
         <tr><td><code>@all your question</code></td><td>Broadcast to all active AIs simultaneously</td></tr>
         <tr><td>Plain text (no mention)</td><td>The app routes to the most relevant AI based on context</td></tr>
       </tbody>
@@ -595,6 +603,7 @@
         <tr><td>DeepSeek</td><td><code>sk-...</code></td><td><a href="https://platform.deepseek.com/api_keys">platform.deepseek.com</a></td></tr>
         <tr><td>Perplexity</td><td><code>pplx-...</code></td><td><a href="https://www.perplexity.ai/settings/api">perplexity.ai</a></td></tr>
         <tr><td>Grok (xAI)</td><td><code>xai-...</code></td><td><a href="https://console.x.ai">console.x.ai</a></td></tr>
+        <tr><td>Kimi (Moonshot)</td><td><code>sk-...</code></td><td><a href="https://platform.moonshot.cn/console/api-keys">platform.moonshot.cn</a></td></tr>
       </tbody>
     </table>
 
@@ -605,7 +614,8 @@ claude-login.bat      <span class="cm"># Claude.ai</span>
 chatgpt-login.bat     <span class="cm"># ChatGPT</span>
 deepseek-login.bat    <span class="cm"># DeepSeek</span>
 perplexity-login.bat  <span class="cm"># Perplexity</span>
-grok-login.bat        <span class="cm"># Grok (X / Twitter account)</span></pre>
+grok-login.bat        <span class="cm"># Grok (X / Twitter account)</span>
+kimi-login.bat        <span class="cm"># Kimi (Moonshot account)</span></pre>
 
     <h3>Dev &amp; build commands</h3>
     <pre><span class="kw">npm</span> start                     <span class="cm"># Dev mode with hot reload</span>

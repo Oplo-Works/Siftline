@@ -2400,6 +2400,13 @@ async function clickSend(view: BrowserView, selectors: string[], aiName?: AiName
           } catch (e) { /* best-effort */ }
           const text = String(editor.innerText || editor.textContent || '');
           const hadText = text.trim().length > 0;
+          // Fingerprint a chunk of the typed text so we can verify submission
+          // by its disappearance — innerText alone can be misleading because
+          // Kimi may render a placeholder span when the composer is empty.
+          const trimmed = text.trim();
+          const fingerprint = trimmed.length >= 8
+            ? trimmed.slice(0, Math.min(48, trimmed.length))
+            : trimmed;
 
           // Find the send button — try testid first, then heuristic.
           // Heuristic: rightmost icon-only enabled button in the composer
@@ -2443,7 +2450,7 @@ async function clickSend(view: BrowserView, selectors: string[], aiName?: AiName
               btnRect = { x: r.x + r.width / 2, y: r.y + r.height / 2 };
             }
           }
-          return { ok: true, hadText, btnRect };
+          return { ok: true, hadText, btnRect, fingerprint };
         })()
       `).catch(() => ({ ok: false }))
 
@@ -2457,20 +2464,40 @@ async function clickSend(view: BrowserView, selectors: string[], aiName?: AiName
           }
         }
 
-        const verifyComposerEmpty = async (): Promise<boolean> => {
-          await sleep(400)
-          const state = await view.webContents.executeJavaScript(`
-            (() => {
-              const el = document.querySelector('div[contenteditable="true"][data-testid="msh-chatinput-editor"]')
-                      || document.querySelector('div.chat-input-editor[contenteditable="true"]')
-                      || document.querySelector('div[contenteditable="true"][role="textbox"]')
-                      || document.querySelector('div[contenteditable="true"]');
-              if (!el) return { textLength: 0 };
-              const text = String(el.innerText || el.textContent || '');
-              return { textLength: text.trim().length };
-            })()
-          `).catch(() => null)
-          return (state?.textLength ?? -1) === 0
+        // Verify submission by polling for either:
+        //   (a) the typed text fingerprint is no longer in the composer, OR
+        //   (b) a stop/abort button has appeared (Kimi swaps Send → Stop while
+        //       streaming — a strong positive signal even if the composer
+        //       briefly retains a placeholder span).
+        // Polling avoids racing Kimi's clear animation, which can take >400ms.
+        const verifySubmitted = async (): Promise<boolean> => {
+          const fp = (probe?.fingerprint ?? '') as string
+          const fpJson = JSON.stringify(fp)
+          const deadline = Date.now() + 2000
+          while (Date.now() < deadline) {
+            await sleep(150)
+            const state = await view.webContents.executeJavaScript(`
+              (() => {
+                const el = document.querySelector('div[contenteditable="true"][data-testid="msh-chatinput-editor"]')
+                        || document.querySelector('div.chat-input-editor[contenteditable="true"]')
+                        || document.querySelector('div[contenteditable="true"][role="textbox"]')
+                        || document.querySelector('div[contenteditable="true"]');
+                const text = el ? String(el.innerText || el.textContent || '') : '';
+                const fp = ${fpJson};
+                const fingerprintGone = fp.length > 0 ? !text.includes(fp) : text.trim().length === 0;
+                // Stop/abort button: Kimi shows a square stop icon while streaming.
+                // Match by aria-label, testid, or any button labelled stop/abort/cancel.
+                const stopBtn = document.querySelector(
+                  '[data-testid*="stop" i], [data-testid*="abort" i],' +
+                  ' [aria-label*="stop" i], [aria-label*="abort" i], [aria-label*="cancel" i],' +
+                  ' [aria-label*="停止"], [aria-label*="取消"]'
+                );
+                return { fingerprintGone, hasStop: !!stopBtn };
+              })()
+            `).catch(() => null)
+            if (state?.fingerprintGone || state?.hasStop) return true
+          }
+          return false
         }
 
         if (dbg.isAttached()) {
@@ -2487,7 +2514,7 @@ async function clickSend(view: BrowserView, selectors: string[], aiName?: AiName
               await dbg.sendCommand('Input.dispatchMouseEvent', {
                 type: 'mouseReleased', x, y, button: 'left', clickCount: 1,
               })
-              if (await verifyComposerEmpty()) {
+              if (await verifySubmitted()) {
                 sendLog('info', '[clickSend] kimi: CDP mouse-click on send button succeeded')
                 if (attached) { try { dbg.detach() } catch { /* ignore */ } }
                 return true
@@ -2518,7 +2545,7 @@ async function clickSend(view: BrowserView, selectors: string[], aiName?: AiName
             nativeVirtualKeyCode: 13,
           }).catch((e) => sendLog('warn', '[clickSend] kimi: CDP keyUp failed: ' + e.message))
 
-          if (await verifyComposerEmpty()) {
+          if (await verifySubmitted()) {
             sendLog('info', '[clickSend] kimi: CDP Enter-key submission succeeded')
             if (attached) { try { dbg.detach() } catch { /* ignore */ } }
             return true

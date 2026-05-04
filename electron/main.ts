@@ -570,6 +570,30 @@ const INITIAL_RESPONSE_WAIT_MS = 3_000  // 3 s warm-up after Send
 // and accept the text anyway.
 const STREAMING_GUARD_OVERRIDE_MS = 8_000  // force-accept after 8 s of stable text
 
+// ─── Per-AI stability override ────────────────────────────────────────────────
+// Some AIs emit an early "reasoning trace" or summary, then take a long pause
+// (>STABLE_RESPONSE_MS) to do a web search / generate tables / etc., before
+// streaming the actual final answer. During that pause the DOM is stable and
+// waitForStableResponse would otherwise resolve with the partial early text —
+// which is exactly what surfaced in the Council Chat for DeepSeek (DeepThink
+// search step) and Kimi. Bump stableMs for these AIs so we ride out internal
+// pauses and only accept text once it has truly stopped growing.
+const STABLE_RESPONSE_MS_OVERRIDE: Partial<Record<AiName, number>> = {
+  deepseek: 8_000,  // DeepThink: thinking trace → search step → final answer
+  kimi: 6_000,      // initial summary → tables / deeper sections
+}
+
+// Per-AI override for the streaming-guard force-accept escape hatch. Defaults
+// to STREAMING_GUARD_OVERRIDE_MS. We extend it for DeepSeek/Kimi because their
+// internal search steps can keep text stable for much longer than 8 s while
+// the streaming guard is correctly still armed — without this, the override
+// would force-accept the partial early text and we'd be back to the bug this
+// override was meant to fix.
+const STREAMING_GUARD_OVERRIDE_MS_OVERRIDE: Partial<Record<AiName, number>> = {
+  deepseek: 25_000,
+  kimi: 20_000,
+}
+
 function createEmptyCouncilRuntimeState(): CouncilRuntimeState {
   return {
     participants: [...DEFAULT_ENABLED_AI_NAMES],
@@ -844,15 +868,37 @@ const STREAMING_INDICATOR_SELECTORS: Partial<Record<AiName, string[]>> = {
     '[data-testid="stop-button"]',
   ],
   deepseek: [
-    'button[aria-label*="Stop"]',
+    // English/Chinese stop button variants
+    'button[aria-label*="Stop" i]',
+    'button[aria-label*="停止"]',
+    'button[aria-label*="中止"]',
+    'div[role="button"][aria-label*="Stop" i]',
+    'div[role="button"][aria-label*="停止"]',
     '[data-testid="stop-button"]',
+    // DeepThink / search-step indicators: while DeepSeek is "thinking" or
+    // running the search step the answer pauses for several seconds. These
+    // class hooks keep the streaming guard armed during that pause so we
+    // don't resolve with the partial reasoning trace.
+    '[class*="ds-icon-stop"]',
+    '[class*="ds-loading"]',
+    '[class*="thinking"]',
+    '[class*="searching"]',
+    '[class*="generating"]',
   ],
   kimi: [
     'button[aria-label*="Stop" i]',
     'button[aria-label*="停止"]',
+    'button[aria-label*="中止"]',
     'div[role="button"][aria-label*="Stop" i]',
     'div[role="button"][aria-label*="停止"]',
     '[data-testid*="stop" i]',
+    // Mid-response pauses (web search / table rendering) — same defense as
+    // DeepSeek so the early summary isn't accepted as the final answer.
+    '[class*="thinking"]',
+    '[class*="searching"]',
+    '[class*="generating"]',
+    '[class*="streaming"]',
+    '[class*="loading"]',
   ],
 }
 
@@ -1551,7 +1597,7 @@ async function processCouncilTurn(
       view,
       config.responseContainerSelectors,
       WORKFLOW_TIMEOUT_MS,
-      STABLE_RESPONSE_MS,
+      STABLE_RESPONSE_MS_OVERRIDE[aiName] ?? STABLE_RESPONSE_MS,
       aiName,
       baseline,
       (chunk) => {
@@ -2283,6 +2329,8 @@ async function waitForStableResponse(
           // ── Streaming guard ─────────────────────────────────────────────
           if (aiName) {
             const streamingSelectors = STREAMING_INDICATOR_SELECTORS[aiName] ?? []
+            const streamingGuardOverrideMs =
+              STREAMING_GUARD_OVERRIDE_MS_OVERRIDE[aiName] ?? STREAMING_GUARD_OVERRIDE_MS
             if (streamingSelectors.length > 0) {
               const stillStreaming = await checkIsStreaming(view, streamingSelectors)
               if (stillStreaming) {
@@ -2292,7 +2340,7 @@ async function waitForStableResponse(
                 } else {
                   if (streamingStableStart === 0) streamingStableStart = Date.now()
                   const streamingStableFor = Date.now() - streamingStableStart
-                  if (streamingStableFor >= STREAMING_GUARD_OVERRIDE_MS) {
+                  if (streamingStableFor >= streamingGuardOverrideMs) {
                     sendLog('warn', `[stream] ${aiName}: false-positive guard — accepting after ${streamingStableFor}ms (${cleanText.length} chars)`)
                     cancelled = true
                     clearTimeout(globalTimeout)
@@ -2300,7 +2348,7 @@ async function waitForStableResponse(
                     resolve(cleanText)
                     return
                   }
-                  sendLog('info', `[stream] ${aiName} generating (${streamingStableFor}ms / ${STREAMING_GUARD_OVERRIDE_MS}ms override)`)
+                  sendLog('info', `[stream] ${aiName} generating (${streamingStableFor}ms / ${streamingGuardOverrideMs}ms override)`)
                 }
                 lastText = cleanText
                 stableStart = 0

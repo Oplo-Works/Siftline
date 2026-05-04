@@ -2370,41 +2370,86 @@ async function clickSend(view: BrowserView, selectors: string[], aiName?: AiName
   `)
   if (res.success) return true
 
-  // ── Kimi: skip the DOM heuristic and dispatch Enter via CDP ───────────────
+  // ── Kimi: skip the DOM heuristic and submit via CDP ───────────────────────
   // Kimi's composer footer has multiple icon buttons (model selector, emoji,
   // "+", send arrow) and the generic heuristic can pick the wrong one.
-  // sendInputEvent Enter is unreliable for Kimi's React handler, but CDP
-  // Input.dispatchKeyEvent produces a fully trusted keyboard event that
-  // mirrors a real key press — manual Enter works, this matches it exactly.
+  // We try two trusted strategies in order:
+  //   1. CDP mouse click on the visible send button (most reliable — directly
+  //      fires Kimi's React onClick handler with isTrusted=true)
+  //   2. CDP Enter key (clean keydown — NO `text` payload, otherwise Kimi's
+  //      contenteditable inserts a literal \r and Send never enables)
   if (aiName === 'kimi') {
     let attached = false
     try {
-      // Focus the actual contenteditable composer, NOT some other element
-      const focused = await view.webContents.executeJavaScript(`
+      // Locate composer + send button geometry in one round-trip
+      const probe = await view.webContents.executeJavaScript(`
         (() => {
-          const el = document.querySelector('div[contenteditable="true"][data-testid="msh-chatinput-editor"]')
-                  || document.querySelector('div.chat-input-editor[contenteditable="true"]')
-                  || document.querySelector('div[contenteditable="true"][role="textbox"]')
-                  || document.querySelector('div[contenteditable="true"]');
-          if (!el) return { ok: false };
-          el.focus();
-          const text = String(el.innerText || el.textContent || '');
-          // Place caret at end so Enter triggers send, not split
+          const editor = document.querySelector('div[contenteditable="true"][data-testid="msh-chatinput-editor"]')
+                      || document.querySelector('div.chat-input-editor[contenteditable="true"]')
+                      || document.querySelector('div[contenteditable="true"][role="textbox"]')
+                      || document.querySelector('div[contenteditable="true"]');
+          if (!editor) return { ok: false, reason: 'no-editor' };
+          editor.focus();
+          // Place caret at end so Enter (fallback) triggers send, not split
           try {
             const range = document.createRange();
-            range.selectNodeContents(el);
+            range.selectNodeContents(editor);
             range.collapse(false);
             const sel = window.getSelection();
             if (sel) { sel.removeAllRanges(); sel.addRange(range); }
           } catch (e) { /* best-effort */ }
-          return { ok: true, hadText: text.trim().length > 0 };
+          const text = String(editor.innerText || editor.textContent || '');
+          const hadText = text.trim().length > 0;
+
+          // Find the send button — try testid first, then heuristic.
+          // Heuristic: rightmost icon-only enabled button in the composer
+          // footer that is NOT an attach button.
+          let sendBtn = document.querySelector('[data-testid="msh-chatinput-send-button"]');
+          if (!sendBtn || sendBtn.getAttribute('aria-disabled') === 'true' || sendBtn.disabled) {
+            // Walk up to composer container
+            let composer = editor.parentElement;
+            for (let i = 0; i < 10 && composer; i++) {
+              const candidates = composer.querySelectorAll('button, div[role="button"]');
+              if (candidates.length >= 2) {
+                const attachLabels = /attach|upload|file|clip|image|photo|emoji/i;
+                const iconOnly = [];
+                for (const c of candidates) {
+                  if (c.disabled) continue;
+                  if (c.getAttribute('aria-disabled') === 'true') continue;
+                  const aria = (c.getAttribute('aria-label') || '') + ' ' + (c.getAttribute('title') || '');
+                  if (attachLabels.test(aria)) continue;
+                  if ((c.innerText || '').trim().length > 2) continue;
+                  if (!c.querySelector('svg, img')) continue;
+                  const r = c.getBoundingClientRect();
+                  if (r.width === 0 || r.height === 0) continue;
+                  iconOnly.push({ el: c, x: r.right });
+                }
+                if (iconOnly.length > 0) {
+                  iconOnly.sort((a, b) => b.x - a.x);
+                  sendBtn = iconOnly[0].el;
+                  break;
+                }
+              }
+              composer = composer.parentElement;
+            }
+          }
+
+          let btnRect = null;
+          if (sendBtn) {
+            const r = sendBtn.getBoundingClientRect();
+            if (r.width > 0 && r.height > 0
+                && !sendBtn.disabled
+                && sendBtn.getAttribute('aria-disabled') !== 'true') {
+              btnRect = { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+            }
+          }
+          return { ok: true, hadText, btnRect };
         })()
       `).catch(() => ({ ok: false }))
 
-      if (focused?.ok && focused?.hadText) {
+      if (probe?.ok && probe?.hadText) {
         try { view.webContents.focus() } catch { /* ignore */ }
 
-        // Attach CDP debugger if not already attached (file upload uses it too)
         const dbg = view.webContents.debugger
         if (!dbg.isAttached()) {
           try { dbg.attach('1.3'); attached = true } catch (e) {
@@ -2412,29 +2457,9 @@ async function clickSend(view: BrowserView, selectors: string[], aiName?: AiName
           }
         }
 
-        if (dbg.isAttached()) {
-          // Dispatch a real Enter key via CDP — produces isTrusted=true events
-          await dbg.sendCommand('Input.dispatchKeyEvent', {
-            type: 'rawKeyDown',
-            key: 'Enter',
-            code: 'Enter',
-            windowsVirtualKeyCode: 13,
-            nativeVirtualKeyCode: 13,
-            text: '\r',
-            unmodifiedText: '\r',
-          }).catch((e) => sendLog('warn', '[clickSend] kimi: CDP keyDown failed: ' + e.message))
-
-          await dbg.sendCommand('Input.dispatchKeyEvent', {
-            type: 'keyUp',
-            key: 'Enter',
-            code: 'Enter',
-            windowsVirtualKeyCode: 13,
-            nativeVirtualKeyCode: 13,
-          }).catch((e) => sendLog('warn', '[clickSend] kimi: CDP keyUp failed: ' + e.message))
-
+        const verifyComposerEmpty = async (): Promise<boolean> => {
           await sleep(400)
-
-          const postEnterState = await view.webContents.executeJavaScript(`
+          const state = await view.webContents.executeJavaScript(`
             (() => {
               const el = document.querySelector('div[contenteditable="true"][data-testid="msh-chatinput-editor"]')
                       || document.querySelector('div.chat-input-editor[contenteditable="true"]')
@@ -2445,17 +2470,64 @@ async function clickSend(view: BrowserView, selectors: string[], aiName?: AiName
               return { textLength: text.trim().length };
             })()
           `).catch(() => null)
+          return (state?.textLength ?? -1) === 0
+        }
 
-          if (postEnterState?.textLength === 0) {
+        if (dbg.isAttached()) {
+          // Strategy 1: trusted CDP mouse click on the send button
+          if (probe.btnRect) {
+            try {
+              const { x, y } = probe.btnRect
+              await dbg.sendCommand('Input.dispatchMouseEvent', {
+                type: 'mouseMoved', x, y, button: 'none', clickCount: 0,
+              })
+              await dbg.sendCommand('Input.dispatchMouseEvent', {
+                type: 'mousePressed', x, y, button: 'left', clickCount: 1,
+              })
+              await dbg.sendCommand('Input.dispatchMouseEvent', {
+                type: 'mouseReleased', x, y, button: 'left', clickCount: 1,
+              })
+              if (await verifyComposerEmpty()) {
+                sendLog('info', '[clickSend] kimi: CDP mouse-click on send button succeeded')
+                if (attached) { try { dbg.detach() } catch { /* ignore */ } }
+                return true
+              }
+              sendLog('warn', '[clickSend] kimi: CDP mouse-click did not clear composer — trying Enter')
+            } catch (e) {
+              sendLog('warn', '[clickSend] kimi: CDP mouse-click failed: ' + (e instanceof Error ? e.message : String(e)))
+            }
+          } else {
+            sendLog('info', '[clickSend] kimi: send button not located — falling back to Enter')
+          }
+
+          // Strategy 2: clean CDP Enter — NO text payload, otherwise Kimi
+          // inserts a literal \r into the composer instead of submitting.
+          await dbg.sendCommand('Input.dispatchKeyEvent', {
+            type: 'keyDown',
+            key: 'Enter',
+            code: 'Enter',
+            windowsVirtualKeyCode: 13,
+            nativeVirtualKeyCode: 13,
+          }).catch((e) => sendLog('warn', '[clickSend] kimi: CDP keyDown failed: ' + e.message))
+
+          await dbg.sendCommand('Input.dispatchKeyEvent', {
+            type: 'keyUp',
+            key: 'Enter',
+            code: 'Enter',
+            windowsVirtualKeyCode: 13,
+            nativeVirtualKeyCode: 13,
+          }).catch((e) => sendLog('warn', '[clickSend] kimi: CDP keyUp failed: ' + e.message))
+
+          if (await verifyComposerEmpty()) {
             sendLog('info', '[clickSend] kimi: CDP Enter-key submission succeeded')
             if (attached) { try { dbg.detach() } catch { /* ignore */ } }
             return true
           }
-          sendLog('warn', `[clickSend] kimi: CDP Enter left ${postEnterState?.textLength ?? '?'} chars in composer — falling through`)
+          sendLog('warn', '[clickSend] kimi: CDP Enter left composer non-empty — falling through to heuristic')
         }
       }
     } catch (err) {
-      sendLog('warn', '[clickSend] kimi CDP enter error: ' + (err instanceof Error ? err.message : String(err)))
+      sendLog('warn', '[clickSend] kimi CDP submit error: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
       if (attached) {
         try { view.webContents.debugger.detach() } catch { /* ignore */ }

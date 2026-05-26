@@ -10,7 +10,7 @@
 - **App**: AI Council (Electron + Vite + React + TypeScript)
 - **Version**: v1.0.8 (출시 상태, 정상 동작 중)
 - **Branch**: `main`
-- **Repo root**: `C:\Users\Minkyu\Documents\AI-Council-Chat\`
+- **Repo root**: `C:\Users\Sales01\Documents\AI-Council-Chat\`
 - **Last meaningful change**: 2026-05-26 (Field Test #1 완료 — Log timestamp 추가, 문서 정비)
 
 ## Active Field Test

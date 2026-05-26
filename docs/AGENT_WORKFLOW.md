@@ -46,7 +46,7 @@ AI가 만든 결과물은 검토, 빌드, 테스트, 기록 전까지 초안이�
 ## 이 프로젝트 고유 규칙
 
 1. **항상 main 브랜치, 메인 레포 경로에서 작업** —
-   `C:\Users\Minkyu\Documents\AI-Council-Chat\`. 워크트리 경로에 편집 금지.
+   `C:\Users\Sales01\Documents\AI-Council-Chat\`. 워크트리 경로에 편집 금지.
    커밋 전 `git status`로 브랜치 확인.
 2. **`docs/PROJECT_SCOPE.md`의 "Must Preserve" 목록을 깨지 않는다.**
    변경이 그 목록에 영향을 주면 반드시 사전 확인.

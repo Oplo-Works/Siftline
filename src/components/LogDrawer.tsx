@@ -12,6 +12,14 @@ const LEVEL_ICONS: Record<LogEntry['level'], string> = {
   error: '✖',
 }
 
+function formatTime(ts?: number): string {
+  if (!ts) return '--:--:--'
+  const d = new Date(ts)
+  return [d.getHours(), d.getMinutes(), d.getSeconds()]
+    .map(n => String(n).padStart(2, '0'))
+    .join(':')
+}
+
 export default function LogDrawer({ logs, onClose, onClear }: LogDrawerProps) {
   return (
     <div className="drawer-overlay" onClick={onClose}>
@@ -33,6 +41,9 @@ export default function LogDrawer({ logs, onClose, onClear }: LogDrawerProps) {
           ) : (
             logs.map((log, i) => (
               <div key={i} className={`log-entry log-${log.level}`}>
+                <span className="log-time" style={{ opacity: 0.5, fontSize: '0.8em', marginRight: '6px', fontVariantNumeric: 'tabular-nums' as const }}>
+                  {formatTime(log.timestamp)}
+                </span>
                 <span className="log-icon">{LEVEL_ICONS[log.level]}</span>
                 <span className="log-msg">{log.msg}</span>
               </div>

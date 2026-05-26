@@ -36,6 +36,7 @@ export type WorkflowStage = 'idle' | 'running' | 'waiting-next' | 'waiting-conti
 export interface LogEntry {
   level: 'info' | 'warn' | 'error'
   msg: string
+  timestamp?: number
 }
 
 export interface HistoryItem {

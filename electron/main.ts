@@ -1095,7 +1095,7 @@ function sendStatus(msg: string) {
 }
 
 function sendLog(level: 'info' | 'warn' | 'error', msg: string) {
-  mainWindow?.webContents.send('log', { level, msg })
+  mainWindow?.webContents.send('log', { level, msg, timestamp: Date.now() })
 }
 
 /**

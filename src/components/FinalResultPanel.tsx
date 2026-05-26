@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { marked } from 'marked'
 import { AiName, AI_DISPLAY_NAMES, AI_COLORS, AI_ICONS, AttachedFile, ParsedFileContent } from '../types'
 
@@ -24,6 +24,8 @@ export default function FinalResultPanel({
   onToggleExpand,
 }: FinalResultPanelProps) {
   const [copied, setCopied] = useState(false)
+  const [toastType, setToastType] = useState<'success' | 'error' | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [viewMode, setViewMode] = useState<'rendered' | 'raw'>('rendered')
   const [savingIndex, setSavingIndex] = useState<number | null>(null)
   const color = AI_COLORS[primaryAi]
@@ -34,11 +36,22 @@ export default function FinalResultPanel({
     catch { return `<pre>${finalAnswer}</pre>` }
   }, [finalAnswer])
 
+  const showToast = (type: 'success' | 'error') => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToastType(type)
+    toastTimer.current = setTimeout(() => setToastType(null), 2000)
+  }
+
   const handleCopy = async () => {
     if (!finalAnswer) return
-    await navigator.clipboard.writeText(finalAnswer)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(finalAnswer)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+      showToast('success')
+    } catch {
+      showToast('error')
+    }
   }
 
   // Download a specific parsed file (or full answer as fallback)
@@ -132,6 +145,13 @@ export default function FinalResultPanel({
           </button>
         </div>
       </div>
+
+      {/* Toast — copy feedback */}
+      {expanded && toastType && (
+        <div className={`copy-toast copy-toast--${toastType}`}>
+          {toastType === 'success' ? '✓ Copied to clipboard' : '✗ Copy failed'}
+        </div>
+      )}
 
       {/* Content — only when expanded */}
       {expanded && (

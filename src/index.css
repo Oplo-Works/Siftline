@@ -1827,6 +1827,32 @@ body,
   cursor: not-allowed;
 }
 
+.copy-toast {
+  padding: 5px 16px;
+  font-size: 11px;
+  font-weight: 500;
+  flex-shrink: 0;
+  animation: fadeOutToast 2s ease forwards;
+}
+
+.copy-toast--success {
+  color: var(--success);
+  background: rgba(74, 222, 128, 0.06);
+  border-bottom: 1px solid rgba(74, 222, 128, 0.2);
+}
+
+.copy-toast--error {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.06);
+  border-bottom: 1px solid rgba(248, 113, 113, 0.2);
+}
+
+@keyframes fadeOutToast {
+  0%   { opacity: 1; }
+  60%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 .final-panel-content {
   flex: 1;
   overflow-y: auto;

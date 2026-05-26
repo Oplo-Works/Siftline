@@ -18,7 +18,8 @@
 - **System under test**: Project Engineering OS v5 Lean
 - **Mode**: Freeze (추가 시스템 설계 금지, 2주간)
 - **Field Test #1**: ✅ 완료 — Log timestamp (2026-05-26, commit b41dbfe)
-- **Field Test #2**: 대기 중 — History AI 필터 (`HistoryDrawer.tsx` 1개 파일)
+- **Field Test #2**: ✅ 완료 — History AI 필터 (2026-05-26, commit 6c82455)
+- **Field Test #3**: ✅ 완료 — FinalResult 복사 알림 개선 (2026-05-26)
 - **Log**: `docs/PROJECT_ENGINEERING_OS_FIELD_TEST_LOG.md`
 
 ## Working / Not Working

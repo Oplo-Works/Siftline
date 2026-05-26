@@ -23,7 +23,8 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
 
 | Date | Work | Notes |
 |---|---|---|
-| 2026-05-26 | **Field Test #1**: Log timestamp 추가 (`src/types.ts`, `electron/main.ts`, `src/components/LogDrawer.tsx`) | tsc 통과. `npm run build`는 Windows에서 확인 필요. Spec/Plan 문서 신설. |
+| 2026-05-26 | **Field Test #2**: History AI 필터 추가 (`src/components/HistoryDrawer.tsx`) | tsc 통과, Windows 앱 확인 완료. |
+| 2026-05-26 | **Field Test #1**: Log timestamp 추가 (`src/types.ts`, `electron/main.ts`, `src/components/LogDrawer.tsx`) | tsc 통과, Windows 앱 확인 완료. |
 | 2026-05-14 | `docs/` 워크플로 문서 4종 신설 (BLUEPRINT, SCOPE, AGENT_WORKFLOW, DEV_LOG) | 코드 변경 0줄. 추가만 수행 |
 
 > v1.0.8 이전 개발 이력은 git log 참조 (`git log --oneline`).

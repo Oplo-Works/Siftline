@@ -89,4 +89,62 @@ What should change before the next field test?
 
 ## Field Test #2
 
+Project: AI Council
+Feature: History AI 필터 — History 패널 상단에 AI별 필터 버튼 추가
+Date range: 2026-05-26
+Agents used: Claude (Cowork mode)
+Starting state: 4396c03 (docs: update PROJECT_STATE.md)
+Ending state: HistoryDrawer.tsx 1개 파일 변경. tsc 통과, Windows 앱 확인 완료.
+
+### What Helped
+
+| Rule / Document | How it helped | Keep / Modify / Remove |
+|---|---|---|
+| SPEC 문서 | "usedAis.length > 1일 때만 필터 바 표시" 조건을 미리 명시 → 구현 중 판단 불필요 | Keep |
+| PLAN 문서 | Field Test #1 교훈("python으로 직접 작성") 기록 덕분에 truncate 재발 없음 | Keep |
+| PROJECT_SCOPE.md (Must Preserve) | 파일 1개, props 인터페이스 미변경 → 리스크 제로 확인 | Keep |
+
+### What Slowed Us Down
+
+| Rule / Document | Friction observed | Suggested change |
+|---|---|---|
+| — | 특이 사항 없음. 1파일, python 작성, tsc 통과까지 매끄러웠음 | — |
+
+### What Was Ignored
+
+| Rule | Why it was ignored | Should it remain? |
+|---|---|---|
+| — | — | — |
+
+### Problems Caught by the System
+
+| Problem caught | Which rule caught it | Impact |
+|---|---|---|
+| (없음) | — | — |
+
+### Agent Behavior Notes
+
+| Agent | What it followed well | What it missed |
+|---|---|---|
+| Claude (Cowork) | Field Test #1 교훈 즉시 적용 (python 작성). spec 범위 엄수. | — |
+
+### Decision
+
+Was v5 Lean useful for this slice?
+- [x] YES
+- [ ] PARTLY
+- [ ] NO
+
+What should change before the next field test?
+
+1. 이 규모(파일 1개, 단순 UI)에서는 spec/plan이 오버헤드일 수 있음 — 다음 Field Test에서 체감 확인
+2. Field Test #3 후보 미리 선정
+
+> Do not create v6 (or v5.1, or new meta docs) unless at least 3 repeated
+> real issues across multiple field tests justify it.
+
+---
+
+## Field Test #3
+
 (다음 기능 적용 시 위 구조를 복사해서 채울 것)

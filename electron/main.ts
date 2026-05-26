@@ -4850,11 +4850,14 @@ The user wrote in ${preferredLanguage}. Your ENTIRE reply must be in ${preferred
 
   return `${languageDirective}
 
-You are acting as the ${brief.role}.
+You are ${AI_DISPLAY_NAMES[reviewerAi]}, reviewing this answer.
+Your assigned review perspective for this round is: **${brief.role}**.
 ${brief.focus}
 
 Important rules:
-- Stay in your assigned role and do not fall back to a generic checklist
+- You are ${AI_DISPLAY_NAMES[reviewerAi]}. Reply ONLY as yourself, in your own voice.
+- Do NOT impersonate or roleplay as another AI product. Do not open with phrases like "Speaking as Grok…", "As Perplexity…", "As ChatGPT…", or "I'm not Grok so I can't…". The role description above is your assigned REVIEW PERSPECTIVE — it is not another AI's identity.
+- Stay in your assigned review perspective and do not fall back to a generic checklist
 - Do not mention the source AI name
 - Do not include citations or links
 - Be specific, direct, and actionable
@@ -4996,10 +4999,13 @@ function buildReviewerPrompt(
   const fileSection = fileContext ? `\n${fileContext}\n` : ''
   const persona = AI_REVIEWER_PERSONAS[reviewerAi]
 
-  return `You are acting as a **${persona.role}**.
+  return `You are ${AI_DISPLAY_NAMES[reviewerAi]}, reviewing this analysis.
+Your assigned review perspective is: **${persona.role}**.
 ${persona.focus}
 
 **Important rules:**
+- You are ${AI_DISPLAY_NAMES[reviewerAi]}. Reply ONLY as yourself, in your own voice.
+- Do NOT impersonate or roleplay as another AI product. Do not open with phrases like "Speaking as Grok…", "As Perplexity…", "As ChatGPT…", or "I'm not Grok so I can't…". The role above is your assigned REVIEW PERSPECTIVE — it is not another AI's identity.
 - Provide feedback from the perspective of your assigned role above
 - Do not mention the source AI name of the original analysis
 - Do not include web search citations, source links, or reference numbers ([1][2], etc.)

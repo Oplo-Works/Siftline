@@ -27,6 +27,13 @@ if (process.env.AI_COUNCIL_USERDATA) {
 app.whenReady().then(async () => {
   const ses = session.fromPartition(PARTITION)
 
+  // --clear flag: wipe the entire persist:grok partition before login
+  if (process.argv.includes('--clear')) {
+    await ses.clearStorageData({
+      storages: ['cookies', 'localstorage', 'sessionstorage', 'cachestorage', 'indexdb'],
+    })
+  }
+
   ses.setPermissionRequestHandler((_wc, permission, callback) => {
     if (permission === 'publickey-credentials-get' || permission === 'publickey-credentials-create') {
       callback(false)
@@ -56,10 +63,12 @@ app.whenReady().then(async () => {
 
   const SPOOF_PRELOAD = path.join(__dirname, 'electron', 'preload-chrome-spoof.js')
 
+  const isRelogin = process.argv.includes('--clear')
+
   const win = new BrowserWindow({
     width: 520,
     height: 720,
-    title: 'Grok Login - AI Council Session Setup',
+    title: isRelogin ? 'Grok Re-Login - AI Council Session Setup' : 'Grok Login - AI Council Session Setup',
     webPreferences: {
       partition: PARTITION,
       preload: SPOOF_PRELOAD,

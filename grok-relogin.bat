@@ -1,26 +1,27 @@
 @echo off
-title Grok Login - AI Council
+title Grok Re-Login - AI Council
 
 set "APPDIR=%~dp0"
 
 REM Point the helper Electron to the SAME userData the AI Council app uses,
-REM so the login session actually shows up inside the app.
+REM so clearing cookies and the new login actually take effect inside the app.
 REM AI Council uses package.json "name" = "ai-council", so userData is %APPDATA%\ai-council.
 set "AI_COUNCIL_USERDATA=%APPDATA%\ai-council"
 
 echo ================================================
-echo   Grok Login - AI Council
+echo   Grok Re-Login - AI Council
 echo ================================================
 echo.
 echo  Target userData: %AI_COUNCIL_USERDATA%
 echo.
-echo  Opening Grok login window...
+echo  Clearing previous Grok/X session...
+echo  A fresh login window will open automatically.
 echo  Sign in with your X (Twitter) or Google account.
 echo  The window will close automatically once login is detected.
 echo.
 
 cd /d "%APPDIR%"
-npx electron grok-login.mjs
+npx electron grok-login.mjs --clear
 
 echo.
 echo  Done. You can now close this window.

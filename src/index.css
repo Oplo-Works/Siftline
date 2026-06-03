@@ -2443,12 +2443,184 @@ body,
   cursor: not-allowed;
 }
 
+.mode-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(32, 178, 170, 0.32);
+  background: rgba(32, 178, 170, 0.12);
+  color: #ccfbf1;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.mode-status-pill.pending {
+  opacity: 0.65;
+}
+
+.mode-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #2ecc8c;
+  box-shadow: 0 0 10px rgba(46, 204, 140, 0.55);
+}
+
 .app-root.council-chat-active .toolbar-container,
 .app-root.council-chat-active .status-bar,
 .app-root.council-chat-active .panel-grid,
 .app-root.council-chat-active .browser-view-spacer,
 .app-root.council-chat-active .final-panel {
   width: calc(100% - var(--council-chat-w));
+}
+
+.app-root.council-chat-active .reviewer-role-bar {
+  display: none;
+}
+
+.app-root.council-chat-active .browser-view-spacer {
+  display: none;
+}
+
+.app-root.council-chat-active .final-panel {
+  display: none;
+}
+
+.app-root.council-chat-active .council-chat-workflow-btn,
+.app-root.council-chat-active .cmsg-workflow-btn,
+.app-root.council-chat-active .council-favorite-quick-btn.workflow,
+.app-root.council-chat-active .council-snapshot-resume,
+.app-root.council-chat-active .council-collapsible-section.candidates {
+  display: none;
+}
+
+.app-root.council-chat-active .hybrid-panel-grid {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  display: grid;
+  grid-template-columns: minmax(320px, 32%) minmax(360px, 1fr);
+  gap: 6px;
+  padding: 6px;
+  background: #080a10;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.focus-panel-shell,
+.compare-panel-shell,
+.compare-panel-tile {
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.focus-panel-shell,
+.compare-panel-tile {
+  display: flex;
+  flex-direction: column;
+}
+
+.focus-panel-shell {
+  border-color: color-mix(in srgb, var(--accent) 24%, rgba(255, 255, 255, 0.08));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.focus-panel-shell::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  width: 8px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.compare-panel-shell {
+  border: none;
+  background: transparent;
+}
+
+.compare-panel-grid {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 6px;
+}
+
+.hybrid-panel-grid.compare-count-1 .compare-panel-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.hybrid-panel-grid.compare-count-3 .compare-panel-tile:last-child,
+.hybrid-panel-grid.compare-count-5 .compare-panel-tile:last-child {
+  grid-column: 1 / -1;
+}
+
+.compare-empty {
+  height: 100%;
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  color: rgba(203, 213, 225, 0.68);
+  font-size: 12px;
+}
+
+.panel-view-fill {
+  flex: 1;
+  min-height: 0;
+  background: transparent;
+}
+
+.hybrid-panel-grid .panel-header {
+  flex: 0 0 var(--panel-header-h);
+  width: 100%;
+  border-right: none;
+}
+
+.hybrid-panel-grid .panel-header.focus {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.hybrid-panel-grid .panel-header.compare {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.panel-focus-btn {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(32, 178, 170, 0.35);
+  background: rgba(32, 178, 170, 0.12);
+  color: #99f6e4;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.panel-focus-btn:hover {
+  border-color: rgba(32, 178, 170, 0.7);
+  background: rgba(32, 178, 170, 0.22);
+  color: #ecfeff;
 }
 
 .toolbar-chat-mode-row {

@@ -66,7 +66,7 @@ function initPanels(): AiPanelState[] {
 }
 
 export default function App() {
-  const [interactionMode, setInteractionMode] = useState<'workflow' | 'chat'>('workflow')
+  const [interactionMode, setInteractionMode] = useState<'workflow' | 'chat'>('chat')
   const [modeSwitchPending, setModeSwitchPending] = useState(false)
   const [primaryAi, setPrimaryAi] = useState<AiName>('gemini')
   const [enabledAis, setEnabledAis] = useState<AiName[]>([...DEFAULT_ENABLED_AIS])
@@ -184,6 +184,13 @@ export default function App() {
       setEnabledAis(participants)
       setPrimaryAi(room.primaryAi)
       void window.electronAPI.setEnabledAis(participants)
+      if (interactionMode === 'chat') {
+        void window.electronAPI.switchInteractionMode({
+          mode: 'chat',
+          participants,
+          primaryAi: room.primaryAi,
+        }).then(setCouncilRoom).catch((err) => { console.error('[council-mode-init]', err) })
+      }
     })
     window.electronAPI.getCouncilSnapshots().then(setCouncilSnapshots).catch((err) => { console.error('[council-snapshots]', err) })
     window.electronAPI.getCouncilUiState().then((uiState: CouncilUiState) => {
@@ -277,6 +284,20 @@ export default function App() {
       window.electronAPI.syncCouncilRoomContext({ participants: next, primaryAi }).then(setCouncilRoom)
     }
   }, [interactionMode, primaryAi])
+
+  const handleFocusAiChange = useCallback((ai: AiName) => {
+    const participants = enabledAis.includes(ai) ? enabledAis : [ai, ...enabledAis]
+    setPrimaryAi(ai)
+    if (participants !== enabledAis) {
+      setEnabledAis(participants)
+      void window.electronAPI.setEnabledAis(participants)
+    }
+    if (interactionMode === 'chat') {
+      void window.electronAPI.syncCouncilRoomContext({ participants, primaryAi: ai })
+        .then(setCouncilRoom)
+        .catch((err) => { console.error('[council-focus-ai]', err) })
+    }
+  }, [enabledAis, interactionMode])
 
   useEffect(() => {
     setPanels((prev) =>
@@ -980,7 +1001,7 @@ export default function App() {
           attachedFiles={attachedFiles}
           recommendation={recommendation}
           analysisLoading={analysisLoading}
-          onPrimaryAiChange={setPrimaryAi}
+          onPrimaryAiChange={handleFocusAiChange}
           onEnabledAisChange={handleEnabledAisChange}
           onQueryChange={setQuery}
           onAttach={handleAttach}
@@ -998,6 +1019,8 @@ export default function App() {
         <PanelGrid
           panels={panels.filter((p) => enabledAis.includes(p.name))}
           primaryAi={primaryAi}
+          layoutMode={interactionMode}
+          onFocusAi={handleFocusAiChange}
           onReload={handleReloadAi}
           onDevTools={handleDevTools}
           draftAnswer={draftAnswer}

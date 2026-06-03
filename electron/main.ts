@@ -508,14 +508,16 @@ let finalPanelExpanded = false
 const FINAL_PANEL_HEIGHT = 0      // legacy — not used directly below
 const PANEL_HEADER_HEIGHT = 36
 const COUNCIL_CHAT_PANEL_WIDTH = 420
-let councilChatVisible = false
+const HYBRID_LAYOUT_PADDING = 6
+const HYBRID_LAYOUT_GAP = 6
+let councilChatVisible = true
 
 // Dynamically updated when attachment bar visibility changes
 let attachmentBarVisible = false
 
 let councilRoom: CouncilRuntimeState = loadPersistedCouncilRoom()
 let councilTurnChain: Promise<void> = Promise.resolve()
-let currentInteractionMode: InteractionMode = 'workflow'
+let currentInteractionMode: InteractionMode = 'chat'
 const viewThreadOwners: Partial<Record<AiName, InteractionMode | null>> = {}
 let councilWorkflowBridgeSignature: string | null = null
 
@@ -1319,6 +1321,9 @@ function syncCouncilRoomContext(participants: AiName[], primaryAi: AiName): Coun
   const nextParticipants = participants.filter((ai) => AI_NAMES.includes(ai))
   councilRoom.participants = nextParticipants.length > 0 ? nextParticipants : [...DEFAULT_ENABLED_AI_NAMES]
   councilRoom.primaryAi = primaryAi
+  if (currentInteractionMode === 'chat') {
+    updateViewBounds()
+  }
   emitCouncilRoomUpdate()
   return cloneCouncilRoomState()
 }
@@ -2745,7 +2750,7 @@ async function clickSend(view: BrowserView, selectors: string[], aiName?: AiName
 }
 
 // ─── BrowserView Layout ───────────────────────────────────────────────────────
-function computeViewBounds(indexInEnabled: number, totalEnabled: number, winWidth: number, winHeight: number): Rectangle {
+function computeLegacyViewBounds(indexInEnabled: number, totalEnabled: number, winWidth: number, winHeight: number): Rectangle {
   const attachH = attachmentBarVisible ? ATTACHMENT_BAR_HEIGHT : 0
   const finalH = finalPanelExpanded ? FINAL_PANEL_FULL_H : FINAL_PANEL_HEADER_H
   const gridTop = TITLEBAR_HEIGHT + TOOLBAR_HEIGHT + attachH + STATUS_BAR_HEIGHT + PANEL_HEADER_HEIGHT
@@ -2763,6 +2768,67 @@ function computeViewBounds(indexInEnabled: number, totalEnabled: number, winWidt
   }
 }
 
+function computeHybridViewBounds(aiName: AiName, winWidth: number, winHeight: number): Rectangle {
+  const finalH = 0
+  const workspaceTop = TITLEBAR_HEIGHT + TOOLBAR_HEIGHT + STATUS_BAR_HEIGHT
+  const workspaceHeight = Math.max(winHeight - workspaceTop - finalH, 260)
+  const availableWidth = Math.max(winWidth - COUNCIL_CHAT_PANEL_WIDTH, 520)
+  const contentX = HYBRID_LAYOUT_PADDING
+  const contentY = workspaceTop + HYBRID_LAYOUT_PADDING
+  const contentW = Math.max(availableWidth - (HYBRID_LAYOUT_PADDING * 2), 420)
+  const contentH = Math.max(workspaceHeight - (HYBRID_LAYOUT_PADDING * 2), 240)
+  const orderedEnabledNames = AI_NAMES.filter((name) => enabledAiNames.includes(name))
+  const focusAi = orderedEnabledNames.includes(councilRoom.primaryAi)
+    ? councilRoom.primaryAi
+    : orderedEnabledNames[0]
+
+  const minCompareW = 260
+  const desiredFocusW = Math.floor(contentW * 0.32)
+  const maxFocusW = Math.max(contentW - HYBRID_LAYOUT_GAP - minCompareW, 260)
+  const focusW = Math.max(300, Math.min(desiredFocusW, maxFocusW))
+  const compareX = contentX + focusW + HYBRID_LAYOUT_GAP
+  const compareW = Math.max(contentW - focusW - HYBRID_LAYOUT_GAP, minCompareW)
+
+  if (aiName === focusAi) {
+    return {
+      x: contentX,
+      y: contentY + PANEL_HEADER_HEIGHT,
+      width: focusW,
+      height: Math.max(contentH - PANEL_HEADER_HEIGHT, 180),
+    }
+  }
+
+  const compareNames = orderedEnabledNames.filter((name) => name !== focusAi)
+  const compareIndex = Math.max(compareNames.indexOf(aiName), 0)
+  const compareCount = Math.max(compareNames.length, 1)
+  const columns = compareCount <= 1 ? 1 : 2
+  const rows = Math.ceil(compareCount / columns)
+  const spanningLast = (compareCount === 3 || compareCount === 5) && compareIndex === compareCount - 1
+  const row = Math.floor(compareIndex / columns)
+  const col = compareIndex % columns
+  const baseTileW = columns === 1
+    ? compareW
+    : Math.floor((compareW - HYBRID_LAYOUT_GAP) / columns)
+  const tileW = spanningLast ? compareW : baseTileW
+  const tileH = Math.floor((contentH - (rows - 1) * HYBRID_LAYOUT_GAP) / rows)
+  const tileX = spanningLast ? compareX : compareX + col * (baseTileW + HYBRID_LAYOUT_GAP)
+  const tileY = contentY + row * (tileH + HYBRID_LAYOUT_GAP)
+
+  return {
+    x: tileX,
+    y: tileY + PANEL_HEADER_HEIGHT,
+    width: tileW,
+    height: Math.max(tileH - PANEL_HEADER_HEIGHT, 120),
+  }
+}
+
+function computeViewBounds(aiName: AiName, indexInEnabled: number, totalEnabled: number, winWidth: number, winHeight: number): Rectangle {
+  if (councilChatVisible) {
+    return computeHybridViewBounds(aiName, winWidth, winHeight)
+  }
+  return computeLegacyViewBounds(indexInEnabled, totalEnabled, winWidth, winHeight)
+}
+
 function updateViewBounds() {
   if (!mainWindow) return
   const [winWidth, winHeight] = mainWindow.getSize()
@@ -2773,7 +2839,7 @@ function updateViewBounds() {
     try {
       if (enabledAiNames.includes(name)) {
         try { mainWindow.addBrowserView(view) } catch { /* already added */ }
-        view.setBounds(computeViewBounds(enabledIndex, enabledAiNames.length, winWidth, winHeight))
+        view.setBounds(computeViewBounds(name, enabledIndex, enabledAiNames.length, winWidth, winHeight))
         enabledIndex++
       } else {
         try { mainWindow.removeBrowserView(view) } catch { /* already removed */ }
@@ -2981,7 +3047,7 @@ async function createWindow() {
     if (enabledIndex !== -1) {
       mainWindow.addBrowserView(view)
       const [winWidth, winHeight] = mainWindow.getSize()
-      view.setBounds(computeViewBounds(enabledIndex, enabledAiNames.length, winWidth, winHeight))
+      view.setBounds(computeViewBounds(name, enabledIndex, enabledAiNames.length, winWidth, winHeight))
     } else {
       view.setBounds({ x: -10000, y: 0, width: 100, height: 100 })
     }

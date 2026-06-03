@@ -1,6 +1,6 @@
 {
   "name": "ai-council",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "AI Council - Autonomous Cross-Verification Workflow among 6 LLMs",
   "main": "dist-electron/main.js",
   "scripts": {

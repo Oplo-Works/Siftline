@@ -44,23 +44,14 @@ export default function TitleBar({
 
       <div className="titlebar-center" style={{ WebkitAppRegion: 'drag' } as CSSProperties}>
         <div className="titlebar-drag-spacer" />
-        <div className="mode-toggle" aria-label="Interaction mode" style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}>
-          <button
-            className={`mode-toggle-btn ${mode === 'workflow' ? 'active' : ''}`}
-            onClick={() => onModeChange('workflow')}
-            disabled={modeSwitchDisabled}
-            title="Use the existing primary-review-revise workflow"
-          >
-            Workflow
-          </button>
-          <button
-            className={`mode-toggle-btn ${mode === 'chat' ? 'active' : ''}`}
-            onClick={() => onModeChange('chat')}
-            disabled={modeSwitchDisabled}
-            title="Use the new Council Chat mode"
-          >
-            Council Chat
-          </button>
+        <div
+          className={`mode-status-pill ${modeSwitchDisabled ? 'pending' : ''}`}
+          aria-label="Current workspace mode"
+          title="Council Chat is the primary workspace. Workflow remains available internally for future use."
+          style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
+        >
+          <span className="mode-status-dot" />
+          <span>Council Chat</span>
         </div>
         <div className="titlebar-drag-spacer" />
       </div>

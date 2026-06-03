@@ -1,20 +1,20 @@
 name: Build & Release
 
-# Triggers
 on:
   push:
     tags:
-      - 'v*'           # Runs automatically when a tag like v1.0.8 is pushed
-  workflow_dispatch:   # Also allows manual run from the GitHub Actions UI
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to upload installers to'
+        required: false
+        default: 'v1.0.9'
 
-# Permissions
 permissions:
-  contents: write     # Required to create GitHub Releases and upload assets
+  contents: write
 
 jobs:
-  # ================================================================
-  #  Job 1: Build macOS DMG  (macos-latest runner)
-  # ================================================================
   build-mac:
     name: Build macOS DMG
     runs-on: macos-latest
@@ -32,7 +32,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Convert .ico to .icns (macOS icon)
+      - name: Convert .ico to .icns
         run: |
           pip3 install Pillow --quiet --break-system-packages 2>/dev/null || pip3 install Pillow --quiet
           python3 scripts/ico_to_png.py
@@ -47,14 +47,13 @@ jobs:
 
           iconutil -c icns "$ICONSET" -o ai-council.icns
           rm -rf "$ICONSET" ai-council-src.png
-          echo "ai-council.icns created"
 
-      - name: Build (Vite)
+      - name: Build app
         run: npm run build
 
-      - name: Package DMG (x64 + arm64)
+      - name: Package DMG
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false   # Skip code signing
+          CSC_IDENTITY_AUTO_DISCOVERY: false
         run: npx electron-builder --mac dmg --x64 --arm64
 
       - name: Upload DMG artifacts
@@ -64,9 +63,6 @@ jobs:
           path: release/*.dmg
           retention-days: 7
 
-  # ================================================================
-  #  Job 2: Build Windows NSIS installer  (windows-latest runner)
-  # ================================================================
   build-windows:
     name: Build Windows Installer
     runs-on: windows-latest
@@ -91,14 +87,13 @@ jobs:
           New-Item -ItemType Directory -Force -Path (Split-Path $dest) | Out-Null
           Invoke-WebRequest -Uri "https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe" `
             -OutFile $dest -UseBasicParsing
-          Write-Host "rcedit-x64.exe ready"
 
-      - name: Build (Vite)
+      - name: Build app
         run: npm run build
 
-      - name: Package Windows Installer (NSIS)
+      - name: Package Windows Installer
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false   # Skip code signing
+          CSC_IDENTITY_AUTO_DISCOVERY: false
         run: npx electron-builder --win nsis
 
       - name: Upload EXE artifact
@@ -108,10 +103,6 @@ jobs:
           path: release/*.exe
           retention-days: 7
 
-  # ================================================================
-  #  Job 3: Create GitHub Release and attach all artifacts
-  #  (runs only after both build jobs succeed, on tag push)
-  # ================================================================
   release:
     name: Create GitHub Release
     needs: [build-mac, build-windows]
@@ -130,7 +121,7 @@ jobs:
       - name: Create or update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "AI Council ${{ github.ref_name }} - Council Chat Files + Telegram Files + DeepSeek"
+          name: "AI Council ${{ github.ref_name }} - Hybrid Council Chat Layout"
           draft: false
           prerelease: false
           make_latest: true
@@ -141,49 +132,29 @@ jobs:
           body: |
             ### What's New in ${{ github.ref_name }}
 
-            #### Council Chat File Attachment
-            - **+Attach** button in Council Chat lets you attach files (PDF, DOCX, XLSX, TXT, MD, CSV, images) before sending any message
-            - Files are physically uploaded to each AI browser interface via CDP; text fallback used when CDP upload is unavailable
-            - Multiple files can be attached at once; each shows as a removable chip
+            #### Hybrid Council Chat Layout
+            - Council Chat is now the primary workspace on launch.
+            - The main view uses a left Focus AI pane, a center Compare grid for the other active AIs, and the docked Council Chat panel on the right.
+            - Compare panes include a Focus action so any active AI can be promoted into the large left pane.
+            - Workflow mode remains in the app for future use, but the top-level Workflow toggle and handoff buttons are hidden from the primary Council Chat UI.
 
-            #### Telegram File Sharing
-            - Send photos or documents directly from Telegram — downloaded and attached to the Council Chat session automatically
-            - Photo albums (media groups) are bundled and processed as a single message
-            - Supported formats: `pdf`, `doc`, `docx`, `xls`, `xlsx`, `txt`, `md`, `csv`, `json`, `html`, `png`, `jpg`, `jpeg`, `webp`, `gif`, `bmp`
-
-            #### Bug Fix
-            - Fixed duplicate file attachment for Claude: `DOM.setFileInputFiles` already fires a native change event — the extra manual dispatch was causing Claude's uploader to process each file twice
-
-            #### Telegram Integration
-            - Control AI Council from your smartphone via a Telegram bot
-            - No server, no ngrok, no open ports — pure long-poll from the desktop app
-            - Slash commands: `/new` · `/save [title]` · `/save_and_new [title]` · `/sessions` · `/load <id>` · `/workflow` · `/status` · `/help`
-            - Bot token and chat ID stored in an **encrypted** `electron-store` file
-
-            #### DeepSeek Support
-            - DeepSeek (`chat.deepseek.com`) is the 6th AI panel
-            - Reviewer role: **Concise Alternative Solver** — optimizes for simpler routes and sharper summaries
-
-            ---
+            #### Installer Notes
+            - Windows installer is built with NSIS.
+            - macOS DMGs are built on GitHub's macOS runner for both Intel and Apple Silicon.
 
             ### Installation
 
             | Platform | File |
             |----------|------|
-            | macOS (Apple Silicon) | `AI-Council-${{ github.ref_name }}-arm64.dmg` |
-            | macOS (Intel) | `AI-Council-${{ github.ref_name }}-x64.dmg` |
+            | macOS (Apple Silicon) | `AI-Council-*-arm64.dmg` |
+            | macOS (Intel) | `AI-Council-*-x64.dmg` |
             | Windows | `AI-Council-Setup.exe` |
 
-            > **macOS Gatekeeper:** System Settings -> Privacy & Security -> Open Anyway, or run `xattr -cr "/Applications/AI Council.app"` in Terminal.
-            > **Windows SmartScreen:** Click "More info" -> "Run anyway".
+            > macOS Gatekeeper: System Settings -> Privacy & Security -> Open Anyway, or run `xattr -cr "/Applications/AI Council.app"` in Terminal.
+            > Windows SmartScreen: Click "More info" -> "Run anyway".
 
-  # ================================================================
-  #  Job 4: Upload both macOS DMGs and Windows EXE to existing
-  #  v1.0.8 release.  Runs only on workflow_dispatch (manual
-  #  trigger — no tag needed).
-  # ================================================================
   upload-installers-to-release:
-    name: Upload Installers to v1.0.8 Release
+    name: Upload Installers to Release
     needs: [build-mac, build-windows]
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'
@@ -204,20 +175,27 @@ jobs:
       - name: List files
         run: find dist-mac dist-win -type f
 
-      - name: Upload all installers to v1.0.8 release
+      - name: Create release if needed and upload installers
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
+          gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1 || \
+            gh release create "$RELEASE_TAG" \
+              --repo "${{ github.repository }}" \
+              --title "AI Council $RELEASE_TAG - Hybrid Council Chat Layout" \
+              --notes "Installers for AI Council $RELEASE_TAG."
+
           for DMG in dist-mac/*.dmg; do
             echo "Uploading $DMG..."
-            gh release upload v1.0.8 "$DMG" \
-              --repo MinkyuTheBuilder/ai-council \
+            gh release upload "$RELEASE_TAG" "$DMG" \
+              --repo "${{ github.repository }}" \
               --clobber
           done
+
           for EXE in dist-win/*.exe; do
             echo "Uploading $EXE..."
-            gh release upload v1.0.8 "$EXE" \
-              --repo MinkyuTheBuilder/ai-council \
+            gh release upload "$RELEASE_TAG" "$EXE" \
+              --repo "${{ github.repository }}" \
               --clobber
           done
-          echo "All installers uploaded."

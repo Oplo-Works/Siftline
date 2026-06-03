@@ -4,7 +4,7 @@
 
 ---
 
-## ✨ What's New in v1.0.8
+## ✨ What's New in v1.0.9
 
 | Feature | Description |
 |---------|-------------|
@@ -23,8 +23,8 @@
 
 | Feature | Description |
 |---------|-------------|
-| 💬 **Council Chat Mode** | Brand-new group-chat panel alongside the existing Workflow mode. Send a message to one AI with `@Gemini` or broadcast to everyone with `@all`. Bubble-style UI with left/right alignment mirrors modern messaging apps. |
-| 🔀 **Dual Interaction Mode** | Switch seamlessly between **Workflow** (structured 3-step review) and **Council Chat** (free-form discussion). The toolbar mode toggle carries context across both sides. |
+| 💬 **Council Chat Mode** | Council Chat is now the primary workspace. Send a message to one AI with `@Gemini` or broadcast to everyone with `@all`. Bubble-style UI with left/right alignment mirrors modern messaging apps. |
+| 🔎 **Hybrid Focus Layout** | A large Focus AI pane sits beside a compare grid for the other active AIs, with the Council Chat docked on the right. Workflow remains available internally for future use. |
 | 💾 **Saved Sessions (Snapshots)** | Save any Council Chat session and reload it later. Full lifecycle management: favorites, labels, notes, archive, bulk-delete, export/import as JSON, and duplicate. |
 | 🎯 **AI Moderator** | Real-time analysis of the conversation — surfaces a consensus summary, identifies who should speak next, and generates a suggested follow-up prompt you can apply or send immediately. |
 | 📌 **Candidate Pinning & Comparison** | Pin strong AI replies as candidates. The Compare panel shows a side-by-side diff. Pin two or more to generate a **merged draft** that blends the best ideas before handing off to Workflow. |
@@ -50,7 +50,7 @@
 
 ## 📥 Download & Install
 
-No build required. Download the latest installer from [GitHub Releases](https://github.com/MinkyuTheBuilder/ai-council/releases/latest).
+No build required. Download the latest installer from [GitHub Releases](https://github.com/MinkyuTheBuilder/AI-Council-Chat/releases/latest).
 
 | Platform | File | Target |
 |----------|------|--------|
@@ -319,26 +319,27 @@ The **Toolbar** has two rows of AI chip buttons:
 
 | Row | Label | Purpose |
 |-----|-------|---------| 
-| Top | **Primary AI** | Choose which AI answers first (generates the draft) |
-| Bottom | **Active** | Toggle which AI panels are visible and participate in the workflow |
+| Top | **Focus AI** | Choose which AI appears in the large focus pane |
+| Bottom | **Active** | Toggle which AI panels are visible and participate in Council Chat |
 
 - Click any chip in the **Active** row to show or hide that AI's panel.
-- You can run the workflow with **2 through 7** AIs simultaneously.
-- The **Primary AI** is always active (locked) — it cannot be toggled off.
+- You can run Council Chat with **2 through 7** AIs simultaneously.
+- The **Focus AI** is always active (locked) -- it cannot be toggled off.
 - On first launch, Gemini, Claude, and ChatGPT open by default; DeepSeek, Perplexity, Grok, and Kimi start inactive until you enable them.
 
 ---
 
-### 4️⃣ Choose your interaction mode
+### 4️⃣ Use Council Chat
 
-Click the **Workflow / Council Chat** toggle in the toolbar to switch modes:
+Council Chat opens as the primary workspace:
 
-| Mode | Description |
+| Area | Description |
 |------|-------------|
-| **Workflow** | Structured 3-step cross-review: Primary draft → Reviewer feedback → Final revision |
-| **Council Chat** | Free-form group discussion — send messages to one AI or `@all` simultaneously |
+| **Focus AI** | Large left pane for the AI you are reading or steering right now |
+| **Compare Grid** | Center grid for the other active AIs |
+| **Council Chat** | Docked right panel for `@AI` and `@all` discussion |
 
-Both modes share the same set of active AIs and can hand context off to each other.
+Workflow mode is still preserved internally for future use, but it is hidden from the main workspace.
 
 ---
 

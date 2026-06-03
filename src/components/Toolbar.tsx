@@ -132,7 +132,7 @@ export default function Toolbar({
     <div className="toolbar-container">
       <div className="toolbar toolbar-row-selectors">
         <div className="toolbar-section">
-          <label className="toolbar-label">Primary AI</label>
+          <label className="toolbar-label">{isWorkflowMode ? 'Primary AI' : 'Focus AI'}</label>
           <div className="ai-selector">
             {AI_NAMES.map((ai) => {
               const color = AI_COLORS[ai]

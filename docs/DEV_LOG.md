@@ -55,3 +55,13 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
 1. 앞으로 모든 기능 추가는 `/spec → /plan → /build → /test → /review → /log` 적용
 2. 의미 있는 변경마다 이 파일 업데이트
 3. 작업이 `PROJECT_SCOPE.md`의 "Must Preserve"에 영향을 주는지 매번 확인
+## 2026-06-03 Update
+
+- Work: Hybrid Focus Council Layout (`App.tsx`, `PanelGrid.tsx`, `TitleBar.tsx`, `Toolbar.tsx`, `index.css`, `electron/main.ts`)
+- Notes: Council Chat now opens as the primary workspace, the top-level Workflow mode toggle is hidden, active AI BrowserViews use a left Focus pane plus center Compare grid, and chat mode hides Workflow-era final/handoff UI.
+- Verification: `npm run build` PASS.
+
+## 2026-06-03 Release Packaging
+
+- Work: Prepared v1.0.9 installer release metadata and GitHub Actions packaging workflow.
+- Notes: Windows installer builds locally with NSIS; macOS DMGs build on GitHub Actions macOS runners when tag `v1.0.9` is pushed.

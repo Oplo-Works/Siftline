@@ -43,3 +43,10 @@ AI_Council_Group_Chat_Upgrade_Plan.md
 # Substack helper scripts (standalone utility, not part of AI Council runtime)
 builder_substack.py
 builder_substack.bat
+# AI workflow secret and local-state defaults (v8.1.1 snippet, additive merge)
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+.local/

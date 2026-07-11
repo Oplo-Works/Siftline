@@ -1,0 +1,8 @@
+# AI workflow secret and local-state defaults — merge; do not replace existing rules
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+.local/

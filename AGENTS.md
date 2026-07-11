@@ -1,4 +1,4 @@
-# Claude Code Project Bootstrap (v8.1.1-solo)
+# Coding Agent Project Bootstrap (v8.1.1-solo)
 
 Before changing files, read in this order:
 1. `docs/AGENT_WORKFLOW_CORE.md`

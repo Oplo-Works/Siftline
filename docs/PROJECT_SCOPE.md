@@ -20,6 +20,9 @@
   - 답변 자동 채점·랭킹
   - 모바일 네이티브 앱
   - API 전용 모드 전환 (웹 세션 기반이 핵심 가치)
+- Future candidates (미승인 — 명시 요청 시에만 착수; 구 SCOPE "Future Expansion" 승계):
+  - 자동 워크플로 모드 (옵션 토글로)
+  - provider 추가를 위한 selector/패널 일반화
 - Must-preserve flows — 절대 깨지면 안 되는 동작:
   - 7개 AI BrowserView 패널 임베드 및 세션 영속화
   - TitleBar(🔑 Accounts / 📋 History / 📊 Logs), Toolbar(모드 토글·Primary 선택·쿼리
@@ -79,6 +82,7 @@
 | Build | `npm run build` | repo root | Yes |
 | Run check (수동) | `build-and-run.bat` → 수동 체크리스트 | repo root | Yes (동작 변경 시) |
 | Production run check | `npx electron .` | repo root | 권장 |
+| Dev mode (hot reload) | `npm start` | repo root | No (개발 편의) |
 | Unit / Integration Test | 없음 (test 스크립트 부재) | — | No |
 | Lint | 없음 (lint 스크립트 부재) | — | No |
 | Secret Scan | staged diff 수동 점검 (키·토큰·PII) + `git diff --check` | repo root | Yes |
@@ -86,7 +90,8 @@
 
 - sandbox/CI 환경에서는 rollup native 모듈 문제로 `npm run build`가 실패할 수 있다.
   이 경우 `npx tsc --noEmit` 통과를 기록하고 Windows에서 최종 확인한다.
-- 수동 동작 체크리스트 상세: `docs/VERIFICATION.md` (레거시 참조 문서)
+- 수동 동작 체크리스트 상세: `docs/VERIFICATION.md` (레거시 참조 문서 — 문서 내
+  레포 경로 `C:\Users\Sales01\...`는 구버전이므로 무시하고 현재 repo root 기준으로 실행)
 - 릴리스 패키징: `npm run package` / `package:installer` / `package:mac`
 
 <!-- HUMAN-OWNED POLICY — agent는 이 섹션을 생성·완화·확장할 수 없다. -->

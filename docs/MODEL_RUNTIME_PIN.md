@@ -2,7 +2,9 @@
 
 - Status: `DRAFT` → 사용자가 실제 계정·runner·모델·권한·예산을 확인한 뒤 `APPROVED`.
 - 이 파일이 역할↔Runtime↔모델 매핑의 **유일한 원본**이다.
-- 전략: 승인된 Claude, OpenAI, z.ai 구독을 모두 강점대로 사용해 품질과 총 사용량을 극대화한다.
+- 전략: 의도된 provider families(Anthropic/Claude, OpenAI/Codex, z.ai)를 강점대로
+  활용해 품질과 총 사용량을 극대화한다. 실제 구독·접근·권한은 관찰·승인된 것만
+  사실로 취급한다 (§0 — 현재 Claude Code만 관찰됨).
 - 외부 사실은 `docs/MODEL_RUNTIME_SNAPSHOT.md`를 참고하되, observed account state와 smoke test가 우선한다.
 - 2026-07-11 도입 시점 기준: 아직 어떤 Runtime도 `APPROVED`가 아니다. 아래 관찰
   기록 외의 값은 template이며 사용자 확인 전까지 사실로 취급하지 않는다.
@@ -122,7 +124,7 @@ Runtime ID: claude-deep-fable
 Configured Model ID: claude-fable-5
 Observed Active Model ID: claude-fable-5 (2026-07-11, 세션 self-report)
 Runner / Version / Surface: Claude Code (desktop 세션; 정확한 버전 미관찰)
-Authentication Type: Claude 구독 로그인 (secret 미노출)
+Authentication Type: 미관찰 (구독 로그인 추정; secret 미노출)
 Subscription Tier: 미관찰
 Billing Meter: 미관찰 (snapshot 기준 usage credits 가능성 — 계정 UI 확인 필요)
 Reasoning / Effort: 미관찰

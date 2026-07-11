@@ -96,3 +96,22 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
   사용자 승인 필요. 레거시 "항상 main 커밋" 규칙은 HUMAN-OWNED Push 정책으로 대체됨
   (유지 원하면 SCOPE §7-5). `v*` 태그 push는 릴리스 CI 트리거이므로 ASK_SEPARATELY.
 - Next: READY_FOR_REVIEW + Independent Reviewer(또는 Human Approver)
+
+## 2026-07-11T13:09:58Z — workflow-adoption-v8.1.1 / advisory review + remediation
+
+- Stage: WF:REVIEW  - Role/Runtime: 4-lens advisory review + Main Driver remediation (Claude Code, observed `claude-fable-5`)  - Risk: Standard
+- Implementation: `26937f4`..SELF (remediation + review-artifact commit)
+- Review: `docs/migration/V8.1.1_ADOPTION_REVIEW.md` — advisory 4-렌즈 리뷰:
+  P1 2건(리뷰 아티팩트 선참조 — 위 도입 이벤트의 "Review:" 행이 가리키던 파일이
+  당시 미존재) 검출 → 이 커밋에서 아티팩트 생성 및 리포트/HANDOFF 문구 교정으로
+  해결. remediation 검증 후 advisory PASS. 공식 독립 리뷰(APPROVED runtime)는
+  여전히 대기.
+- Human Decision: N/A (대기)
+- Summary: 리뷰 findings remediation — REVIEW 아티팩트 생성, HANDOFF 재작성(자기모순
+  제거·SHA 해석), 리포트 교정, MANIFEST에 CRLF/blob-OID 주석, SCOPE(Future
+  candidates·npm start·stale 경로 주석), PIN 문구 완화. 앱 소스 변경 없음.
+- Validation: 경로 실존 재검사 PASS, 레거시 회귀 grep PASS (상세: REVIEW 문서)
+- Publish Intent/Target: AUTO_AT_CLOSE → `origin/chore/adopt-workflow-v8.1.1` (보류 유지)
+- Decisions / Risks / Follow-ups: OPEN follow-ups 4건 — PROJECT_STATE 배너(사용자
+  동의 필요), stale worktree prune, owner 이메일 공개 확인, v1.0.9 산출물 확인
+- Next: READY_FOR_REVIEW + Independent Reviewer(또는 Human Approver)

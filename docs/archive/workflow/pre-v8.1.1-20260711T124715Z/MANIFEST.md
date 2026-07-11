@@ -10,6 +10,14 @@
 
 ## Archived Files
 
+> SHA256은 **CRLF working-tree serialization**(core.autocrlf=true 체크아웃) 기준이다.
+> `git show <sha>:<path> | sha256sum`(LF blob)과는 다를 수 있으므로, serialization과
+> 무관한 신원 증명은 아래 Git blob OID를 사용한다 (base `68a2700` 기준):
+> `CLAUDE.md` = `4477824c632e0ef0365601b775ce7de9f49041e7`,
+> `docs/AGENT_WORKFLOW.md` = `41efefe4a882ad6b123901dedc9c00d20f33b829`,
+> `docs/PROJECT_SCOPE.md` = `8a7444e1f3078aa821b95cbb8dd92167e582ae16`,
+> `docs/DEV_LOG.md` = `8cc7a2c78d0bf67c114c962b8e4583fd300b3b13`
+
 | Original path | Archive path | Pre-adoption SHA256 | Git status at adoption | Reason |
 |---|---|---|---|---|
 | `CLAUDE.md` | `CLAUDE.md` | `fc06e2bed5a998f540394e9ea6ef6d2d11ad2c886145456ff353eb2f50c02922` | tracked, clean | v8.1.1 bootstrap block으로 merge/교체됨 (레거시 워크플로 부트스트랩 포함) |

@@ -1,7 +1,8 @@
 # Project Scope & Human-Owned Policy (v8.1.1-solo)
 
 - Status: `READY_FOR_APPROVAL` — §7의 미확정 항목을 사용자가 확인하면 `APPROVED`로 변경
-- Owner / Human Approver: Minkyu (oploworks@gmail.com)
+- Owner / Human Approver: Minkyu (연락처는 비공개 — 공개 레포 노출 방지를 위해
+  이메일 미기재; 리뷰 P3 follow-up 반영)
 - Last Updated: 2026-07-11
 - 이전 버전(v5 Lean 시기 원본):
   `docs/archive/workflow/pre-v8.1.1-20260711T124715Z/docs/PROJECT_SCOPE.md`

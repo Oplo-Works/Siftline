@@ -115,3 +115,24 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
 - Decisions / Risks / Follow-ups: OPEN follow-ups 4건 — PROJECT_STATE 배너(사용자
   동의 필요), stale worktree prune, owner 이메일 공개 확인, v1.0.9 산출물 확인
 - Next: READY_FOR_REVIEW + Independent Reviewer(또는 Human Approver)
+
+## 2026-07-11T13:20:47Z — workflow-adoption-v8.1.1 / CLOSE
+
+- Stage: WF:CLOSE  - Role/Runtime: Main Driver / Claude Code (observed `claude-fable-5`)  - Risk: Standard
+- Implementation: `68a2700`..`a5a7254` (adoption `26937f4` + remediation/review `a5a7254`)
+- Review: `docs/migration/V8.1.1_ADOPTION_REVIEW.md` — advisory PASS
+- Human Decision: APPROVED — 2026-07-11 사용자 지시 "git push origin main"
+  (publish-to-main 명시 승인; protected-main 기본값에 대한 1회 예외.
+  기본 Push 정책 자체는 SCOPE §5 그대로 유지)
+- Summary: 사용자 승인에 따라 main을 adoption head로 fast-forward(merge 커밋 없음)
+  하고 close metadata commit 후 `origin/main`으로 1회 push. push 전 SCOPE의 owner
+  이메일을 제거 (공개 레포 신규 노출 방지 — 리뷰 P3 follow-up 반영; 기존 커밋
+  이력의 git identity는 placeholder라 실이메일 미노출 상태였음).
+- Validation: 도입 검증 결과 유지 (tsc PASS / build PASS / 회귀·무결성 PASS —
+  ADOPTION_REPORT 참조). CLOSE에서 앱 소스 추가 변경 없음.
+- Publish Intent/Target: AUTO_AT_CLOSE (사용자 명시 예외) → `origin/main`,
+  태그 push 없음. 실제 push 결과는 채팅 Output Block 기록 — 다음 START가 reconcile.
+- Decisions / Risks / Follow-ups: PROJECT_SCOPE §7 확정 + PIN 승인 대기.
+  follow-ups: PROJECT_STATE 배너(별도 task), stale worktree prune(사용자),
+  v1.0.9 산출물 확인, package-lock.json 처리(사용자).
+- Next: DONE + Human (정책 승인 후 다음 task 선택)

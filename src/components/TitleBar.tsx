@@ -38,7 +38,7 @@ export default function TitleBar({
     <div className="titlebar" style={{ WebkitAppRegion: 'drag' } as CSSProperties}>
       <div className="titlebar-logo">
         <span className="titlebar-icon">AI</span>
-        <span className="titlebar-name">AI Council</span>
+        <span className="titlebar-name">Siftline</span>
         <span className="titlebar-tagline">Multi-LLM Cross-Verification</span>
       </div>
 
@@ -47,11 +47,11 @@ export default function TitleBar({
         <div
           className={`mode-status-pill ${modeSwitchDisabled ? 'pending' : ''}`}
           aria-label="Current workspace mode"
-          title="Council Chat is the primary workspace. Workflow remains available internally for future use."
+          title="Siftline is the primary workspace. Workflow remains available internally for future use."
           style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
         >
           <span className="mode-status-dot" />
-          <span>Council Chat</span>
+          <span>Siftline</span>
         </div>
         <div className="titlebar-drag-spacer" />
       </div>

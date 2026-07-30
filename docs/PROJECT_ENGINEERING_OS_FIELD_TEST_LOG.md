@@ -1,6 +1,6 @@
-# Project Engineering OS — Field Test Log (AI Council)
+# Project Engineering OS — Field Test Log (Siftline)
 
-> v5 Lean을 AI Council에 실제 적용하면서 발견한 마찰·도움·무시된 규칙을
+> v5 Lean을 Siftline에 실제 적용하면서 발견한 마찰·도움·무시된 규칙을
 > 기록한다. 이 일지 없이는 v6, v5.1, 추가 메타 문서를 만들지 않는다.
 
 ---
@@ -27,7 +27,7 @@
 
 ## Field Test #1
 
-Project: AI Council
+Project: Siftline
 Feature: Log timestamp 추가 — Logs 패널 각 항목에 HH:MM:SS 표시
 Date range: 2026-05-26
 Agents used: Claude (Cowork mode)
@@ -89,7 +89,7 @@ What should change before the next field test?
 
 ## Field Test #2
 
-Project: AI Council
+Project: Siftline
 Feature: History AI 필터 — History 패널 상단에 AI별 필터 버튼 추가
 Date range: 2026-05-26
 Agents used: Claude (Cowork mode)

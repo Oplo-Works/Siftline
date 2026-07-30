@@ -1,13 +1,13 @@
 #!/bin/bash
 # ============================================
-#   AI Council - Mac Installer Build Script
+#   Siftline - Mac Installer Build Script
 #   Generates a .dmg for macOS (x64 + arm64)
 # ============================================
 
 set -e  # exit on any error
 
 echo "============================================"
-echo "  AI Council - Mac Installer Build Script"
+echo "  Siftline - Mac Installer Build Script"
 echo "============================================"
 echo ""
 

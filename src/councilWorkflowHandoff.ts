@@ -85,7 +85,7 @@ export function buildCouncilWorkflowHandoffPrompt(
   const earlierSummary = summarizeEarlierMessages(earlierMessages)
 
   const sections: string[] = [
-    'Use this AI Council group-chat transcript as context for a Workflow run.',
+    'Use this Siftline Council Chat transcript as context for a Workflow run.',
     'Produce the strongest primary answer first, then let the reviewer AIs improve it with their specialized roles.',
   ]
 

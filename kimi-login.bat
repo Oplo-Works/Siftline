@@ -1,10 +1,10 @@
 @echo off
-title Kimi Login - AI Council
+title Kimi Login - Siftline
 
 set "APPDIR=%~dp0"
 
 echo ================================================
-echo   Kimi Login - AI Council
+echo   Kimi Login - Siftline
 echo ================================================
 echo.
 echo  Opening Kimi login window...

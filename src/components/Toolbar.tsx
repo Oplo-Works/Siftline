@@ -305,7 +305,7 @@ export default function Toolbar({
       ) : (
         <div className="toolbar toolbar-row-input toolbar-chat-mode-row">
           <div className="chat-mode-banner">
-            <span className="chat-mode-banner-kicker">Council Chat is on</span>
+            <span className="chat-mode-banner-kicker">Siftline is on</span>
             <strong className="chat-mode-banner-title">
               Use the docked chat panel to the right.
             </strong>

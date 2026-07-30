@@ -1,5 +1,5 @@
 @echo off
-title AI Council - DeepSeek Login
+title Siftline - DeepSeek Login
 
 set "APPDIR=%~dp0"
 set "ELECTRON=%APPDIR%node_modules\electron\dist\electron.exe"
@@ -19,7 +19,7 @@ if not exist "%SCRIPT%" (
 )
 
 echo ================================================
-echo   AI Council - DeepSeek Login Session Setup
+echo   Siftline - DeepSeek Login Session Setup
 echo ================================================
 echo.
 echo  Log in with your DeepSeek account so that
@@ -33,5 +33,5 @@ echo.
 "%ELECTRON%" "%SCRIPT%"
 
 echo.
-echo  Done. You can now launch AI Council.
+echo  Done. You can now launch Siftline.
 pause

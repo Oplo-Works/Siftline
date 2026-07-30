@@ -68,7 +68,7 @@ app.whenReady().then(async () => {
   const win = new BrowserWindow({
     width: 520,
     height: 720,
-    title: isRelogin ? 'Grok Re-Login - AI Council Session Setup' : 'Grok Login - AI Council Session Setup',
+    title: isRelogin ? 'Grok Re-Login - Siftline Session Setup' : 'Grok Login - Siftline Session Setup',
     webPreferences: {
       partition: PARTITION,
       preload: SPOOF_PRELOAD,
@@ -163,7 +163,7 @@ app.whenReady().then(async () => {
         '<div style="font-family:sans-serif;text-align:center;padding:60px 30px;background:#eef2ff">' +
         '<div style="font-size:64px">&#x2705;</div>' +
         '<h2 style="color:#4338ca;margin:16px 0">Grok login complete!</h2>' +
-        '<p style="color:#4f46e5">Grok will now load correctly in AI Council.</p>' +
+        '<p style="color:#4f46e5">Grok will now load correctly in Siftline.</p>' +
         '<p style="color:#6b7280;font-size:13px;margin-top:24px">Closing in 3 seconds...</p>' +
         '</div>'
     `).catch(() => {})

@@ -9,7 +9,7 @@
 
 ## 1. Current Scope
 
-- Goal: AI Council — 7개 주요 LLM(Gemini, Claude, ChatGPT, DeepSeek, Perplexity,
+- Goal: Siftline — 7개 주요 LLM(Gemini, Claude, ChatGPT, DeepSeek, Perplexity,
   Grok, Kimi)을 **웹 세션 기반(API 키 불필요)** 으로 한 화면에 띄워 교차검증
   워크플로와 자유 토론을 제공하는 Electron 데스크톱 앱. 현재 v1.0.9 출시 상태이며,
   신규 작업은 기존 동작을 보존하는 전제 하에서만 진행한다.

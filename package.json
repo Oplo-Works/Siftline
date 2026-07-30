@@ -1,7 +1,7 @@
 {
   "name": "ai-council",
   "version": "1.0.9",
-  "description": "AI Council - Autonomous Cross-Verification Workflow among 6 LLMs",
+  "description": "Siftline - Autonomous Cross-Verification Workflow among 6 LLMs",
   "main": "dist-electron/main.js",
   "scripts": {
     "start": "vite",
@@ -17,8 +17,8 @@
   "license": "ISC",
   "build": {
     "appId": "com.aicouncil.app",
-    "productName": "AI Council",
-    "copyright": "AI Council",
+    "productName": "Siftline",
+    "copyright": "Siftline",
     "forceCodeSigning": false,
     "publish": null,
     "directories": {
@@ -63,7 +63,7 @@
       "uninstallerIcon": "ai-council.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "AI Council",
+      "shortcutName": "Siftline",
       "artifactName": "AI-Council-Setup.exe"
     },
     "mac": {
@@ -88,7 +88,7 @@
     },
     "dmg": {
       "artifactName": "AI-Council-${version}-${arch}.dmg",
-      "title": "AI Council Installer",
+      "title": "Siftline Installer",
       "icon": "ai-council.icns",
       "contents": [
         {

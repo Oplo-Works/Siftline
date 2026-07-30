@@ -4,7 +4,7 @@ title Hashnode Draft Publisher
 
 echo.
 echo ============================================================
-echo   Hashnode Draft Publisher — AI Council
+echo   Hashnode Draft Publisher — Siftline
 echo ============================================================
 echo.
 

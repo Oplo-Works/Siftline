@@ -1,13 +1,13 @@
-# Product Blueprint — AI Council
+# Product Blueprint — Siftline
 
-> 이 문서는 AI Council이 **이미 완성된 제품**임을 전제로, 제품의 방향·사용자·범위를
+> 이 문서는 Siftline이 **이미 완성된 제품**임을 전제로, 제품의 방향·사용자·범위를
 > 사후 정리한 기록입니다. 앞으로의 기능 추가는 이 방향을 기준으로 판단합니다.
 
 ---
 
 ## App name
 
-AI Council (`ai-council`) — 현재 버전 v1.0.8
+Siftline (`ai-council`) — 현재 버전 v1.0.8
 
 ## Target users
 

@@ -59,7 +59,7 @@ app.whenReady().then(async () => {
   const win = new BrowserWindow({
     width: 520,
     height: 720,
-    title: 'Kimi Login - AI Council Session Setup',
+    title: 'Kimi Login - Siftline Session Setup',
     webPreferences: {
       partition: PARTITION,
       preload: SPOOF_PRELOAD,

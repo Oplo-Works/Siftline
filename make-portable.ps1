@@ -17,7 +17,7 @@ $out     = Join-Path $release 'AI-Council-Portable'
 $zip     = Join-Path $release 'AI-Council-Portable.zip'
 
 Write-Host ""
-Write-Host "=== AI Council Portable Build ===" -ForegroundColor Cyan
+Write-Host "=== Siftline Portable Build ===" -ForegroundColor Cyan
 Write-Host "Path: $root"
 
 # ── 1. Build latest code ─────────────────────────────────────────────────────

@@ -2,7 +2,7 @@
  * ChatGPT Login Session Script
  *
  * Opens a login window in the persist:chatgpt partition so that
- * the ChatGPT panel in AI Council loads without authentication errors.
+ * the ChatGPT panel in Siftline loads without authentication errors.
  *
  * Workarounds applied:
  *   - Full Chrome identity spoof (preload-chrome-spoof.js) to bypass
@@ -73,7 +73,7 @@ app.whenReady().then(async () => {
   const win = new BrowserWindow({
     width:  520,
     height: 720,
-    title:  'ChatGPT Login — AI Council Session Setup',
+    title:  'ChatGPT Login — Siftline Session Setup',
     webPreferences: {
       partition:        PARTITION,
       preload:          SPOOF_PRELOAD,
@@ -186,7 +186,7 @@ app.whenReady().then(async () => {
         '<div style="font-family:sans-serif;text-align:center;padding:60px 30px;background:#f0fdf4">' +
         '<div style="font-size:64px">&#x2705;</div>' +
         '<h2 style="color:#14532d;margin:16px 0">ChatGPT login complete!</h2>' +
-        '<p style="color:#166534">The ChatGPT panel will load correctly when you start AI Council.</p>' +
+        '<p style="color:#166534">The ChatGPT panel will load correctly when you start Siftline.</p>' +
         '<p style="color:#6b7280;font-size:13px;margin-top:24px">Closing in 3 seconds...</p>' +
         '</div>'
     `).catch(() => {})

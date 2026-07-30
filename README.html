@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Council v1.0.8 — Multi-LLM Cross-Verification + Telegram</title>
-  <meta name="description" content="AI Council v1.0.8 — cross-verification workflow and group discussion among 6 LLMs (Gemini, Claude, ChatGPT, DeepSeek, Perplexity, Grok) with Telegram remote control." />
+  <title>Siftline v1.0.8 — Multi-LLM Cross-Verification + Telegram</title>
+  <meta name="description" content="Siftline v1.0.8 — cross-verification workflow and group discussion among 6 LLMs (Gemini, Claude, ChatGPT, DeepSeek, Perplexity, Grok) with Telegram remote control." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -304,7 +304,7 @@
 
   <!-- ══ HERO ══ -->
   <header class="hero">
-    <div class="hero-badge">⚖ AI Council · v1.0.8</div>
+    <div class="hero-badge">⚖ Siftline · v1.0.8</div>
     <h1>Multi-LLM Cross-Verification<br>+ Telegram Remote Control</h1>
     <p>Manual workflow and free-form group discussion among 7 major LLMs — now accessible from your smartphone via Telegram.</p>
     <div class="hero-actions">
@@ -320,7 +320,7 @@
       <div class="card">
         <div class="card-icon">📱</div>
         <div class="card-title">Telegram Integration <span class="new-badge">NEW</span></div>
-        <div class="card-desc">Control AI Council from your smartphone. Send messages, @mention AIs, and manage sessions via Telegram — no server or open ports needed.</div>
+        <div class="card-desc">Control Siftline from your smartphone. Send messages, @mention AIs, and manage sessions via Telegram — no server or open ports needed.</div>
       </div>
       <div class="card">
         <div class="card-icon">📎</div>
@@ -390,7 +390,7 @@
     <ol>
       <li>Check your chip: <strong>Apple menu → About This Mac → Chip</strong>. "Apple M…" → arm64 build; "Intel Core…" → x64 build.</li>
       <li>Double-click the <code>.dmg</code> file to mount it.</li>
-      <li>Drag <strong>AI Council</strong> into the <strong>Applications</strong> folder.</li>
+      <li>Drag <strong>Siftline</strong> into the <strong>Applications</strong> folder.</li>
       <li>Launch from Launchpad or Finder → Applications.</li>
     </ol>
     <div class="callout">
@@ -401,9 +401,9 @@
         <ul style="margin: 0 0 10px 16px; font-size:13px;">
           <li style="color:inherit; margin-bottom:4px;"><strong>Install First:</strong> Move the app to the <code>/Applications</code> folder.</li>
           <li style="color:inherit; margin-bottom:4px;"><strong>Open Terminal:</strong> Press <code>Cmd + Space</code> and search for <strong>Terminal</strong>.</li>
-          <li style="color:inherit; margin-bottom:4px;"><strong>Run Command:</strong> Paste <code>xattr -cr "/Applications/AI Council.app"</code> and press Enter.</li>
+          <li style="color:inherit; margin-bottom:4px;"><strong>Run Command:</strong> Paste <code>xattr -cr "/Applications/Siftline.app"</code> and press Enter.</li>
           <li style="color:inherit; margin-bottom:4px;"><strong>Enter Password:</strong> Type your Mac password (it will be invisible) and press Enter.</li>
-          <li style="color:inherit; margin-bottom:0;"><strong>Launch:</strong> Double-click AI Council in your Applications folder.</li>
+          <li style="color:inherit; margin-bottom:0;"><strong>Launch:</strong> Double-click Siftline in your Applications folder.</li>
         </ul>
         <p style="font-size:12px; opacity:0.8; margin:0;"><em>Still won't open?</em> <strong>Right-click</strong> &rarr; <strong>Open</strong> &rarr; <strong>Open</strong>.</p>
       </div>
@@ -425,7 +425,7 @@
     <div class="section-title">📱 Telegram Integration</div>
 
     <div class="tg-box">
-      <h3>Remote-control AI Council from your phone</h3>
+      <h3>Remote-control Siftline from your phone</h3>
       <p>The Electron main process runs a long-poll loop (<code>getUpdates</code>) that listens for Telegram messages — <strong>no server, no ngrok, no open ports required</strong>. When a message arrives, it's routed to the active Council Chat session exactly as if you typed it on the desktop. AI replies are sent back via <code>sendMessage</code>.</p>
     </div>
 
@@ -441,12 +441,12 @@
         <div class="step-body">
           <strong>Find your personal Chat ID</strong>
           <p><strong>Option A:</strong> Open <strong>@userinfobot</strong> in Telegram — it instantly replies with your Chat ID (e.g. <code>987654321</code>).<br>
-          <strong>Option B:</strong> Enable the bot first, send any message, then check the <strong>📊 Logs</strong> drawer in AI Council for a line like <code>Telegram: message from chat_id 987654321</code>.</p>
+          <strong>Option B:</strong> Enable the bot first, send any message, then check the <strong>📊 Logs</strong> drawer in Siftline for a line like <code>Telegram: message from chat_id 987654321</code>.</p>
         </div>
       </li>
       <li>
         <div class="step-body">
-          <strong>Configure in AI Council</strong>
+          <strong>Configure in Siftline</strong>
           <p>Click the <strong>📱 Telegram</strong> button in the title bar → paste your <strong>Bot Token</strong> and <strong>Chat ID</strong> → toggle <strong>Enable Telegram Bot</strong> ON → click <strong>Save &amp; Apply</strong>.<br>
           The status bar will show <span style="color:#10b981">◉</span> <strong style="color:#2aabee">Telegram</strong> when the bot is active.</p>
         </div>
@@ -675,7 +675,7 @@ kimi-login.bat        <span class="cm"># Kimi (Moonshot account)</span></pre>
 
   <!-- ══ FOOTER ══ -->
   <footer style="text-align:center; color:var(--text-faint); font-size:12px; padding-top:32px; border-top:1px solid var(--border);">
-    AI Council v1.0.8 · <a href="https://github.com/MinkyuTheBuilder/ai-council">github.com/MinkyuTheBuilder/ai-council</a>
+    Siftline v1.0.8 · <a href="https://github.com/MinkyuTheBuilder/ai-council">github.com/MinkyuTheBuilder/ai-council</a>
   </footer>
 
 </div>

@@ -1,8 +1,8 @@
-# Development Log — AI Council
+# Development Log — Siftline
 
 ## Project
 
-AI Council — 7개 LLM 교차검증 + 자유토론 Electron 데스크톱 앱
+Siftline — 7개 LLM 교차검증 + 자유토론 Electron 데스크톱 앱
 
 ## Current Status
 

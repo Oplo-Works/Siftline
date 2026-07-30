@@ -1,10 +1,10 @@
 @echo off
-title AI Council - Build and Run
+title Siftline - Build and Run
 
 set "APPDIR=%~dp0"
 
 echo ================================================
-echo   AI Council - Build and Run
+echo   Siftline - Build and Run
 echo ================================================
 echo.
 cd /d "%APPDIR%"
@@ -33,7 +33,7 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 echo.
-echo  Build complete. Launching AI Council...
+echo  Build complete. Launching Siftline...
 echo.
 
 wscript.exe "%APPDIR%AI Council.vbs"

@@ -35,7 +35,7 @@ export async function handleTelegramCommand(
   try {
     if (lowerCmd === '/new') {
       apiResetCouncilRoom()
-      await sendMessage('Started a new Council Chat session.')
+      await sendMessage('Started a new Siftline session.')
     } else if (lowerCmd === '/save') {
       const title = args.join(' ')
       apiSaveCouncilSnapshot(title)
@@ -139,8 +139,8 @@ export async function handleTelegramCommand(
             } else {
               const names = okTargets.map((ai) => AI_DISPLAY_NAMES[ai]).join(', ')
               ack = attachmentSummary
-                ? `Adding to Council Chat with ${attachmentSummary} - waiting for ${names}...`
-                : `Adding to Council Chat - waiting for ${names}...`
+                ? `Adding to Siftline with ${attachmentSummary} - waiting for ${names}...`
+                : `Adding to Siftline - waiting for ${names}...`
               willRunTurns = true
               liveTargets = okTargets
             }

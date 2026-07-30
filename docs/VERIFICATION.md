@@ -1,4 +1,4 @@
-# Verification — AI Council
+# Verification — Siftline
 
 > 마무리 전 반드시 통과시켜야 하는 검증 명령과 수동 체크리스트.
 > 모든 명령은 메인 레포 루트 `C:\Users\Sales01\Documents\AI-Council-Chat\`에서 실행.

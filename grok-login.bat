@@ -1,5 +1,5 @@
 @echo off
-title Grok Login - AI Council
+title Grok Login - Siftline
 
 set "APPDIR=%~dp0"
 
@@ -9,7 +9,7 @@ REM AI Council uses package.json "name" = "ai-council", so userData is %APPDATA%
 set "AI_COUNCIL_USERDATA=%APPDATA%\ai-council"
 
 echo ================================================
-echo   Grok Login - AI Council
+echo   Grok Login - Siftline
 echo ================================================
 echo.
 echo  Target userData: %AI_COUNCIL_USERDATA%

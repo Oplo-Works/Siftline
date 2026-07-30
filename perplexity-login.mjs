@@ -2,7 +2,7 @@
  * Perplexity AI Login Session Script
  *
  * Opens a login window in the persist:perplexity partition so that
- * the Perplexity panel in AI Council loads without authentication errors.
+ * the Perplexity panel in Siftline loads without authentication errors.
  */
 
 import { app, BrowserWindow, session } from 'electron'
@@ -64,7 +64,7 @@ app.whenReady().then(async () => {
   const win = new BrowserWindow({
     width:  520,
     height: 720,
-    title:  'Perplexity Login — AI Council Session Setup',
+    title:  'Perplexity Login — Siftline Session Setup',
     webPreferences: {
       partition:        PARTITION,
       preload:          SPOOF_PRELOAD,

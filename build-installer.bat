@@ -1,6 +1,6 @@
 @echo off
 echo ============================================
-echo   AI Council - Installer Build Script
+echo   Siftline - Installer Build Script
 echo ============================================
 echo.
 

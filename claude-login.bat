@@ -1,5 +1,5 @@
 @echo off
-title AI Council - Claude Login
+title Siftline - Claude Login
 
 set "APPDIR=%~dp0"
 set "ELECTRON=%APPDIR%node_modules\electron\dist\electron.exe"
@@ -19,7 +19,7 @@ if not exist "%SCRIPT%" (
 )
 
 echo ================================================
-echo   AI Council - Claude Login Session Setup
+echo   Siftline - Claude Login Session Setup
 echo ================================================
 echo.
 echo  Login with your Anthropic account so that
@@ -31,5 +31,5 @@ echo.
 "%ELECTRON%" "%SCRIPT%"
 
 echo.
-echo  Done. You can now launch AI Council.
+echo  Done. You can now launch Siftline.
 timeout /t 2 > nul

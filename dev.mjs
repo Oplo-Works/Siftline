@@ -1,5 +1,5 @@
 /**
- * dev.mjs — Cross-platform dev launcher for AI Council
+ * dev.mjs — Cross-platform dev launcher for Siftline
  * Starts Vite dev server then launches Electron once server is ready
  */
 import { spawn } from 'child_process'

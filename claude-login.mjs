@@ -58,7 +58,7 @@ app.whenReady().then(async () => {
   const win = new BrowserWindow({
     width: 520,
     height: 720,
-    title: 'Claude Login - AI Council Session Setup',
+    title: 'Claude Login - Siftline Session Setup',
     webPreferences: {
       partition: PARTITION,
       preload: SPOOF_PRELOAD,
@@ -133,7 +133,7 @@ app.whenReady().then(async () => {
         '<div style="font-family:sans-serif;text-align:center;padding:60px 30px;background:#fdf4ff">' +
         '<div style="font-size:64px">&#x2705;</div>' +
         '<h2 style="color:#6b21a8;margin:16px 0">Claude login complete!</h2>' +
-        '<p style="color:#7e22ce">Claude will now load correctly in AI Council.</p>' +
+        '<p style="color:#7e22ce">Claude will now load correctly in Siftline.</p>' +
         '<p style="color:#6b7280;font-size:13px;margin-top:24px">Closing in 3 seconds...</p>' +
         '</div>'
     `).catch(() => {})

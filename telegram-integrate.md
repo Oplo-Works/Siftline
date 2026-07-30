@@ -1,6 +1,6 @@
-# Telegram Integration Plan — AI Council
+# Telegram Integration Plan — Siftline
 
-목적: 사용자가 외부에서 (smartphone) Telegram을 통해 AI Council 데스크톱 앱과 채팅하고 세션을 관리한다.
+목적: 사용자가 외부에서 (smartphone) Telegram을 통해 Siftline 데스크톱 앱과 채팅하고 세션을 관리한다.
 
 ---
 

@@ -1,7 +1,7 @@
 import { buildResponseLanguageDirective, detectPreferredReplyLanguage } from '../src/responseLanguage.js'
 
 /**
- * Pure helpers for building AI Council prompts and parsing user intent.
+ * Pure helpers for building Siftline prompts and parsing user intent.
  * Extracted from main.ts to keep orchestration file smaller. These functions
  * are side-effect free and take all state via parameters, which also makes
  * them trivial to test in isolation.
@@ -205,13 +205,13 @@ export function buildCouncilPrompt(
 - Pick natural ${preferredLanguage} headings of your own.
 - Earlier transcript turns may contain English; ignore that — match the user's latest message language only.`
 
-  return `You are participating in AI Council as ${displayNames[aiName]}.
+  return `You are participating in Siftline as ${displayNames[aiName]}.
 Stay faithful to this role: ${brief.role}.
 Role focus: ${brief.focus}
 
 Rules:
 - Reply only as ${displayNames[aiName]}
-- Keep your established AI Council specialty
+- Keep your established Siftline specialty
 - Build on the shared transcript instead of restarting from scratch
 - Do not fabricate anything another AI has not actually said below
 - Answer the user's question directly. Do not impose a fixed multi-section template; structure your reply naturally for what the question needs.
@@ -355,13 +355,13 @@ ${earlierContextSummary.trim()}
 - Read the previous-round block carefully. When you re-organize, integrate the strongest points across all AIs (including yourself) and call out genuine disagreements rather than glossing over them.`
     : `- You are answering in parallel with the other active AIs. They are receiving the exact same prompt right now and are NOT visible to you. Answer the user's question independently and on your own merits — do not invent what other AIs might have said.`
 
-  return `You are participating in AI Council as ${displayNames[aiName]}.
+  return `You are participating in Siftline as ${displayNames[aiName]}.
 Stay faithful to this role: ${brief.role}.
 Role focus: ${brief.focus}
 
 Rules:
 - Reply only as ${displayNames[aiName]}
-- Keep your established AI Council specialty
+- Keep your established Siftline specialty
 - Answer the user's instruction directly. Do not impose a fixed multi-section template; structure your reply naturally for what the question needs.
 - Keep the answer concise but substantive
 ${peerAwareness}

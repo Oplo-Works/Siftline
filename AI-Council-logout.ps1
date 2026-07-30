@@ -1,9 +1,9 @@
-# AI Council - Session Reset Script
+# Siftline - Session Reset Script
 $SessionDir = "$env:APPDATA\ai-council\Partitions"
 
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  AI Council - Logout / Session Reset" -ForegroundColor Cyan
+Write-Host "  Siftline - Logout / Session Reset" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Select AI to logout from:" -ForegroundColor Yellow
@@ -46,6 +46,6 @@ switch ($choice) {
 }
 
 Write-Host ""
-Write-Host "Restart AI Council to login with a new account." -ForegroundColor Cyan
+Write-Host "Restart Siftline to login with a new account." -ForegroundColor Cyan
 Write-Host ""
 Read-Host "Press Enter to exit"

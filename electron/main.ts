@@ -1264,8 +1264,8 @@ function bridgeWorkflowToCouncil(
 
   if (!workflowSession) {
     const note = hasMeaningfulCouncilMessages()
-      ? 'Council Chat is active. The existing council transcript is ready to continue.'
-      : 'Council Chat is active. Use @AI mentions in the docked panel to continue the conversation.'
+      ? 'Siftline is active. The existing council transcript is ready to continue.'
+      : 'Siftline is active. Use @AI mentions in the docked panel to continue the conversation.'
     emitCouncilRoomUpdate()
     return {
       room: cloneCouncilRoomState(),
@@ -1278,8 +1278,8 @@ function bridgeWorkflowToCouncil(
   if (signature === councilWorkflowBridgeSignature) {
     const stage = getWorkflowBridgeStage(workflowSession)
     const note = stage === 'final'
-      ? 'Council Chat is already synced with the latest Workflow result.'
-      : 'Council Chat is already synced with the latest Workflow context.'
+      ? 'Siftline is already synced with the latest Workflow result.'
+      : 'Siftline is already synced with the latest Workflow context.'
     emitCouncilRoomUpdate()
     return {
       room: cloneCouncilRoomState(),
@@ -1420,7 +1420,7 @@ function resetCouncilRoomContext(participants?: AiName[], primaryAi: AiName = co
     messages: [
       makeCouncilMessage(
         'system',
-        'Council Chat is ready. Mention one or more active AIs (e.g. @Gemini, @Gemini @DeepSeek) or @all to request replies.'
+        'Siftline is ready. Mention one or more active AIs (e.g. @Gemini, @Gemini @DeepSeek) or @all to request replies.'
       ),
     ],
     lastIntent: {
@@ -3392,14 +3392,14 @@ const LOGIN_START_URLS: Record<AiName, string> = {
 }
 
 const LOGIN_TITLES = {
-  gemini: 'Google Login — Gemini (AI Council)',
-  claude: 'Claude Login — AI Council',
-  chatgpt: 'ChatGPT Login — AI Council',
-  perplexity: 'Perplexity Login — AI Council',
-  grok: 'Grok Login — AI Council',
+  gemini: 'Google Login — Gemini (Siftline)',
+  claude: 'Claude Login — Siftline',
+  chatgpt: 'ChatGPT Login — Siftline',
+  perplexity: 'Perplexity Login — Siftline',
+  grok: 'Grok Login — Siftline',
 } as Record<AiName, string>
-LOGIN_TITLES.deepseek = 'DeepSeek Login - AI Council'
-LOGIN_TITLES.kimi = 'Kimi Login - AI Council'
+LOGIN_TITLES.deepseek = 'DeepSeek Login - Siftline'
+LOGIN_TITLES.kimi = 'Kimi Login - Siftline'
 
 /** Check whether the login session already has valid session cookies.
  *  Uses loginSes.cookies.get({}) (no domain filter) to catch cookies set on
@@ -3593,7 +3593,7 @@ function openLoginWindow(aiName: AiName): void {
       'document.body.innerHTML=\'<div style="font-family:sans-serif;text-align:center;padding:60px 30px;background:#0d0d1a;color:#e8e8f0">\' +' +
       '\'<div style="font-size:56px">&#x2705;</div>\' +' +
       '\'<h2 style="color:#6c63ff;margin:16px 0">Login complete!</h2>\' +' +
-      '\'<p style="color:#9898b0">AI Council panel will reload automatically.</p>\' +' +
+      '\'<p style="color:#9898b0">Siftline panel will reload automatically.</p>\' +' +
       '\'<p style="color:#5a5a78;font-size:12px;margin-top:20px">Closing in 3 seconds...</p>\' +' +
       '\'</div>\''
     ).catch(() => { })
@@ -5253,7 +5253,7 @@ function countRoutingMatches(query: string, patterns: RegExp[]): number {
 
 /**
  * Rule-based fallback recommendation — used when no API key is configured
- * or when the API call fails. Keep this aligned with the AI Council roles:
+ * or when the API call fails. Keep this aligned with the Siftline roles:
  * DeepSeek solves, Gemini connects, Claude nuances, Grok attacks,
  * Perplexity verifies, and ChatGPT makes it usable.
  */

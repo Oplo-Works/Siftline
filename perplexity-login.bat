@@ -1,5 +1,5 @@
 @echo off
-title AI Council - Perplexity Login
+title Siftline - Perplexity Login
 
 set "APPDIR=%~dp0"
 set "ELECTRON=%APPDIR%node_modules\electron\dist\electron.exe"
@@ -19,7 +19,7 @@ if not exist "%SCRIPT%" (
 )
 
 echo ================================================
-echo   AI Council - Perplexity Login Session Setup
+echo   Siftline - Perplexity Login Session Setup
 echo ================================================
 echo.
 echo  Log in with your Perplexity account so that
@@ -34,5 +34,5 @@ echo.
 "%ELECTRON%" "%SCRIPT%"
 
 echo.
-echo  Done. You can now launch AI Council.
+echo  Done. You can now launch Siftline.
 pause

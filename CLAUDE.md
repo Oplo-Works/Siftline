@@ -19,7 +19,7 @@ Rules that always apply:
 
 ---
 
-## Project-Specific Instructions (AI Council)
+## Project-Specific Instructions (Siftline)
 
 이 섹션은 워크플로 규칙이 아니라 이 프로젝트 고유의 기술 규칙이다.
 Git·push·승인 정책은 이 파일이 아니라 `docs/PROJECT_SCOPE.md`의 HUMAN-OWNED 정책을 따른다.

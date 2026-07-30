@@ -1,13 +1,13 @@
 #!/bin/bash
 # ============================================
-#   AI Council - Quick Launch (Dev / Run)
+#   Siftline - Quick Launch (Dev / Run)
 #   For Mac users: Launches app after npm install
 # ============================================
 
 set -e
 
 echo "============================================"
-echo "  AI Council - Quick Setup & Run (Mac)"
+echo "  Siftline - Quick Setup & Run (Mac)"
 echo "============================================"
 echo ""
 

@@ -1,4 +1,4 @@
-# Project State — AI Council
+# Project State — Siftline
 
 > v5 Lean Field Test용 한 페이지 현재 상태 요약.
 > 상세는 `PROJECT_SCOPE.md`, `PRODUCT_BLUEPRINT.md`, `DEV_LOG.md` 참조.
@@ -7,7 +7,7 @@
 
 ## Snapshot
 
-- **App**: AI Council (Electron + Vite + React + TypeScript)
+- **App**: Siftline (Electron + Vite + React + TypeScript)
 - **Version**: v1.0.8 (출시 상태, 정상 동작 중)
 - **Branch**: `main`
 - **Repo root**: `C:\Users\Sales01\Documents\AI-Council-Chat\`

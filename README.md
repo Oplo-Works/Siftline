@@ -1,4 +1,4 @@
-# AI Council
+# Siftline
 
 > Manual cross-verification workflow **and** free-form group discussion among up to 7 major LLMs using Electron BrowserViews and UI automation.
 
@@ -8,7 +8,7 @@
 
 | Feature | Description |
 |---------|-------------|
-| 📱 **Telegram Integration** | Control AI Council from your smartphone via a Telegram bot. Send messages, @mention specific AIs, and manage sessions — all from the Telegram app while the desktop app runs in the background. |
+| 📱 **Telegram Integration** | Control Siftline from your smartphone via a Telegram bot. Send messages, @mention specific AIs, and manage sessions — all from the Telegram app while the desktop app runs in the background. |
 | 📎 **Telegram File Sharing** | Send photos and documents (PDF, DOCX, XLSX, TXT, MD, CSV, PNG, JPG, …) directly from Telegram. Files are downloaded to a temp folder and attached to the Council Chat session automatically — AIs analyze them just like desktop-uploaded files. Media groups (multiple photos sent at once) are bundled and processed together. |
 | 📎 **Council Chat File Attachment** | A **+Attach** button in the Council Chat input bar lets you attach files before sending any message. Attached files are physically uploaded to each AI's browser interface via CDP and included in the prompt when CDP upload is unavailable. |
 | 🔵 **DeepSeek Support** | DeepSeek (`chat.deepseek.com`) replaces Groq as the 6th AI panel. DeepSeek is a high-quality open-weight model strong on reasoning, coding, and concise synthesis. |
@@ -67,9 +67,9 @@ No build required. Download the latest installer from [GitHub Releases](https://
 
 2. Double-click the downloaded .dmg file to mount it.
 
-3. Drag the AI Council icon into the Applications folder.
+3. Drag the Siftline icon into the Applications folder.
 
-4. Launch AI Council from Launchpad or Finder → Applications.
+4. Launch Siftline from Launchpad or Finder → Applications.
 ```
 
 > **⚠️ macOS Gatekeeper & "Damaged" Error**  
@@ -79,10 +79,10 @@ No build required. Download the latest installer from [GitHub Releases](https://
 > 2. **Open Terminal:** Press `Cmd + Space`, search for **Terminal**, and open it.
 > 3. **Run Command:** Paste the following and press Enter:
 >    ```bash
->    xattr -cr "/Applications/AI Council.app"
+>    xattr -cr "/Applications/Siftline.app"
 >    ```
 > 4. **Enter Password:** If asked, type your Mac login password (it will remain invisible) and press Enter.
-> 5. **Launch:** Double-click AI Council in your Applications folder.
+> 5. **Launch:** Double-click Siftline in your Applications folder.
 >
 > *Still won't open?* **Right-click** the app and select **Open** → **Open**.
 
@@ -91,7 +91,7 @@ No build required. Download the latest installer from [GitHub Releases](https://
 ```text
 1. Download AI-Council-Setup.exe.
 2. Double-click to run the setup wizard.
-3. Launch AI Council from the desktop shortcut or Start Menu.
+3. Launch Siftline from the desktop shortcut or Start Menu.
 ```
 
 > If Windows Defender SmartScreen appears, click *"More info"* → *"Run anyway"*.
@@ -100,7 +100,7 @@ No build required. Download the latest installer from [GitHub Releases](https://
 
 ## 📱 Telegram Integration
 
-AI Council can be controlled from your smartphone via a Telegram bot. The bot connects directly to the running desktop app using Telegram's long-poll API — **no server, no ngrok, no open ports required**.
+Siftline can be controlled from your smartphone via a Telegram bot. The bot connects directly to the running desktop app using Telegram's long-poll API — **no server, no ngrok, no open ports required**.
 
 ### How it works
 
@@ -120,11 +120,11 @@ You need your personal Telegram Chat ID so the bot only accepts messages from yo
 Open Telegram, search for **@userinfobot**, start it, and it will immediately reply with your Chat ID (a number like `987654321`).
 
 **Option B — From app logs:**  
-Enable the bot with any Chat ID first, send a message from Telegram, then open the **📊 Logs** drawer in AI Council. You will see a line like `Telegram: message from chat_id 987654321` — use that number.
+Enable the bot with any Chat ID first, send a message from Telegram, then open the **📊 Logs** drawer in Siftline. You will see a line like `Telegram: message from chat_id 987654321` — use that number.
 
-### Step 3 — Configure in AI Council
+### Step 3 — Configure in Siftline
 
-1. Open AI Council on your desktop.
+1. Open Siftline on your desktop.
 2. Click the **📱 Telegram** button in the title bar.
 3. Paste your **Bot Token** into the Bot Token field.
 4. Paste your **Chat ID** into the Allowed Chat ID field. Only messages from this ID will be accepted; all others are silently rejected.
@@ -644,7 +644,7 @@ Question: {query}
 
 **Reviewer Prompt (role-based):**
 ```text
-You are acting as {Reviewer AI} in AI Council.
+You are acting as {Reviewer AI} in Siftline.
 Your reviewer role is: {role name}.
 Your reviewer focus is: {role focus}.
 

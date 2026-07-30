@@ -1,5 +1,5 @@
 @echo off
-title AI Council - Google Login
+title Siftline - Google Login
 
 set "APPDIR=%~dp0"
 set "ELECTRON=%APPDIR%node_modules\electron\dist\electron.exe"
@@ -19,7 +19,7 @@ if not exist "%SCRIPT%" (
 )
 
 echo ================================================
-echo   AI Council - Google Login Session Setup
+echo   Siftline - Google Login Session Setup
 echo ================================================
 echo.
 echo  Login with your Google account so that
@@ -31,5 +31,5 @@ echo.
 "%ELECTRON%" "%SCRIPT%"
 
 echo.
-echo  Done. You can now launch AI Council.
+echo  Done. You can now launch Siftline.
 timeout /t 2 > nul

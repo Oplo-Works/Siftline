@@ -447,7 +447,7 @@ export default function App() {
       ? participantsOverride
       : enabledAis
     setModeSwitchPending(true)
-    setStatus(nextMode === 'chat' ? 'Switching to Council Chat...' : 'Switching to Workflow mode...')
+    setStatus(nextMode === 'chat' ? 'Switching to Siftline...' : 'Switching to Workflow mode...')
 
     try {
       const room = await window.electronAPI.switchInteractionMode({
@@ -469,7 +469,7 @@ export default function App() {
       setStatus(
         finalStatus
           ?? (nextMode === 'chat'
-            ? 'Council Chat is active. Use @AI mentions in the docked panel to the right.'
+            ? 'Siftline is active. Use @AI mentions in the docked panel to the right.'
             : 'Workflow mode is active.')
       )
       return room
@@ -1042,7 +1042,7 @@ export default function App() {
       </UiErrorBoundary>
 
       {interactionMode === 'chat' && (
-        <UiErrorBoundary title="Council Chat" className="ui-fallback-panel">
+        <UiErrorBoundary title="Siftline" className="ui-fallback-panel">
           <CouncilChatPanel
             room={councilRoom}
             snapshots={councilSnapshots}

@@ -58,7 +58,7 @@ app.whenReady().then(async () => {
   const win = new BrowserWindow({
     width: 520,
     height: 700,
-    title: 'Google Login - AI Council Session Setup',
+    title: 'Google Login - Siftline Session Setup',
     webPreferences: {
       partition: PARTITION,
       preload: SPOOF_PRELOAD,
@@ -125,7 +125,7 @@ app.whenReady().then(async () => {
         '<div style="font-family:sans-serif;text-align:center;padding:60px 30px;background:#f0fdf4">' +
         '<div style="font-size:64px">&#x2705;</div>' +
         '<h2 style="color:#166534;margin:16px 0">Google login complete!</h2>' +
-        '<p style="color:#15803d">Gemini will now load correctly in AI Council.</p>' +
+        '<p style="color:#15803d">Gemini will now load correctly in Siftline.</p>' +
         '<p style="color:#6b7280;font-size:13px;margin-top:24px">Closing in 3 seconds...</p>' +
         '</div>'
     `).catch(() => {})

@@ -521,7 +521,7 @@ export default function CouncilChatPanel({
     <aside className="council-chat-panel">
       <div className="council-chat-header">
         <div className="council-chat-header-copy">
-          <div className="council-chat-kicker">Council Chat</div>
+          <div className="council-chat-kicker">Siftline</div>
           <div className="council-chat-title">Free-form group discussion</div>
           <div className={`council-chat-save-meta ${activeSnapshot?.isDirty ? 'dirty' : ''}`}>
             {activeSessionMeta}

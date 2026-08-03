@@ -214,8 +214,10 @@ assert.equal(composerLineSignaturesMatch(expectedLineSignature, flattenedLineSig
 assert.equal(composerLineSignaturesMatch(expectedLineSignature, foldedBlankLineSignature), true)
 assert.deepEqual(getComposerLineSignature('  A  \r\n\u200b\r\n B  \n'), ['A', 'B'])
 assertions += 4
-check(/ok: comparable === comparableExpected && identityMatches/.test(mainSource), 'observation build must keep the existing composer pass gate')
-check(/structureEnforced: false/.test(mainSource), 'structure metrics must remain observation-only before the seven-provider matrix')
+check(/ok: comparable === comparableExpected[\s\S]*?&& identityMatches[\s\S]*?&& \(!structureEnforced \|\| structureMatches\)/.test(mainSource), 'composer gate must retain compatibility and identity while enforcing measured structure')
+check(/const STRUCTURE_ENFORCED_AI_NAMES = new Set<AiName>\(\['gemini'\]\)/.test(mainSource), 'only measured Gemini may use the new blocking structure gate')
+check(/function insertComposerTextWithLineCommands[\s\S]*?insertParagraph[\s\S]*?insertLineBreak[\s\S]*?insertText/.test(mainSource), 'Gemini direct insertion must preserve line boundaries with browser editing commands')
+check(/if \(aiName === 'gemini'\)[\s\S]*?for \(let attempt = 1; attempt <= 2; attempt\+\+\)[\s\S]*?insertComposerTextWithLineCommands[\s\S]*?if \(directVerification\.ok\) return[\s\S]*?withClipboardLock/.test(mainSource), 'Gemini must use a bounded verified direct retry before serialized clipboard fallback')
 check(/\[clipboard-lock\] begin #[^`]+waitMs=\$\{waitMs\}/.test(mainSource), 'clipboard begin log must include queue wait time')
 check(/\[clipboard-lock\] end #[^`]+waitMs=\$\{waitMs\} holdMs=\$\{holdMs\}/.test(mainSource), 'clipboard end log must include wait and hold time')
 check(!/\[clipboard-lock\][^\n]*(?:promptText|clipboard\.read|imgPath)/.test(mainSource), 'clipboard timing logs must not include content or paths')

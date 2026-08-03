@@ -1969,6 +1969,11 @@ interface ComposerVerification {
   structureEnforced: boolean
 }
 
+// The seven-provider observation pass completed before this gate was enabled.
+// Enforcement stays deliberately narrow: Gemini's new structured direct path
+// depends on it for safe clipboard fallback; the other six remain observe-only.
+const STRUCTURE_ENFORCED_AI_NAMES = new Set<AiName>(['gemini'])
+
 function normalizeComposerText(text: string): string {
   return text
     .replace(/\r\n?/g, '\n')
@@ -2032,11 +2037,13 @@ async function verifyComposerText(
   view: BrowserView,
   jsonSelector: string,
   expected: string,
+  aiName?: AiName,
 ): Promise<ComposerVerification> {
   const readback = await readComposerText(view, jsonSelector)
   const normalizedExpected = normalizeComposerText(expected)
   const comparableExpected = normalizeComposerComparableText(expected)
   const expectedStructure = getComposerLineSignature(expected)
+  const structureEnforced = aiName !== undefined && STRUCTURE_ENFORCED_AI_NAMES.has(aiName)
   const expectedIdentity = extractCouncilPromptIdentity(normalizedExpected)
   const candidates = [
     { source: 'value' as const, text: readback?.valueText },
@@ -2052,14 +2059,17 @@ async function verifyComposerText(
     const structure = getComposerLineSignature(candidate.text)
     const identity = extractCouncilPromptIdentity(normalized)
     const identityMatches = expectedIdentity === null || identity === expectedIdentity
+    const structureMatches = composerLineSignaturesMatch(expectedStructure, structure)
     return {
       ...candidate,
       normalized,
       comparable,
       structure,
       identity,
-      structureMatches: composerLineSignaturesMatch(expectedStructure, structure),
-      ok: comparable === comparableExpected && identityMatches,
+      structureMatches,
+      ok: comparable === comparableExpected
+        && identityMatches
+        && (!structureEnforced || structureMatches),
     }
   })
   const selected = evaluated.find((candidate) => candidate.ok && candidate.structureMatches)
@@ -2084,7 +2094,7 @@ async function verifyComposerText(
     expectedStructureDigest: digestComposerLineSignature(expectedStructure),
     observedStructureDigest: digestComposerLineSignature(selected?.structure ?? []),
     structureMatches: selected?.structureMatches ?? false,
-    structureEnforced: false,
+    structureEnforced,
   }
 }
 
@@ -2126,6 +2136,35 @@ async function insertComposerTextWithExecCommand(
       document.execCommand('selectAll', false, null);
       document.execCommand('delete', false, null);
       return document.execCommand('insertText', false, ${JSON.stringify(text)});
+    })()
+  `).catch(() => false) as Promise<boolean>
+}
+
+async function insertComposerTextWithLineCommands(
+  view: BrowserView,
+  jsonSelector: string,
+  text: string,
+): Promise<boolean> {
+  return view.webContents.executeJavaScript(`
+    (() => {
+      const target = document.querySelector(${jsonSelector});
+      if (!target || !target.isContentEditable) return false;
+      const lines = ${JSON.stringify(normalizeComposerText(text))}.split('\\n');
+      target.focus();
+      document.execCommand('selectAll', false, null);
+      document.execCommand('delete', false, null);
+      let inserted = true;
+      for (let index = 0; index < lines.length; index++) {
+        if (index > 0) {
+          const boundaryInserted = document.execCommand('insertParagraph', false, null)
+            || document.execCommand('insertLineBreak', false, null);
+          inserted = boundaryInserted && inserted;
+        }
+        if (lines[index].length > 0) {
+          inserted = document.execCommand('insertText', false, lines[index]) && inserted;
+        }
+      }
+      return inserted;
     })()
   `).catch(() => false) as Promise<boolean>
 }
@@ -2195,17 +2234,27 @@ async function pasteText(view: BrowserView, text: string, selector: string, aiNa
     await sleep(50)
   }
 
-  // Direct DOM insertion is the default for every AI except Gemini. Unlike OS
+  // Direct DOM insertion is the default for every AI. Unlike OS
   // clipboard paste, this path has no process-global resource and remains
   // parallel-safe. It also preserves Kimi's long-prompt protection because no
   // paste event is emitted for the site's ~4000-byte TXT-conversion guard.
-  // Gemini's contenteditable was measured accepting only the first line from a
-  // multi-line insertText call, so its structure-preserving primary path is the
-  // serialized clipboard operation below.
-  if (aiName !== 'gemini') {
+  // Gemini's one-shot insertText truncates after line one, so it uses explicit
+  // paragraph boundaries. Structure enforcement decides whether that direct
+  // result is safe; a mismatch falls through to the serialized clipboard.
+  if (aiName === 'gemini') {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const inserted = await insertComposerTextWithLineCommands(view, jsonSelector, text)
+      if (inserted) await sleep(150)
+      const directVerification = await verifyComposerText(view, jsonSelector, text, aiName)
+      const method = attempt === 1 ? 'execCommand-lines' : 'execCommand-lines-retry'
+      logComposerVerification(aiName, method, text.length, directVerification)
+      if (directVerification.ok) return
+      if (attempt === 1) await sleep(800)
+    }
+  } else {
     const inserted = await insertComposerTextWithExecCommand(view, jsonSelector, text)
     if (inserted) await sleep(150)
-    const directVerification = await verifyComposerText(view, jsonSelector, text)
+    const directVerification = await verifyComposerText(view, jsonSelector, text, aiName)
     logComposerVerification(aiName, 'execCommand', text.length, directVerification)
     if (directVerification.ok) return
 
@@ -2238,7 +2287,7 @@ async function pasteText(view: BrowserView, text: string, selector: string, aiNa
       view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'V', modifiers: ['ctrl'] })
       view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'V', modifiers: ['ctrl'] })
       await sleep(150)
-      return verifyComposerText(view, jsonSelector, text)
+      return verifyComposerText(view, jsonSelector, text, aiName)
     }
   )
   logComposerVerification(
@@ -2254,7 +2303,7 @@ async function pasteText(view: BrowserView, text: string, selector: string, aiNa
   // React applications such as DeepSeek.
   await insertComposerTextWithNativeSetter(view, jsonSelector, text)
   await sleep(50)
-  const setterVerification = await verifyComposerText(view, jsonSelector, text)
+  const setterVerification = await verifyComposerText(view, jsonSelector, text, aiName)
   logComposerVerification(aiName, 'native-setter', text.length, setterVerification)
   if (setterVerification.ok) return
 

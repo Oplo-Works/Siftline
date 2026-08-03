@@ -1,6 +1,6 @@
 # Test Evidence: Council Chat Phase 1 Defect Fixes
 
-- Overall Result: **PASS — READY_FOR_REVIEW**
+- Overall Result: **PASS — INDEPENDENTLY REVIEWED**
 - Implementation Base: `b753232768f466f9130834c6e5a25b4d50c0cd1b`
 - Implementation Head: `d88c4da0d36281544649d09d17efdc677adb6055`
 - Verified Target: implementation commit `d88c4da` plus this review-packet metadata
@@ -66,9 +66,15 @@ Only synthetic prompts, synthetic images, and a synthetic saved session were use
 - Phase 2/3 audit items and repository-wide EOL policy/`.gitattributes` remain separate future bundles.
 - No push, PR, deploy, release, tag, paid API, credential change, or external message was performed.
 
-## Review transition
+## Independent review result
 
-- Status: `READY_FOR_REVIEW`
-- Independent reviewer: Opus 5, read-only review requested by the user.
-- Required read order: SPEC revision 4 → PLAN revision 4 → `b753232..d88c4da` diff → this evidence → implementer handoff last.
-- Review mode: `CHAT_ONLY_READ_ONLY` unless the user explicitly grants an artifact-write profile.
+- Reviewer: Opus 5, CHAT_ONLY_READ_ONLY, reported by the user on 2026-08-03.
+- Review range: `b753232768f466f9130834c6e5a25b4d50c0cd1b..d88c4da0d36281544649d09d17efdc677adb6055`.
+- Decision: **PASS**; no blocking findings and no remediation requested.
+- Direct reviewer checks: Gemini clipboard-primary/no-flattening and `10034/44` first-line diagnostic self-consistency; null-bounds earlier-context fallback; bundled helper 17/17; independent fixtures 8/8; `npx tsc --noEmit` exit 0; working-tree content diff 0; three target EOL states preserved; no out-of-scope package/lock/`.gitattributes`/selector/schema changes.
+- Reviewer assessment: evidence honestly explains the environment-sensitive CR-only count and does not overstate Telegram, DeepSeek image, or Workflow coverage.
+
+## Close transition
+
+- Status: `DONE`
+- Close mode: local metadata commit only; push/PR/tag/release remain prohibited.

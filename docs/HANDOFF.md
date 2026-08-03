@@ -2,11 +2,11 @@
 
 ## Identity
 
-- Status: READY_FOR_REVIEW
+- Status: DONE
 - Task ID: `council-chat-phase1-defect-fixes`
-- Stage: WF:REVIEW
+- Stage: WF:CLOSE
 - Risk: Standard
-- Updated At: 2026-08-03T15:34:50Z
+- Updated At: 2026-08-03T15:49:12Z
 
 ## Context Summary
 
@@ -16,16 +16,17 @@ Gemini structure-preserving clipboard-primary, answered-round 검색/null-bounds
 한국어 moderator/Kimi 선택을 구현했다. 자동 검증 17/17, tsc, build, 7-provider
 identity, image-capable panel mapping, Saved Sessions/Candidate 회귀가 PASS했다.
 Telegram은 별도 채널 미제공이라는 사용자의 명시 결정으로 승인된 BLOCKED 상태다.
+Opus 5가 `b753232..d88c4da`를 독립 재검증해 PASS를 반환했으며, Phase 1은 push 없이
+local close metadata까지 완료한다.
 
 ## Ownership
 
 - Outgoing Role / Runtime: Implementation Owner / Codex (`codex-sol-deep` requested;
   repository Runtime PIN remains CANDIDATE)
-- Next Role: Independent Reviewer — Opus 5
-- Next Runtime ID: user-selected Opus 5; repository registry entry unassigned
-- Next Action: `docs/features/council-chat-phase1-defect-fixes/OPUS5_REVIEW_REQUEST.md`를
-  사용해 `b753232..d88c4da`를 CHAT_ONLY_READ_ONLY로 findings-first 검증
-- Reason: Standard-risk implementation and evidence packet complete; independent review gate pending
+- Next Role: Main Driver — Phase 2 WF:SPEC_PLAN
+- Next Runtime ID: current Codex planning session; repository registry entry unassigned
+- Next Action: `electron-typecheck-defect-fixes` Phase 2 SPEC/PLAN을 작성해 Human approval 요청
+- Reason: Phase 1 independent review gate passed and CLOSE is complete; user explicitly requested Phase 2 planning only
 
 ## Git and Worktree
 
@@ -35,12 +36,12 @@ Telegram은 별도 채널 미제공이라는 사용자의 명시 결정으로 �
 - Implementation Base: `b753232768f466f9130834c6e5a25b4d50c0cd1b`
 - Implementation Head: `d88c4da0d36281544649d09d17efdc677adb6055`
 - Implementation Commit: `d88c4da` — `fix(council): harden Phase 1 chat paths`
-- Verified Target: `d88c4da` plus review-packet metadata commit (SELF until committed)
+- Verified Target: `d88c4da0d36281544649d09d17efdc677adb6055`
 - Review Range: `b753232..d88c4da`
-- Review Packet Metadata State: SELF — resolve from Git history
-- Review Artifact Metadata State: N/A — Opus 5 CHAT_ONLY review pending
-- Close Metadata State: N/A
-- Worktree State: MIXED_DIRTY until review-packet metadata commit; afterward USER_DIRTY_ONLY
+- Review Packet Metadata State: `f6d9f03bffa2cd2ac620a46e8830f4a61b6b77b1`
+- Review Artifact Metadata State: N/A — Opus 5 review was CHAT_ONLY and is recorded in close metadata
+- Close Metadata State: SELF — resolve from Git history
+- Worktree State: USER_DIRTY_ONLY after close metadata commit
 - Preserved User Changes:
   - `docs/handoff_history/HANDOFF_PROMPT_council_chat_fixes.md` (untracked)
   - `docs/handoff_history/COWORK_SESSION_HANDOFF_council_chat_review.md` (untracked)
@@ -60,21 +61,20 @@ Telegram은 별도 채널 미제공이라는 사용자의 명시 결정으로 �
   Telegram regression remains explicitly BLOCKED/accepted and is not represented as executed
 - Evidence: `docs/features/council-chat-phase1-defect-fixes/TEST_EVIDENCE.md`
 - Review Request: `docs/features/council-chat-phase1-defect-fixes/OPUS5_REVIEW_REQUEST.md`
-- Review: pending Opus 5 independent CHAT_ONLY_READ_ONLY decision
+- Review: PASS — Opus 5 CHAT_ONLY_READ_ONLY, user-reported 2026-08-03; no findings
 - Human Decision: revision 4 APPROVED for BUILD/TEST/commit packet; CLOSE decision not yet requested
 
 ## Risks and Blockers
 
-- Open Findings: none from implementation verification; independent reviewer may add findings
+- Open Findings: none
 - Known Risks:
   - provider DOMs remain externally changeable; selector table was intentionally untouched
   - Telegram must-preserve regression was not run because the user declined a test channel
   - existing npm audit state remains 25 findings and is outside this bundle
   - repository EOL policy and `.gitattributes` remain a separate follow-up bundle
-- Blocker: independent Opus 5 review decision
-- Approval Needed: none before read-only review
+- Blocker: none for Phase 1
+- Approval Needed: Phase 2 SPEC/PLAN approval before any Phase 2 BUILD
 - Do NOT:
-  - modify files or Git during Opus 5 CHAT_ONLY review
   - push, create PR/tag/release, deploy, or contact Telegram/external parties
   - stage, commit, move, or delete the two user-owned untracked handoff files
   - expand Phase 2/3 or normalize EOL

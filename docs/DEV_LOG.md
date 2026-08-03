@@ -160,3 +160,20 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
   제품 우선순위로 보지 않음. npm audit 25건과 EOL policy/`.gitattributes`는 별도 bundle.
   합성 Saved Session 3개와 모든 temp artifact를 제거했고 app process를 정상 종료함.
 - Next: READY_FOR_REVIEW + Opus 5 independent reviewer
+
+## 2026-08-03T15:49:12Z — council-chat-phase1-defect-fixes / CLOSE
+
+- Stage: WF:CLOSE  - Role/Runtime: Implementation Owner / Codex
+  (`codex-sol-deep` requested; repository PIN: CANDIDATE)  - Risk: Standard
+- Implementation: `b753232768f466f9130834c6e5a25b4d50c0cd1b`..`d88c4da0d36281544649d09d17efdc677adb6055`
+- Review: Opus 5 CHAT_ONLY_READ_ONLY — **PASS**, user-reported 2026-08-03; no findings or remediation
+- Human Decision: N/A — Standard review PASS satisfies the CLOSE entry gate
+- Summary: Opus 5 independently confirmed Gemini multi-line preservation and `10034/44`
+  truncation evidence, null-bounds earlier-context recovery, helper 17/17 plus independent 8/8,
+  tsc, clean content diff, EOL preservation, and scope discipline. Phase 1 is closed locally.
+- Validation: `docs/features/council-chat-phase1-defect-fixes/TEST_EVIDENCE.md` — PASS,
+  independently reviewed; Telegram remains an explicitly accepted external BLOCKED check.
+- Publish Intent/Target: NOT_REQUIRED / none; push, PR, tag, and release not attempted
+- Decisions / Risks / Follow-ups: Phase 2 typecheck bundle proceeds to SPEC/PLAN only.
+  Phase 3/4, `.gitattributes`, npm audit, dependency/selector changes remain excluded.
+- Next: DONE for Phase 1; Main Driver → Phase 2 WF:SPEC_PLAN

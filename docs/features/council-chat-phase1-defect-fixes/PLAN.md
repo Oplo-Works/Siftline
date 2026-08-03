@@ -5,7 +5,7 @@
 - Bundle ID: `council-chat-phase1-defect-fixes-R4`
 - PLAN Revision: 4
 - SPEC: `docs/features/council-chat-phase1-defect-fixes/SPEC.md`, revision 4, APPROVED
-- Status: READY_FOR_REVIEW
+- Status: DONE
 - Base Branch/Commit: `main` / `b753232768f466f9130834c6e5a25b4d50c0cd1b`; planning branch `codex/council-chat-phase1-defect-fixes`
 
 ## Baseline
@@ -52,7 +52,7 @@
 | S1 — Safe prompt and image clipboard operations | Each target receives and verifies its own prompt before Send, while Gemini's normal prompt path and every fallback cannot race through the global clipboard. | AC-1, AC-2, AC-3, AC-4, AC-5, AC-13 | `electron/main.ts` | No contract/schema change; shared injection behavior changes for Workflow/Council paths and serializes Gemini/text fallback/image critical sections. | Forced direct/fallback/mismatch concurrency trace; seven-AI `@all`; distinct-image parallel fallback across image-capable panels; DeepSeek, Perplexity, Kimi checks; three-stage Workflow smoke. | Revert only the S1 task-owned commit/hunk; no reset/restore of user work. | DONE |
 | S2 — Answered-round discovery | Notes no longer hide the last answered round and remain available as context. | AC-6, AC-7, AC-8 | `electron/councilPrompt.ts`; temporary/persistent focused verification harness as approved during BUILD | Pure prompt interpretation only; no persisted transcript change. | Fixture matrix for one note, multiple notes, first round, pending/error/blank, dedupe, and earlier-summary retention. | Revert the helper and its two call sites together. | DONE |
 | S3 — Bilingual moderator and Kimi | Korean discussions produce useful moderator classifications and Kimi can fill a missing deep-research angle. | AC-9, AC-10, AC-11 | `src/councilModerator.ts`; focused verification harness | No state/API change; deterministic heuristic outputs change. | Capture English expected outputs before edit; run English/Korean/mixed, concise-boundary, Kimi-enabled/disabled/recent-speaker fixtures; `npx tsc --noEmit`. | Revert Korean/Kimi signal changes as one slice. | DONE |
-| S4 — Integrated regression evidence | Phase 1 is reviewable with honest automated and manual evidence and no must-preserve regression. | AC-12 plus all prior ACs | `docs/features/council-chat-phase1-defect-fixes/TEST_EVIDENCE.md`, then review/close artifacts required by workflow; `docs/DEV_LOG.md`, `docs/HANDOFF.md` only at their metadata boundaries | Documentation only; no credentials or real transcripts recorded. | Typecheck, build, diff/secret scan, actual app checks, full minimum regression checklist, independent REVIEW. | Revert metadata only if factually incorrect; preserve implementation evidence/history. | READY_FOR_REVIEW (Telegram externally blocked by approved constraint) |
+| S4 — Integrated regression evidence | Phase 1 is reviewable with honest automated and manual evidence and no must-preserve regression. | AC-12 plus all prior ACs | `docs/features/council-chat-phase1-defect-fixes/TEST_EVIDENCE.md`, then review/close artifacts required by workflow; `docs/DEV_LOG.md`, `docs/HANDOFF.md` only at their metadata boundaries | Documentation only; no credentials or real transcripts recorded. | Typecheck, build, diff/secret scan, actual app checks, full minimum regression checklist, independent REVIEW. | Revert metadata only if factually incorrect; preserve implementation evidence/history. | DONE (Opus 5 independent PASS; Telegram externally blocked by approved constraint) |
 
 ## Validation Detail
 

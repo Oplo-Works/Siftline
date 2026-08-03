@@ -267,7 +267,7 @@ function verifyKoreanModeratorAndKimi(): number {
     'chatgpt',
   )
   assert.equal(kimiMissingSnapshot?.nextSpeaker, 'kimi')
-  assert.match(kimiMissingSnapshot?.nextPrompt ?? '', new RegExp(AI_ROLE_PRESETS.kimi.title))
+  assert.match(kimiMissingSnapshot?.nextPrompt ?? '', new RegExp(AI_ROLE_PRESETS.kimi.role))
   assert.match(kimiMissingSnapshot?.missingAngle ?? '', /long-context deep analyst/i)
   assertions++
 

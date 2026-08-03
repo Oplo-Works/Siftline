@@ -232,13 +232,13 @@ export default function Toolbar({
                     borderColor: `${color.primary}55`,
                     background: `${color.primary}10`,
                   }}
-                  title={role.detail}
+                  title={role.focus}
                 >
                   <span className="reviewer-role-ai" style={{ color: color.primary }}>
                     {AI_ICONS[ai]} {AI_DISPLAY_NAMES[ai]}
                   </span>
                   <span className="reviewer-role-name">{role.title}</span>
-                  <span className="reviewer-role-detail">{role.detail}</span>
+                  <span className="reviewer-role-detail">{role.focus}</span>
                 </div>
               )
             })}

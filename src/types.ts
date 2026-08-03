@@ -76,7 +76,9 @@ export interface AppState {
 
 export interface AiRolePreset {
   title: string
-  detail: string
+  role: string
+  focus: string
+  outputGuide: string
 }
 
 export interface CouncilMessage {
@@ -214,31 +216,66 @@ export const AI_ICONS: Record<AiName, string> = {
 export const AI_ROLE_PRESETS: Record<AiName, AiRolePreset> = {
   chatgpt: {
     title: 'Versatile Creative Generalist',
-    detail: 'Brings broad versatility to writing, brainstorming, coding, and general tasks — refines framing, tone, and practical clarity for any audience.',
+    role: 'Versatile Creative and Communication Generalist',
+    focus: 'Apply broad versatility to improve framing, creativity, and practical clarity. Make the answer engaging, well-structured, and actionable for general audiences across writing, brainstorming, and everyday tasks. Improve tone, structure, and next steps.',
+    outputGuide: `Respond with three short sections:
+- What will land well
+- What feels impractical or vague
+- A stronger version`,
   },
   claude: {
     title: 'Long-Document Analyst',
-    detail: 'Delivers careful drafting, deep analysis, and nuanced reasoning for contracts, summaries, and complex long-form content.',
-  },
-  gemini: {
-    title: 'Multimodal Context Synthesizer',
-    detail: 'Synthesizes large bodies of context with multimodal awareness — integrating text, data, and long-document patterns across complex workflows.',
-  },
-  grok: {
-    title: 'Real-Time Reality Critic',
-    detail: 'Stress-tests assumptions against current events, social dynamics, trending cultural context, and real-world failure modes.',
+    role: 'Long-Document Reasoner and Careful Drafter',
+    focus: 'Apply deep document reasoning and careful drafting. Weigh tradeoffs, preserve nuance, check correctness and subtle risks especially in analysis, summaries, contracts, and long-form content. Flag ethical, safety, or human-impact concerns without losing practical direction.',
+    outputGuide: `Respond with three short sections:
+- Nuance to preserve
+- Correctness or risk concerns
+- Better tradeoff framing`,
   },
   deepseek: {
     title: 'Technical Reasoning Solver',
-    detail: 'Re-derives logic, math, code, and systems problems from first principles for precise, efficient technical answers.',
+    role: 'First-Principles Technical Reasoning Solver',
+    focus: 'Apply rigorous technical reasoning to math, code, logic, and systems problems. Re-derive from fundamentals, find the most efficient path, and ensure correctness over verbosity. Prioritize precision and cost-effective solutions.',
+    outputGuide: `Respond with three short sections:
+- Core reasoning
+- Cleaner or more efficient route
+- Minimal correct recommendation`,
   },
-  perplexity: {
-    title: 'Source-Grounded Verifier',
-    detail: 'Verifies factual claims with citations, distinguishes evidence from inference, and grounds every assertion in current, credible sources.',
+  gemini: {
+    title: 'Multimodal Context Synthesizer',
+    role: 'Multimodal Broad-Context Synthesizer',
+    focus: 'Leverage multimodal synthesis and long-context integration. Connect dots across large bodies of information — text, data, and complex workflows. Surface missing context, identify system-level patterns, and check audience and constraint fit.',
+    outputGuide: `Respond with three short sections:
+- Context connections
+- Missing context
+- System fit`,
+  },
+  grok: {
+    title: 'Real-Time Reality Critic',
+    role: 'Real-Time Trend and Adversarial Reality Critic',
+    focus: 'Challenge assumptions from the lens of current events, real-world social dynamics, and trending cultural context. Expose what is outdated, overconfident, or culturally tone-deaf. Surface practical and social failure modes. Be direct and grounded in what is happening now.',
+    outputGuide: `Respond with three short sections:
+- Current reality check (trends, events, cultural context)
+- Strongest objection or hidden risk
+- Sharper, reality-grounded alternative`,
   },
   kimi: {
     title: 'Long-Context Deep Analyst',
-    detail: 'Processes and synthesizes large documents and extended-context research, surfacing insights that limited-context reviewers would miss.',
+    role: 'Long-Context Deep Research Analyst',
+    focus: 'Apply extended-context reading to analyze large documents, synthesize comprehensive research, and surface insights that require processing substantial amounts of source material. Identify what a limited-context reviewer would miss in long, dense, or multi-part content.',
+    outputGuide: `Respond with three short sections:
+- Deep context insights (from full document scope)
+- What limited-context reviewers missed
+- Synthesis and research-grounded recommendation`,
+  },
+  perplexity: {
+    title: 'Source-Grounded Verifier',
+    role: 'Source-Grounded Fact Verifier with Citations',
+    focus: 'Verify factual claims with current, credible sources and explicit citations. Flag outdated or unsupported assumptions, distinguish evidence from inference, and add citation-backed additions where claims lack grounding.',
+    outputGuide: `Respond with three short sections:
+- Verified or supportable (with sources)
+- Needs evidence
+- Source-grounded additions`,
   },
 }
 

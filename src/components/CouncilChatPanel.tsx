@@ -1112,7 +1112,7 @@ export default function CouncilChatPanel({
                       borderColor: `${color.primary}55`,
                       background: `${color.primary}12`,
                     }}
-                    title={role.detail}
+                    title={role.focus}
                   >
                     <span className="council-participant-name" style={{ color: color.primary }}>
                       {AI_ICONS[ai]} {AI_DISPLAY_NAMES[ai]}

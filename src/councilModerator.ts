@@ -99,7 +99,7 @@ function describeMissingAngle(ai: AiName): { missing: string; prompt: string } {
     case 'kimi':
       return {
         missing: `The discussion still needs ${AI_ROLE_PRESETS.kimi.title.toLowerCase()} coverage across long or multi-document context.`,
-        prompt: `@Kimi, use your ${AI_ROLE_PRESETS.kimi.title} role to synthesize the full long-context record, cross-check multiple documents, and surface what shorter reviews missed.`,
+        prompt: `@Kimi, use your ${AI_ROLE_PRESETS.kimi.role} role to synthesize the full long-context record, cross-check multiple documents, and surface what shorter reviews missed.`,
       }
     default:
       return {

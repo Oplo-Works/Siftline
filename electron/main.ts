@@ -25,7 +25,7 @@ import {
   summarizeContextBeforePreviousRound as summarizeContextBeforePreviousRoundPure,
 } from './councilPrompt.js'
 import { buildResponseLanguageDirective, detectPreferredReplyLanguage } from '../src/responseLanguage.js'
-import { AI_NAMES, DEFAULT_ENABLED_AIS, type AiName } from '../src/types.js'
+import { AI_NAMES, AI_ROLE_PRESETS, DEFAULT_ENABLED_AIS, type AiName } from '../src/types.js'
 
 export type { AiName } from '../src/types.js'
 
@@ -1467,7 +1467,7 @@ function resetCouncilRoomContext(participants?: AiName[], primaryAi: AiName = co
 
 // Council prompt/intent helpers are in ./councilPrompt.ts — these wrappers
 // bind the pure functions to this module's state (AI_NAMES, AI_DISPLAY_NAMES,
-// councilRoom, AI_REVIEWER_BRIEFS).
+// councilRoom, AI_ROLE_PRESETS).
 const parseCouncilIntent = parseCouncilIntentPure
 void _COUNCIL_MENTION_ALIASES
 
@@ -1488,7 +1488,7 @@ function buildCouncilPrompt(aiName: AiName, promptText: string): string {
     deliveredCount: councilRoom.deliveredCount[aiName] ?? 0,
     messages: councilRoom.messages,
     displayNames: AI_DISPLAY_NAMES,
-    brief: AI_REVIEWER_BRIEFS[aiName],
+    brief: AI_ROLE_PRESETS[aiName],
   })
 }
 
@@ -1512,7 +1512,7 @@ function buildCouncilBroadcastPromptForAi(
   )
   return buildCouncilBroadcastPromptPure(aiName, userQuestion, {
     displayNames: AI_DISPLAY_NAMES,
-    brief: AI_REVIEWER_BRIEFS[aiName],
+    brief: AI_ROLE_PRESETS[aiName],
     previousRoundReplies,
     earlierContextSummary,
   })
@@ -5086,65 +5086,6 @@ ${previousFinalAnswer}
 ${query}${fileContext}`
 }
 
-const AI_REVIEWER_BRIEFS: Record<AiName, { role: string; focus: string; outputGuide: string }> = {
-  gemini: {
-    role: 'Multimodal Broad-Context Synthesizer',
-    focus: 'Leverage multimodal synthesis and long-context integration. Connect dots across large bodies of information — text, data, and complex workflows. Surface missing context, identify system-level patterns, and check audience and constraint fit.',
-    outputGuide: `Respond with three short sections:
-- Context connections
-- Missing context
-- System fit`,
-  },
-  claude: {
-    role: 'Long-Document Reasoner and Careful Drafter',
-    focus: 'Apply deep document reasoning and careful drafting. Weigh tradeoffs, preserve nuance, check correctness and subtle risks especially in analysis, summaries, contracts, and long-form content. Flag ethical, safety, or human-impact concerns without losing practical direction.',
-    outputGuide: `Respond with three short sections:
-- Nuance to preserve
-- Correctness or risk concerns
-- Better tradeoff framing`,
-  },
-  chatgpt: {
-    role: 'Versatile Creative and Communication Generalist',
-    focus: 'Apply broad versatility to improve framing, creativity, and practical clarity. Make the answer engaging, well-structured, and actionable for general audiences across writing, brainstorming, and everyday tasks. Improve tone, structure, and next steps.',
-    outputGuide: `Respond with three short sections:
-- What will land well
-- What feels impractical or vague
-- A stronger version`,
-  },
-  perplexity: {
-    role: 'Source-Grounded Fact Verifier with Citations',
-    focus: 'Verify factual claims with current, credible sources and explicit citations. Flag outdated or unsupported assumptions, distinguish evidence from inference, and add citation-backed additions where claims lack grounding.',
-    outputGuide: `Respond with three short sections:
-- Verified or supportable (with sources)
-- Needs evidence
-- Source-grounded additions`,
-  },
-  grok: {
-    role: 'Real-Time Trend and Adversarial Reality Critic',
-    focus: 'Challenge assumptions from the lens of current events, real-world social dynamics, and trending cultural context. Expose what is outdated, overconfident, or culturally tone-deaf. Surface practical and social failure modes. Be direct and grounded in what is happening now.',
-    outputGuide: `Respond with three short sections:
-- Current reality check (trends, events, cultural context)
-- Strongest objection or hidden risk
-- Sharper, reality-grounded alternative`,
-  },
-  deepseek: {
-    role: 'First-Principles Technical Reasoning Solver',
-    focus: 'Apply rigorous technical reasoning to math, code, logic, and systems problems. Re-derive from fundamentals, find the most efficient path, and ensure correctness over verbosity. Prioritize precision and cost-effective solutions.',
-    outputGuide: `Respond with three short sections:
-- Core reasoning
-- Cleaner or more efficient route
-- Minimal correct recommendation`,
-  },
-  kimi: {
-    role: 'Long-Context Deep Research Analyst',
-    focus: 'Apply extended-context reading to analyze large documents, synthesize comprehensive research, and surface insights that require processing substantial amounts of source material. Identify what a limited-context reviewer would miss in long, dense, or multi-part content.',
-    outputGuide: `Respond with three short sections:
-- Deep context insights (from full document scope)
-- What limited-context reviewers missed
-- Synthesis and research-grounded recommendation`,
-  },
-}
-
 function buildReviewerPromptV2(
   reviewerAi: AiName,
   query: string,
@@ -5152,7 +5093,7 @@ function buildReviewerPromptV2(
   fileContext: string
 ): string {
   const fileSection = fileContext ? `\n${fileContext}\n` : ''
-  const brief = AI_REVIEWER_BRIEFS[reviewerAi]
+  const brief = AI_ROLE_PRESETS[reviewerAi]
   const languageDirective = buildResponseLanguageDirective(query)
   const preferredLanguage = detectPreferredReplyLanguage(query)
   const isEnglish = /^english$/i.test(preferredLanguage.trim())
@@ -5249,102 +5190,6 @@ Then output the complete revised content of each file in the following format, w
 (Follow the delimiters around file content exactly)
 
 ${fileBlocks}`
-}
-
-// ─── AI Persona Roles ─────────────────────────────────────────────────────────
-// Each AI reviewer gets a role that matches its native strengths so feedback
-// is diverse and complementary rather than echo-chamber repetitions.
-const AI_REVIEWER_PERSONAS: Record<AiName, { role: string; focus: string; outputGuide: string }> = {
-  gemini: {
-    role: 'Broad-Context Systems Synthesizer',
-    focus: 'Connect dots across large bodies of information, surface missing context, identify system-level patterns, and check audience, workflow, and constraint fit.',
-    outputGuide: `Respond with three short sections:
-- Context connections
-- Missing context
-- System fit`,
-  },
-  claude: {
-    role: 'Nuanced Reasoner and Safety Analyst',
-    focus: 'Weigh tradeoffs, preserve subtle distinctions, check correctness, and flag ethical, safety, reputational, or human-impact concerns without losing practical direction.',
-    outputGuide: `Respond with three short sections:
-- Nuance to preserve
-- Correctness or risk concerns
-- Better tradeoff framing`,
-  },
-  chatgpt: {
-    role: 'Practical UX and Communication Coach',
-    focus: 'Make the answer clear, useful, actionable, and easy for a real user to follow. Improve framing, tone, structure, and next steps.',
-    outputGuide: `Respond with three short sections:
-- What will land well
-- What feels impractical or vague
-- A stronger version`,
-  },
-  perplexity: {
-    role: 'Source-Grounded Fact Verifier',
-    focus: 'Verify factual claims with current, credible sources. Flag outdated or unsupported assumptions, distinguish evidence from inference, and identify where citations are needed.',
-    outputGuide: `Respond with three short sections:
-- Verified or supportable
-- Needs evidence
-- Source-grounded additions`,
-  },
-  grok: {
-    role: 'Adversarial Reality Critic',
-    focus: 'Challenge assumptions, expose weak points, identify practical and social failure modes, and offer sharper alternatives. Be direct, skeptical, and useful.',
-    outputGuide: `Respond with three short sections:
-- Hidden risks
-- Strongest objection
-- Stress test fix`,
-  },
-  deepseek: {
-    role: 'First-Principles Reasoning Solver',
-    focus: 'Re-derive the problem from fundamentals, especially for logic, math, code, systems, and optimization questions. Find the cleanest route and be concise without becoming shallow.',
-    outputGuide: `Respond with three short sections:
-- Core reasoning
-- Cleaner route
-- Minimal correct recommendation`,
-  },
-  kimi: {
-    role: 'Agentic Execution Architect',
-    focus: 'Decompose the request into a concrete agentic execution plan — ordered steps, tool calls, file/state dependencies, and recovery paths. Surface where multi-step automation would actually break down (race conditions, missed prerequisites, brittle ordering, unhandled failure modes) that single-shot reasoners ignore.',
-    outputGuide: `Respond with three short sections:
-- Execution plan (ordered steps with tools)
-- Failure modes (where the agent loop breaks)
-- Tighter sequence (refined order, dependencies, recovery)`,
-  },
-}
-
-function buildReviewerPrompt(
-  reviewerAi: AiName,
-  query: string,
-  draft: string,
-  fileContext: string
-): string {
-  const fileSection = fileContext ? `\n${fileContext}\n` : ''
-  const persona = AI_REVIEWER_PERSONAS[reviewerAi]
-
-  return `You are ${AI_DISPLAY_NAMES[reviewerAi]}, reviewing this analysis.
-Your assigned review perspective is: **${persona.role}**.
-${persona.focus}
-
-**Important rules:**
-- You are ${AI_DISPLAY_NAMES[reviewerAi]}. Reply ONLY as yourself, in your own voice.
-- Do NOT impersonate or roleplay as another AI product. Do not open with phrases like "Speaking as Grok…", "As Perplexity…", "As ChatGPT…", or "I'm not Grok so I can't…". The role above is your assigned REVIEW PERSPECTIVE — it is not another AI's identity.
-- Provide feedback from the perspective of your assigned role above
-- Do not mention the source AI name of the original analysis
-- Do not include web search citations, source links, or reference numbers ([1][2], etc.)
-- Write only the feedback — do not attribute anything to any source
-
-[Original Question]
-${query}
-${fileSection}
-[Analysis Result]
-${draft}
-
-Please review the above analysis based on the following criteria:
-1. Accuracy (are there any factual errors, based on your role?)
-2. Completeness (is any important content missing from your perspective?)
-3. Clarity (are there any parts that are hard to understand?)
-4. Suggestions for improvement (specific, actionable recommendations from your role's viewpoint)`
 }
 
 function buildFinalRevisionPrompt(

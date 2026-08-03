@@ -3255,6 +3255,12 @@ async function createWindow() {
 
     views.set(name, view)
 
+    if (name === 'kimi') {
+      view.webContents.on('did-finish-load', () => {
+        mainWindow?.webContents.send('login-status-changed')
+      })
+    }
+
     // ── ChatGPT / Perplexity: intercept Google OAuth navigations ─────────────
     // When the user clicks "Continue with Google" inside the BrowserView,
     // Chromium navigates the view itself to accounts.google.com.  An embedded
@@ -3611,6 +3617,66 @@ function isKimiAuthenticatedCookie(cookie: Pick<Electron.Cookie, 'name' | 'domai
   return domain === 'kimi.com' || domain.endsWith('.kimi.com')
 }
 
+interface KimiRendererAuthSignal {
+  accessTokenPresent: boolean
+  refreshTokenPresent: boolean
+  userIdPresent: boolean
+}
+
+function isKimiPageUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    const hostname = parsed.hostname.toLowerCase()
+    return parsed.protocol === 'https:' && (hostname === 'kimi.com' || hostname.endsWith('.kimi.com'))
+  } catch {
+    return false
+  }
+}
+
+function sanitizeKimiRendererAuthSignal(value: unknown): KimiRendererAuthSignal | null {
+  if (!value || typeof value !== 'object') return null
+  const candidate = value as Record<string, unknown>
+  if (
+    typeof candidate.accessTokenPresent !== 'boolean' ||
+    typeof candidate.refreshTokenPresent !== 'boolean' ||
+    typeof candidate.userIdPresent !== 'boolean'
+  ) return null
+  return {
+    accessTokenPresent: candidate.accessTokenPresent,
+    refreshTokenPresent: candidate.refreshTokenPresent,
+    userIdPresent: candidate.userIdPresent,
+  }
+}
+
+function hasCompleteKimiRendererAuthSignal(signal: KimiRendererAuthSignal): boolean {
+  return signal.accessTokenPresent && signal.refreshTokenPresent && signal.userIdPresent
+}
+
+async function getKimiRendererLoginStatus(
+  webContents: Pick<WebContents, 'isDestroyed' | 'getURL' | 'executeJavaScript'> | null | undefined =
+    views.get('kimi')?.webContents,
+  timeoutMs = 2_000,
+): Promise<boolean> {
+  if (!webContents || webContents.isDestroyed()) return false
+  try {
+    if (!isKimiPageUrl(webContents.getURL())) return false
+    const rawSignal = await Promise.race<unknown>([
+      webContents.executeJavaScript(`
+        (() => ({
+          accessTokenPresent: Boolean(localStorage.getItem('access_token')),
+          refreshTokenPresent: Boolean(localStorage.getItem('refresh_token')),
+          userIdPresent: Boolean(localStorage.getItem('msh_user_id')),
+        }))()
+      `),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+    ])
+    const signal = sanitizeKimiRendererAuthSignal(rawSignal)
+    return signal !== null && hasCompleteKimiRendererAuthSignal(signal)
+  } catch {
+    return false
+  }
+}
+
 /** Check whether the login session already has valid session cookies.
  *  Uses loginSes.cookies.get({}) (no domain filter) to catch cookies set on
  *  subdomains like www.perplexity.ai that a domain-filtered query would miss. */
@@ -3834,7 +3900,11 @@ function openLoginWindow(aiName: AiName): void {
 async function getLoginStatus(): Promise<Record<AiName, boolean>> {
   const entries = await Promise.all(AI_NAMES.map(async (aiName) => {
     const cookies = await session.fromPartition(`persist:${aiName}`).cookies.get({})
-    return [aiName, await getPersistedLoginStatus(aiName, cookies)] as const
+    const persistedStatus = await getPersistedLoginStatus(aiName, cookies)
+    const status = aiName === 'kimi' && !persistedStatus
+      ? await getKimiRendererLoginStatus()
+      : persistedStatus
+    return [aiName, status] as const
   }))
   return Object.fromEntries(entries) as Record<AiName, boolean>
 }

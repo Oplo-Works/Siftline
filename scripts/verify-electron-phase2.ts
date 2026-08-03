@@ -76,14 +76,58 @@ checkNoMatch(mainSource, /^const (?:AI_NAMES|DEFAULT_ENABLED_AI_NAMES)\b/m)
 checkMatch(mainSource, /Promise\.all\(AI_NAMES\.map\(async \(aiName\)/)
 checkMatch(mainSource, /if \(aiName === 'kimi'\) \{\s*return all\.some\(isKimiAuthenticatedCookie\)/)
 checkMatch(mainSource, /if \(aiName === 'kimi'\) \{\s*return cookies\.some\(isKimiAuthenticatedCookie\)/)
+checkMatch(mainSource, /const status = aiName === 'kimi' && !persistedStatus\s*\? await getKimiRendererLoginStatus\(\)/)
+checkMatch(mainSource, /if \(name === 'kimi'\) \{\s*view\.webContents\.on\('did-finish-load',[\s\S]*?'login-status-changed'/)
+checkMatch(mainSource, /accessTokenPresent: Boolean\(localStorage\.getItem\('access_token'\)\)/)
+checkMatch(mainSource, /refreshTokenPresent: Boolean\(localStorage\.getItem\('refresh_token'\)\)/)
+checkMatch(mainSource, /userIdPresent: Boolean\(localStorage\.getItem\('msh_user_id'\)\)/)
 
-const { cookieDomainIncludes, isKimiAuthenticatedCookie, sanitizeSnapshotLifecycle, getPersistedLoginStatus, sanitizeAttachmentSnapshot } = loadFunctions<{
+const {
+  cookieDomainIncludes,
+  isKimiAuthenticatedCookie,
+  isKimiPageUrl,
+  sanitizeKimiRendererAuthSignal,
+  hasCompleteKimiRendererAuthSignal,
+  getKimiRendererLoginStatus,
+  sanitizeSnapshotLifecycle,
+  getPersistedLoginStatus,
+  sanitizeAttachmentSnapshot,
+} = loadFunctions<{
   cookieDomainIncludes: (cookie: { domain?: string }, expectedDomain: string) => boolean
   isKimiAuthenticatedCookie: (cookie: { name: string; domain?: string }) => boolean
+  isKimiPageUrl: (url: string) => boolean
+  sanitizeKimiRendererAuthSignal: (value: unknown) => {
+    accessTokenPresent: boolean
+    refreshTokenPresent: boolean
+    userIdPresent: boolean
+  } | null
+  hasCompleteKimiRendererAuthSignal: (signal: {
+    accessTokenPresent: boolean
+    refreshTokenPresent: boolean
+    userIdPresent: boolean
+  }) => boolean
+  getKimiRendererLoginStatus: (
+    webContents?: {
+      isDestroyed: () => boolean
+      getURL: () => string
+      executeJavaScript: (script: string) => Promise<unknown>
+    } | null,
+    timeoutMs?: number,
+  ) => Promise<boolean>
   sanitizeSnapshotLifecycle: (value?: string | null) => 'in-progress' | 'completed'
   getPersistedLoginStatus: (ai: string, cookies: Array<{ name: string; domain?: string }>) => Promise<boolean>
   sanitizeAttachmentSnapshot: (value: unknown) => { count: number; names: string[] }
-}>(mainSource, ['cookieDomainIncludes', 'isKimiAuthenticatedCookie', 'sanitizeSnapshotLifecycle', 'getPersistedLoginStatus', 'sanitizeAttachmentSnapshot'])
+}>(mainSource, [
+  'cookieDomainIncludes',
+  'isKimiAuthenticatedCookie',
+  'isKimiPageUrl',
+  'sanitizeKimiRendererAuthSignal',
+  'hasCompleteKimiRendererAuthSignal',
+  'getKimiRendererLoginStatus',
+  'sanitizeSnapshotLifecycle',
+  'getPersistedLoginStatus',
+  'sanitizeAttachmentSnapshot',
+])
 
 check(cookieDomainIncludes({}, 'kimi.com'), false)
 check(isKimiAuthenticatedCookie({ name: 'kimi-auth', domain: 'www.kimi.com' }), true)
@@ -91,6 +135,22 @@ check(isKimiAuthenticatedCookie({ name: 'kimi-auth', domain: '.kimi.com' }), tru
 check(isKimiAuthenticatedCookie({ name: 'session-token', domain: 'www.kimi.com' }), false)
 check(isKimiAuthenticatedCookie({ name: 'kimi-auth', domain: 'notkimi.com' }), false)
 check(isKimiAuthenticatedCookie({ name: 'kimi-auth' }), false)
+check(isKimiPageUrl('https://kimi.com/'), true)
+check(isKimiPageUrl('https://www.kimi.com/chat/123'), true)
+check(isKimiPageUrl('http://www.kimi.com/'), false)
+check(isKimiPageUrl('https://kimi.com.example.test/'), false)
+check(isKimiPageUrl('not a url'), false)
+const completeKimiSignal = {
+  accessTokenPresent: true,
+  refreshTokenPresent: true,
+  userIdPresent: true,
+}
+check(sanitizeKimiRendererAuthSignal(completeKimiSignal), completeKimiSignal)
+check(sanitizeKimiRendererAuthSignal({ ...completeKimiSignal, userIdPresent: 'yes' }), null)
+check(sanitizeKimiRendererAuthSignal({ accessTokenPresent: true }), null)
+check(sanitizeKimiRendererAuthSignal(null), null)
+check(hasCompleteKimiRendererAuthSignal(completeKimiSignal), true)
+check(hasCompleteKimiRendererAuthSignal({ ...completeKimiSignal, refreshTokenPresent: false }), false)
 check(sanitizeSnapshotLifecycle(undefined), 'in-progress')
 check(sanitizeSnapshotLifecycle(null), 'in-progress')
 check(sanitizeSnapshotLifecycle('completed'), 'completed')
@@ -103,6 +163,29 @@ checkMatch(mainSource, /interface PersistedCouncilSnapshotRecord[\s\S]*?label\?:
 checkMatch(mainSource, /function sanitizeCouncilSnapshotRecord\(record: PersistedCouncilSnapshotRecord\): CouncilSnapshotRecord/)
 
 async function finish(): Promise<void> {
+  const kimiWebContents = (
+    url: string,
+    result: unknown,
+    options: { destroyed?: boolean; reject?: boolean; never?: boolean } = {},
+  ) => ({
+    isDestroyed: () => Boolean(options.destroyed),
+    getURL: () => url,
+    executeJavaScript: async () => {
+      if (options.reject) throw new Error('fixture rejection')
+      if (options.never) return await new Promise<never>(() => {})
+      return result
+    },
+  })
+
+  check(await getKimiRendererLoginStatus(kimiWebContents('https://www.kimi.com/', completeKimiSignal), 10), true)
+  check(await getKimiRendererLoginStatus(kimiWebContents('https://www.kimi.com/', { ...completeKimiSignal, accessTokenPresent: false }), 10), false)
+  check(await getKimiRendererLoginStatus(kimiWebContents('https://www.kimi.com/', { accessTokenPresent: true }), 10), false)
+  check(await getKimiRendererLoginStatus(kimiWebContents('https://kimi.com.example.test/', completeKimiSignal), 10), false)
+  check(await getKimiRendererLoginStatus(kimiWebContents('https://www.kimi.com/', completeKimiSignal, { destroyed: true }), 10), false)
+  check(await getKimiRendererLoginStatus(kimiWebContents('https://www.kimi.com/', completeKimiSignal, { reject: true }), 10), false)
+  check(await getKimiRendererLoginStatus(kimiWebContents('https://www.kimi.com/', completeKimiSignal, { never: true }), 1), false)
+  check(await getKimiRendererLoginStatus(null, 1), false)
+
   check(await getPersistedLoginStatus('gemini', [{ name: 'SID', domain: '.google.com' }]), true)
   check(await getPersistedLoginStatus('gemini', [{ name: 'anonymous', domain: '.google.com' }]), false)
   check(await getPersistedLoginStatus('claude', [{ name: 'any', domain: '.claude.ai' }]), true)

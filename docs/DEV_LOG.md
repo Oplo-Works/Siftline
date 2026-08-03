@@ -136,3 +136,27 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
   follow-ups: PROJECT_STATE 배너(별도 task), stale worktree prune(사용자),
   v1.0.9 산출물 확인, package-lock.json 처리(사용자).
 - Next: DONE + Human (정책 승인 후 다음 task 선택)
+
+## 2026-08-03T15:34:50Z — council-chat-phase1-defect-fixes / review packet
+
+- Stage: WF:TEST → WF:REVIEW  - Role/Runtime: Implementation Owner / Codex
+  (`codex-sol-deep` requested; repository PIN: CANDIDATE)  - Risk: Standard
+- Implementation: `b753232768f466f9130834c6e5a25b4d50c0cd1b`..`d88c4da0d36281544649d09d17efdc677adb6055`
+- Review: pending Opus 5 CHAT_ONLY_READ_ONLY review;
+  `docs/features/council-chat-phase1-defect-fixes/OPUS5_REVIEW_REQUEST.md`
+- Human Decision: revision 4 APPROVED for BUILD/TEST/local commit packet; no CLOSE decision yet
+- Summary: Council Chat Phase 1의 공용 text/image clipboard mutex, Gemini
+  structure-preserving clipboard-primary, exact panel identity/readback gate, Kimi long-prompt
+  protection, last answered-round discovery/null-bounds earlier-summary fallback, Korean
+  moderator signals 및 Kimi speaker coverage를 구현했다. Phase 2/3, selector, dependency,
+  schema, `.gitattributes`는 변경하지 않았다.
+- Validation: `docs/features/council-chat-phase1-defect-fixes/TEST_EVIDENCE.md` — helper
+  17/17, `npx tsc --noEmit`, `npm run build`, seven-provider identity, six image-capable
+  panel mapping, Candidate Pin/Compare, Saved Sessions lifecycle, shared-path Workflow smoke
+  PASS. Staged whitespace raw 290 / CR-only 290 / actionable 0; secret scan 0.
+  Telegram은 사용자 승인 하에 별도 테스트 채널 미제공으로 BLOCKED.
+- Publish Intent/Target: NOT_REQUIRED / none — push 금지 유지
+- Decisions / Risks / Follow-ups: 사용자는 Siftline Chat을 주 기능으로 사용하며 Workflow를
+  제품 우선순위로 보지 않음. npm audit 25건과 EOL policy/`.gitattributes`는 별도 bundle.
+  합성 Saved Session 3개와 모든 temp artifact를 제거했고 app process를 정상 종료함.
+- Next: READY_FOR_REVIEW + Opus 5 independent reviewer

@@ -2,85 +2,81 @@
 
 ## Identity
 
-- Status: DONE
-- Task ID: workflow-adoption-v8.1.1
-- Stage: WF:CLOSE
+- Status: READY_FOR_REVIEW
+- Task ID: `council-chat-phase1-defect-fixes`
+- Stage: WF:REVIEW
 - Risk: Standard
-- Updated At: 2026-07-11T13:20:47Z
+- Updated At: 2026-08-03T15:34:50Z
 
 ## Context Summary
 
-2026-07-11에 레거시 "Project Engineering OS v5 Lean"(LEGACY_V5)에서 AI Coding Agent
-Workflow v8.1.1-solo로 전환 완료. 앱 소스 무변경, 워크플로 문서만 설치·재구성.
-advisory 4-렌즈 리뷰 후 P1 remediation 완료, 사용자(Human Approver)가
-"git push origin main" 지시로 publish를 명시 승인하여 main에 fast-forward 후 push.
-남은 것: PROJECT_SCOPE §7 확정(APPROVED 전환), MODEL_RUNTIME_PIN 승인, follow-up
-4건(PROJECT_STATE 배너, stale worktree 정리, v1.0.9 산출물 확인, package-lock 처리).
+Council Chat Phase 1의 승인된 P1/P2-A/P2-B 결함 수정이 구현 커밋
+`d88c4da`에 정리됐다. 공용 clipboard mutex와 panel identity/readback 검증,
+Gemini structure-preserving clipboard-primary, answered-round 검색/null-bounds 요약 폴백,
+한국어 moderator/Kimi 선택을 구현했다. 자동 검증 17/17, tsc, build, 7-provider
+identity, image-capable panel mapping, Saved Sessions/Candidate 회귀가 PASS했다.
+Telegram은 별도 채널 미제공이라는 사용자의 명시 결정으로 승인된 BLOCKED 상태다.
 
 ## Ownership
 
-- Outgoing Role / Runtime: Main Driver / Claude Code, observed model
-  `claude-fable-5` (PIN status: CANDIDATE)
-- Next Role: Human
-- Next Runtime ID: Unassigned
-- Next Action: PROJECT_SCOPE §7 미확정 항목 확정 및 MODEL_RUNTIME_PIN 승인,
-  그 후 다음 task 선택
-- Reason: adoption task 종료 — 정책 승인은 Human 소유
+- Outgoing Role / Runtime: Implementation Owner / Codex (`codex-sol-deep` requested;
+  repository Runtime PIN remains CANDIDATE)
+- Next Role: Independent Reviewer — Opus 5
+- Next Runtime ID: user-selected Opus 5; repository registry entry unassigned
+- Next Action: `docs/features/council-chat-phase1-defect-fixes/OPUS5_REVIEW_REQUEST.md`를
+  사용해 `b753232..d88c4da`를 CHAT_ONLY_READ_ONLY로 findings-first 검증
+- Reason: Standard-risk implementation and evidence packet complete; independent review gate pending
 
 ## Git and Worktree
 
-- Branch / Worktree: `main` @ 메인 worktree (`C:\Users\parkm\Documents\AI-Council-Chat`)
-- Base HEAD: `68a2700b03d75b325a52f8fc7665ad1c07325b02` (v1.0.9)
-- Implementation Base: `68a2700b03d75b325a52f8fc7665ad1c07325b02`
-- Implementation Head: `26937f45fb3cdc32b84bc7861ee016f41d403447` (adoption artifact)
-- Implementation Commits: `26937f4` (adoption), `a5a7254` (remediation+review artifact)
-- Verified Target: `a5a7254a9a556faf8df96e1f8f28d2c0543517ba`
-- Review Range: `68a2700..a5a7254`
-- Review Packet Metadata State: `26937f4`
-- Review Artifact Metadata State: `a5a7254`
-- Close Metadata State: SELF — resolve via Git history
-- Worktree State: USER_DIRTY_ONLY
-- Preserved User Changes: `package-lock.json` (수정, unstaged — 사용자 소유;
-  내용은 npm peer-flag 갱신뿐임이 리뷰에서 확인됨. 커밋/폐기는 사용자 결정)
+- Branch / Worktree: `codex/council-chat-phase1-defect-fixes` @
+  `C:\Users\Sales01\Documents\AI-Council-Chat`
+- Base HEAD: `b753232768f466f9130834c6e5a25b4d50c0cd1b`
+- Implementation Base: `b753232768f466f9130834c6e5a25b4d50c0cd1b`
+- Implementation Head: `d88c4da0d36281544649d09d17efdc677adb6055`
+- Implementation Commit: `d88c4da` — `fix(council): harden Phase 1 chat paths`
+- Verified Target: `d88c4da` plus review-packet metadata commit (SELF until committed)
+- Review Range: `b753232..d88c4da`
+- Review Packet Metadata State: SELF — resolve from Git history
+- Review Artifact Metadata State: N/A — Opus 5 CHAT_ONLY review pending
+- Close Metadata State: N/A
+- Worktree State: MIXED_DIRTY until review-packet metadata commit; afterward USER_DIRTY_ONLY
+- Preserved User Changes:
+  - `docs/handoff_history/HANDOFF_PROMPT_council_chat_fixes.md` (untracked)
+  - `docs/handoff_history/COWORK_SESSION_HANDOFF_council_chat_review.md` (untracked)
 
 ## Publish
 
-- Push Intent: AUTO_AT_CLOSE — 사용자의 명시 지시("git push origin main",
-  2026-07-11)로 protected-main 기본값(NEVER)에 대한 **1회 예외** 승인됨.
-  SCOPE §5의 기본 정책 자체는 변경되지 않음.
-- Approved Target: `origin/main` (이번 publish에 한함)
-- Expected Remote Head: SELF — resolve close metadata commit
-- Last Reconciled Remote Head: push 전 `origin/main` @ `68a2700`
-- Push Result: 실제 결과는 채팅 Output Block에 기록 — 다음 START가 reconcile
+- Push Intent: NOT_REQUIRED — user excluded push from this bundle
+- Approved Target: none
+- Expected Remote Head: N/A
+- Last Reconciled Remote Head: `origin/main` matched base `b753232` at task start
+- Push Result: NOT_ATTEMPTED
 
 ## Scope, Validation, and Decisions
 
-- Approved Inputs: workflow-adoption-v8.1.1 프롬프트 (사용자 제공, 2026-07-11)
-- AC State: deliverables 전수 충족 — `docs/migration/V8.1.1_ADOPTION_REPORT.md`
-- Evidence: `docs/migration/V8.1.1_ADOPTION_REPORT.md` (tsc PASS, build PASS,
-  package/설치/회귀/secret 검사 PASS)
-- Review: `docs/migration/V8.1.1_ADOPTION_REVIEW.md` — advisory PASS
-  (remediation 검증 포함). 공식 독립 리뷰 게이트는 Human Decision으로 해소됨.
-- Human Decision: **APPROVED** — 2026-07-11, 사용자 메시지 "git push origin main"
-  (publish-to-main 명시 지시; 잔여 리스크 없음 표명은 아니므로 follow-up 유지)
+- Approved Inputs: SPEC/PLAN revision 4 approval bundle plus the user's two pre-commit corrections
+- AC State: AC-1 through AC-13 PASS under the approved AC-13 image-capable-panel definition;
+  Telegram regression remains explicitly BLOCKED/accepted and is not represented as executed
+- Evidence: `docs/features/council-chat-phase1-defect-fixes/TEST_EVIDENCE.md`
+- Review Request: `docs/features/council-chat-phase1-defect-fixes/OPUS5_REVIEW_REQUEST.md`
+- Review: pending Opus 5 independent CHAT_ONLY_READ_ONLY decision
+- Human Decision: revision 4 APPROVED for BUILD/TEST/commit packet; CLOSE decision not yet requested
 
 ## Risks and Blockers
 
-- Open Findings (follow-ups — 상세: REVIEW 문서):
-  - `docs/PROJECT_STATE.md` SUPERSEDED 배너 미부착 (경로가 adoption allowlist 밖 —
-    사용자 동의 후 별도 MICRO task로 처리 권장)
-  - 오래된 `.claude/worktrees` 복사본에 레거시 v5 bootstrap 잔존 —
-    `git worktree prune` + 디렉토리 정리 권장 (파괴적 — 사용자 실행/승인 필요)
-  - v1.0.9 GitHub Release 산출물 미확인
-  - owner 이메일: SCOPE에서 제거 후 push함 (공개 원하면 사용자가 재추가)
-- Known Risks: PROJECT_SCOPE `READY_FOR_APPROVAL` / MODEL_RUNTIME_PIN `DRAFT` —
-  승인 전까지 Approved Runtime 없음 (작업은 가능하나 PIN 승인이 공식 routing 전제)
-- Blocker: None
-- Approval Needed: PROJECT_SCOPE §7 항목 + PIN 승인 (다음 세션에서)
+- Open Findings: none from implementation verification; independent reviewer may add findings
+- Known Risks:
+  - provider DOMs remain externally changeable; selector table was intentionally untouched
+  - Telegram must-preserve regression was not run because the user declined a test channel
+  - existing npm audit state remains 25 findings and is outside this bundle
+  - repository EOL policy and `.gitattributes` remain a separate follow-up bundle
+- Blocker: independent Opus 5 review decision
+- Approval Needed: none before read-only review
 - Do NOT:
-  - `v*` 태그 push 금지 — GitHub Actions 릴리스 빌드 트리거 (별도 승인 필요)
-  - `package-lock.json`(사용자 변경) stage/commit/폐기 금지
-  - `docs/AGENT_WORKFLOW.md`(SUPERSEDED pointer)·`docs/PROJECT_STATE.md`(레거시)를
-    활성 지침·상태 원본으로 사용 금지
-  - 이번 publish 예외를 근거로 향후 main 직접 push를 일반화하지 말 것
-    (기본 정책은 여전히 task branch + CLOSE push)
+  - modify files or Git during Opus 5 CHAT_ONLY review
+  - push, create PR/tag/release, deploy, or contact Telegram/external parties
+  - stage, commit, move, or delete the two user-owned untracked handoff files
+  - expand Phase 2/3 or normalize EOL
+  - treat Workflow as a product-priority feature; the user uses Siftline Chat and the completed
+    Workflow run was shared-path regression only

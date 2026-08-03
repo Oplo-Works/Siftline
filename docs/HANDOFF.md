@@ -2,11 +2,11 @@
 
 ## Identity
 
-- Status: NEEDS_APPROVAL
+- Status: READY_FOR_APPROVAL
 - Task ID: `electron-typecheck-defect-fixes`
 - Stage: WF:SPEC_PLAN
 - Risk: Standard
-- Updated At: 2026-08-03T17:58:12Z
+- Updated At: 2026-08-03T18:10:18Z
 
 ## Context Summary
 
@@ -18,6 +18,9 @@ Typecheck 0, focused 36 assertions, isolated Saved Sessions, build 50/9/1/1과 n
 이후 사용자 조작 Kimi 전환을 실제 수행했다. Logout은 `true → false`와 `kimi-auth` 제거로
 정상 동작했지만, fresh Login은 renderer storage 기반 인증을 만들고 `kimi-auth`를 재생성하지
 않아 Accounts가 계속 false였다. AC-4/AC-5와 S2는 FAIL이며, 술어 변경 전 SPEC/PLAN 재승인이 필요하다.
+SPEC/PLAN revision 3은 legacy exact cookie 또는 exact-origin boolean-only renderer storage의
+3-key 완전 신호를 제안한다. 값은 renderer 밖으로 내보내지 않고, 기존 standalone login과
+다른 6개 provider는 변경하지 않는다. revision 3은 아직 승인 대기이며 product code 변경은 없다.
 
 ## Ownership
 
@@ -25,7 +28,7 @@ Typecheck 0, focused 36 assertions, isolated Saved Sessions, build 50/9/1/1과 n
   repository Runtime PIN remains CANDIDATE)
 - Next Role: Human Approver
 - Next Runtime ID: N/A
-- Next Action: approve or reject a revised S2 design for current Kimi renderer-storage authentication; implementation must not resume before approval
+- Next Action: approve or reject `electron-typecheck-defect-fixes` SPEC revision 3 and PLAN revision 3 as one Standard bundle; implementation must not resume before that explicit approval
 - Reason: the approved exact-cookie predicate failed the actual user-operated fresh-login acceptance cycle
 
 ## Git and Worktree
@@ -38,6 +41,7 @@ Typecheck 0, focused 36 assertions, isolated Saved Sessions, build 50/9/1/1과 n
 - Implementation Head: `9c5bf90c14606853551bf7e0b15dd01cf3783b31`
 - Review Range: `4a95621..9c5bf90`
 - Review Packet Metadata State: SELF — resolve after metadata commit
+- Revision-3 Planning Base: `91cd6c6` (`docs(electron): record Kimi fresh-login failure`)
 - Worktree State: USER_DIRTY_ONLY after review packet commit
 - Preserved User Changes:
   - `docs/handoff_history/HANDOFF_PROMPT_council_chat_fixes.md` (untracked)
@@ -52,7 +56,8 @@ Typecheck 0, focused 36 assertions, isolated Saved Sessions, build 50/9/1/1과 n
 
 ## Scope, Validation, and Decisions
 
-- Approved Inputs: SPEC/PLAN revision 2
+- Approved Inputs: SPEC/PLAN revision 2 (S2 predicate invalidated by actual evidence)
+- Pending Input: SPEC/PLAN revision 3, bundle `electron-typecheck-defect-fixes-R3`
 - Evidence: `docs/features/electron-typecheck-defect-fixes/TEST_EVIDENCE.md`
 - Review Request: `docs/features/electron-typecheck-defect-fixes/OPUS5_REVIEW_REQUEST.md`
 - Automated: tsc 0; focused 36/36; Saved Session isolated integration PASS; build PASS
@@ -62,7 +67,7 @@ Typecheck 0, focused 36 assertions, isolated Saved Sessions, build 50/9/1/1과 n
   Chat smoke user-confirmed and final room idle/pending 0/error 0
 - Diff: raw CR findings 116, CR-only 116, actionable 0; seven implementation paths; secrets 0
 - AC State: AC-1–3 and AC-6–13 PASS; AC-4/AC-5 FAIL
-- Review: superseded by the actual S2 integration failure; resume after revised approval/fix
+- Review: paused by the actual S2 integration failure; resume after revision-3 approval/fix
 
 ## Risks and Blockers
 
@@ -74,6 +79,7 @@ Typecheck 0, focused 36 assertions, isolated Saved Sessions, build 50/9/1/1과 n
 - Do NOT:
   - reclassify AC-4/AC-5 as PASS from fixtures or the pre-existing legacy `kimi-auth` state
   - change the authentication predicate or cross-process auth boundary before revised SPEC/PLAN approval
+  - treat the user's approval to prepare the next step as approval of unseen revision-3 BUILD content
   - edit during CHAT_ONLY review
   - push, PR, tag, release, deploy, change credentials/providers/selectors/dependencies/EOL policy
   - stage, commit, move, or delete the two user-owned handoff paths; do not touch `_to_delete/`

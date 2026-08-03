@@ -246,3 +246,20 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
   authentication-state contract and logout behavior.
 - Publish Intent/Target: NOT_REQUIRED / none — push/PR prohibited
 - Next: NEEDS_APPROVAL + Human Approver; independent review resumes after revised S2 approval/fix
+
+## 2026-08-03T18:10:18Z — electron-typecheck-defect-fixes / SPEC+PLAN revision 3 ready
+
+- Stage: WF:SPEC_PLAN  - Role/Runtime: Main Driver / Codex
+  (`codex-sol-deep` requested; repository PIN: CANDIDATE)  - Risk: Standard status-display boundary
+- User Direction: “승인이야. 다음 단계로 가자” authorizes preparing the next revision. It is not
+  recorded as approval of substantive revision-3 content that had not yet been presented.
+- SPEC/PLAN: revision 3 / bundle `electron-typecheck-defect-fixes-R3`, READY_FOR_APPROVAL.
+- Proposed S2 Rule: exact-domain legacy `kimi-auth` OR a validated exact-origin renderer result where
+  `access_token`, `refresh_token`, and `msh_user_id` presence are all true. Only booleans may cross to
+  main; partial/malformed/unrelated-origin/error/timeout cases are false. Existing standalone Kimi login,
+  Logout clearing, and the other six providers remain unchanged.
+- Validation Gate: current fresh login must first report true without `kimi-auth`, then a repeated
+  user-operated `true → false → true` cycle must pass. AC-14 prohibits auth values in IPC/logs/evidence.
+- Scope: expected runtime/test changes are `electron/main.ts` and `scripts/verify-electron-phase2.ts`;
+  no dependency, selector, `kimi-login.mjs`, preload/renderer, EOL-policy, Phase 3/4, push, or PR change.
+- Next: READY_FOR_APPROVAL — explicit SPEC revision 3 + PLAN revision 3 approval required before BUILD

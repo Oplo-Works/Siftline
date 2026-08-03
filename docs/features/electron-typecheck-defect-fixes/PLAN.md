@@ -2,10 +2,10 @@
 
 - Feature ID: `electron-typecheck-defect-fixes`
 - Risk: Standard
-- Bundle ID: `electron-typecheck-defect-fixes-R2`
-- PLAN Revision: 2
-- SPEC: `docs/features/electron-typecheck-defect-fixes/SPEC.md`, revision 2, APPROVED
-- Status: NEEDS_APPROVAL — AC-4 actual fresh-login transition failed
+- Bundle ID: `electron-typecheck-defect-fixes-R3`
+- PLAN Revision: 3
+- SPEC: `docs/features/electron-typecheck-defect-fixes/SPEC.md`, revision 3, READY_FOR_APPROVAL
+- Status: READY_FOR_APPROVAL
 - Base Branch/Commit: `codex/council-chat-phase1-defect-fixes` / `eb6eac2112cc390794833c73656d6a8da78a9b76`; planning branch `codex/electron-typecheck-defect-fixes`
 
 ## Baseline
@@ -30,6 +30,8 @@
   - `docs/handoff_history/COWORK_SESSION_HANDOFF_council_chat_review.md`
   - `docs/handoff_history/HANDOFF_PROMPT_council_chat_fixes.md`
 - `_to_delete/` is prior-review trash, not a preserved user file. It remains outside task scope and the agent will not modify or delete it; if the user deletes it, it stays absent.
+- Revision-3 planning base is `91cd6c6`. Actual user-operated evidence against implementation `9c5bf90`: legacy state `kimi:true` with exact `kimi-auth`; Logout removed the cookie and produced `false`; fresh Login persisted boolean presence of `access_token`, `refresh_token`, and `msh_user_id` in the existing Kimi renderer partition, produced no login control, did not recreate `kimi-auth`, and remained `kimi:false` after app restart. Values were not returned or recorded; all other provider statuses stayed true.
+- Revision-3 artifact baseline is the current six-output build: main 168074 bytes / `11E065FA9BC4297C9A1AFEEE5170915E1422BA4CCD83A899C72210CC5BEA4443`; renderer JS 289374 / `4DE4C68D...`; CSS 71575 / `A5971E30...`; HTML 988 / `04A5FC2C...`; preload 4763 / `874B05A1...`; spoof preload 6190 / `1BAEE87F...`. Revision 3 may change main only.
 
 ## Technical Decisions
 
@@ -37,7 +39,11 @@
 - Provider-order contract: canonical order is `chatgpt → claude → deepseek → gemini → grok → kimi → perplexity`; canonical defaults are `chatgpt → claude → gemini`. The order drives panel placement and sequential Council targets, so a focused fixture fails on reorder as well as omission.
 - Typecheck/build boundary: update only root `include` to `["src", "electron"]`; leave compiler options, the `tsconfig.node.json` reference, Vite entries, Rollup externals, package scripts, and output directories unchanged.
 - Exhaustive login result: obtain partition cookies through `AI_NAMES` iteration and derive a boolean for every name. Keep provider-specific predicates explicit. Avoid a six/seven-key object literal as the final completeness mechanism.
-- Kimi status predicate: persisted status requires exact `kimi-auth` plus a Kimi domain. Reuse that predicate in the Kimi branch of `isLoginComplete()` so generic anonymous session/token cookies cannot complete the generic window early. Do not change the other six provider predicates. The standalone login script's DOM close behavior remains unchanged; its transferred cookies must satisfy the shared persisted predicate. If they do not, record BLOCKED/FAIL rather than weaken detection.
+- Kimi status predicate revision: retain exact-domain `kimi-auth` as the legacy fast path. If absent, read the existing Kimi BrowserView only when its parsed URL hostname is exactly `kimi.com` or a subdomain, execute a fixed expression that converts the three observed storage entries to booleans inside the renderer, validate the returned fixed-shape object in main, and require all three booleans true. A destroyed/missing view, unrelated/invalid URL, navigation race, partial/malformed result, rejection, or timeout returns false. No value leaves the renderer.
+- Kimi flow boundary: keep the existing standalone `kimi-login.mjs` composer completion and shared `persist:kimi` partition; do not edit the script or emit/copy storage values. After child completion, the existing parent reload/status notification lets `getLoginStatus()` evaluate the current renderer signal. Keep `isLoginComplete()`'s Kimi exact-cookie branch narrow for the generic fallback; do not restore broad `session|token|access|refresh|user` cookie-name matching. Other six provider predicates remain byte-for-byte behaviorally unchanged.
+- Startup/loading behavior: attach the existing `login-status-changed` notification to Kimi view `did-finish-load` so an Accounts panel opened before storage evaluation is ready refreshes once the real view loads. Do not create a hidden view, add polling, or emit storage values.
+- Risk boundary: this remains a Standard local status-display correction because the only consumer is Accounts presentation. The boolean result must not be reused for Council routing, authorization, or credential transfer. Such reuse, or returning/copying values, stops BUILD and requires a High-risk revision.
+- Revision-3 expected paths: `electron/main.ts`, `scripts/verify-electron-phase2.ts`, `docs/features/electron-typecheck-defect-fixes/{SPEC,PLAN,TEST_EVIDENCE,OPUS5_REVIEW_REQUEST}.md`, `docs/HANDOFF.md`, and `docs/DEV_LOG.md`. `kimi-login.mjs`, preload/renderer source, selectors, package/lock, and build outputs are not task-owned changes.
 - Optional cookie domains: use a small explicit domain-normalization/match helper that returns no match for missing domains. During copying, skip cookies without a usable host. This resolves the full 20-error family and is a runtime hardening fix, not an optional-chain suppression.
 - Window narrowing: capture the guarded `mainWindow` in a local constant before the synchronous callback, preserving add/remove behavior.
 - Attachment snapshot typing: validate/declare the `executeJavaScript` snapshot boundary as `{ count: number; names: string[] } | null` so names are strings before comparison.
@@ -48,7 +54,7 @@
 
 ## Slices
 
-### Slice 1 — Activate the checker and canonicalize provider types
+### Slice 1 — Activate the checker and canonicalize provider types — COMPLETE at `9c5bf90`
 
 1. Edit root `tsconfig.json` include to `src` plus `electron` without changing other compiler/build options.
 2. Capture the exact pre-removal equality/output of both provider arrays and both default-enabled arrays.
@@ -57,29 +63,30 @@
 5. Run the real `npx tsc --noEmit`, record the post-S1 count/code/file list, and confirm it matches or explain any difference from the 25-error in-memory baseline.
 6. Verify emitted JS contains no preload type import and Vite still discovers the same three Electron entries.
 
-### Slice 2 — Fix exhaustive login state and cookie nullability
+### Slice 2 — Fix exhaustive login state and cookie nullability — REVISION-3 PENDING
 
 1. Extract explicit safe cookie-domain matching used by login predicates and cookie copy. Missing domain returns false/skip.
-2. Refactor `getLoginStatus()` to iterate `AI_NAMES`, preserve the existing six provider rules, and add exact Kimi persisted detection. Reuse the same predicate in only the Kimi branch of `isLoginComplete()`.
-3. Add focused positive/negative fixtures using cookie names/domains only; cover unrelated-domain `kimi-auth` and missing domain.
-4. Run the app. Observe current Kimi Logged in, perform Logout, verify false, then open Kimi Login and wait for the user to complete it before verifying true. Record only booleans and cookie names/domains.
-5. If actual login completion does not establish `kimi-auth`, mark S2 blocked/failing, document the observed non-secret signals, and return to SPEC/PLAN approval rather than guessing.
+2. Preserve the exhaustive `AI_NAMES` loop and existing six provider rules. For Kimi, combine exact legacy-cookie status with a bounded boolean-only renderer-storage probe against the existing Kimi BrowserView.
+3. Introduce a small typed/validated current-signal boundary. It returns only `{ accessTokenPresent, refreshTokenPresent, userIdPresent }` booleans; require all three. Do not return strings, storage snapshots, user identifiers, or arbitrary objects.
+4. Add focused positive/negative fixtures for legacy exact/unrelated cookies, exact/unrelated origins, complete/partial/malformed current signals, destroyed/missing view behavior, evaluation rejection, timeout, and the Kimi load-completion refresh hook. Retain missing-cookie-domain coverage and assert the other six provider predicates are unchanged.
+5. Run the app at the current fresh authenticated state and require Accounts Kimi true without `kimi-auth`. Then ask the user to perform Logout and fresh Login again; observe `true → false → true`, confirm current signals clear/reappear, and confirm the six other booleans remain stable. Record only booleans, key names, and cookie names/domains/flags.
+6. If the signal contract or actual cycle fails, keep AC-4/AC-5/AC-14 FAIL or BLOCKED and return to SPEC/PLAN; do not weaken the all-three/exact-origin rule from ad hoc provider output.
 
-### Slice 3 — Make Saved Session compatibility explicit
+### Slice 3 — Make Saved Session compatibility explicit — COMPLETE at `9c5bf90`
 
 1. Separate persisted/legacy snapshot input typing from the required current sanitized record and update the store/sanitizer boundary.
 2. Preserve the five established defaults and no-eager-migration behavior.
 3. In a disposable Electron profile, seed one synthetic old-shape record, then verify list visibility, opened-time ordering, load, label/note, lifecycle, archive/restore, and current-shape persistence after mutation.
 4. Confirm the real store still has snapshot count 0 and was not written by the fixture. Delete the isolated profile after inspecting non-sensitive metadata.
 
-### Slice 4 — Resolve remaining strict errors by invariant
+### Slice 4 — Resolve remaining strict errors by invariant — COMPLETE at `9c5bf90`
 
 1. Capture guarded `mainWindow` locally for synchronous view layout.
 2. Type/validate the attachment snapshot boundary and its name array.
 3. Re-run the checker; inspect every residual diagnostic. Fix true defects in-scope, or stop for approval if a fix changes behavior beyond S1-S4.
 4. Do not use `any`, `@ts-ignore`, blanket non-null assertions, or widespread optional chaining to make the count zero.
 
-### Slice 5 — Integrated validation and review packet
+### Slice 5 — Integrated validation and review packet — PENDING after revision-3 Slice 2
 
 1. Run the focused verification script and inspect every assertion/count.
 2. Run Electron-inclusive typecheck and production build; create the after manifest and explain each changed artifact.
@@ -91,19 +98,19 @@
 ## Validation Detail
 
 - Typecheck: `npx tsc --noEmit`; expected exit 0 with `electron` present in root include. Save the actual exit/count, not an inferred PASS.
-- Focused fixtures: run the Phase 2 verification script for canonical unions, login-result completeness/Kimi cookie cases/missing domains, and legacy snapshot defaults/behavior. Record asserted totals.
-- Build: `npm run build`; compare recursive output path, byte size, and SHA-256 manifest against the six-file baseline. Expected topology is unchanged. Exact renderer, CSS, HTML, preload, and spoof-preload hashes should remain stable. Review the main change against approved source changes. Expected transforms are 50 renderer / 9 main / 1 preload / 1 spoof preload because canonical runtime `AI_NAMES` adds `src/types.ts` to the main graph; any other variation requires explanation.
-- App: use `build-and-run.bat`. Inspect Accounts Kimi true → logout false → user login true; verify other provider statuses did not regress. Use a disposable profile/harness for the legacy snapshot and never mutate the real store for that fixture.
+- Focused fixtures: extend the Phase 2 verification script for canonical unions, login-result completeness, legacy/current Kimi positive and negative cases, exact-origin parsing, boolean-boundary validation/failures/timeouts, missing cookie domains, and legacy snapshot defaults/behavior. Record the actual assertion total and output.
+- Build: `npm run build`; compare recursive output path, byte size, and SHA-256 manifest against the revision-3 six-file baseline above. Expected topology and transforms remain 50 renderer / 9 main / 1 preload / 1 spoof preload. Renderer, CSS, HTML, preload, and spoof-preload must remain byte-identical; only main may change for the approved boolean status correction. Any other variation requires explanation.
+- App: use `build-and-run.bat`. First prove the currently fresh authenticated Kimi state becomes true without `kimi-auth`. Then inspect Accounts Kimi true → user Logout false → user Login true and verify the three boolean current signals clear/reappear while the other provider statuses do not regress. Token/user-id values are prohibited from output. Use a disposable profile/harness for the legacy snapshot and never mutate the real store for that fixture.
 - Chat smoke: open Council Chat, confirm panels/layout load, send one synthetic addressed message to an already authenticated provider, and inspect attachment-name matching UI/code path. No real transcript content enters evidence.
 - EOL before and after: `git ls-files --eol -- electron/main.ts electron/councilPrompt.ts electron/preload.ts tsconfig.json`. Preserve main CRLF, prompt working-tree CRLF, preload LF, and tsconfig LF; add test/docs files as LF. Reject whole-file numstat for surgical targets.
 - Whitespace: run `git diff --check -- tsconfig.json electron/main.ts electron/councilPrompt.ts electron/preload.ts <new task paths>`. Record raw count, classify only terminal CR findings as CR-only, and require actionable count 0. Record `git config --show-origin --get core.autocrlf` (`true` at baseline).
 - Diff/scope: inspect `git diff --ignore-cr-at-eol --stat`, `git diff --ignore-cr-at-eol -- <task paths>`, and after explicit staging `git diff --cached --ignore-cr-at-eol`. Confirm package/lock, selectors, `.gitattributes`, schema version, Phase 3/4 code, and user-owned paths are absent.
-- Secret scan: scan only task-owned diff for credential/token/private-key patterns. Cookie values are forbidden from artifacts; expected finding count 0.
-- Failure rule: BLOCKED/FAIL/NOT_RUN remains explicit. Kimi transition BLOCKED prevents S2 and bundle completion. Build or final typecheck failure prevents review handoff.
+- Secret scan: scan only task-owned diff for credential/token/private-key patterns. Cookie/storage/token/user-id values are forbidden from artifacts; fixed key names and boolean presence are allowed and must be manually distinguished from values. Expected secret-value finding count 0.
+- Failure rule: BLOCKED/FAIL/NOT_RUN remains explicit. Any failure to prove current authenticated true and actual `true → false → true`, or any value crossing the renderer boundary, prevents S2/bundle completion and review handoff. Build or final typecheck failure also prevents handoff.
 
 ## Workflow / Commit Boundaries
 
-1. Wait for explicit Human approval of SPEC revision 1 and PLAN revision 1. Do not edit product/config/test code before approval.
+1. Wait for explicit Human approval of SPEC revision 3 and PLAN revision 3. The user's “승인이야. 다음 단계로 가자” authorizes preparing this revision, not BUILD before the substantive documents are presented. Do not edit product/config/test code before revision-3 approval.
 2. After approval, read `docs/workflow/BUILD.md`; implement each slice and commit only explicit task-owned paths locally.
 3. Read `docs/workflow/TEST.md`; create evidence with inspected command output and perform the approved manual checks.
 4. Prepare a local independent-review packet. Resolve findings within approval or revise the bundle when required.
@@ -112,8 +119,9 @@
 ## Dependencies / Assumptions
 
 - Existing dependencies and Electron/Vite versions are sufficient; no install or upgrade is planned.
-- The observed authenticated/anonymous Kimi cookie-name difference remains valid during BUILD, but actual transition is the acceptance gate.
-- The user can complete Kimi authentication manually after logout. If not, the required check is blocked and no completion claim is allowed.
+- Legacy exact-cookie evidence remains valid as a compatibility fast path, but the actual fresh-login storage evidence supersedes cookie-only status as the complete rule.
+- All seven BrowserViews are created at startup, including disabled panels, so the current Kimi view is available to the status collector. If it is missing, destroyed, not on an exact Kimi origin, or not ready within the bounded probe, Kimi current-signal status is false; no hidden view is created as a side effect.
+- The user can repeat Kimi Logout and authentication manually after the fix. If not, the required actual cycle is BLOCKED and no completion claim is allowed.
 - The isolated snapshot harness can point Electron/electron-store at a disposable profile without reading or writing the user's real Saved Sessions.
 - The user's normal product surface is Council Chat, not Workflow. Workflow code remains must-preserve but is not behaviorally touched by this bundle.
 - Provider DOMs and selectors remain external and unchanged.
@@ -131,12 +139,12 @@
 ## Approval Bundle
 
 - Mode: STANDARD_BUNDLE
-- Bundle ID: `electron-typecheck-defect-fixes-R1`
-- SPEC Revision approved: 2 (revision 1 plus explicitly pre-approved BUILD conditions)
-- PLAN Revision approved: 2 (revision 1 plus explicitly pre-approved BUILD conditions)
-- Decision: APPROVED
-- User message: 2026-08-03, revision 1 approved; record the order/default contracts and align only Kimi's completion predicate, then begin BUILD without reapproval.
-- Constraints / expiry: Phase 2 S1-S4 only; approval expires if substantive scope, authentication predicate, migration decision, build topology, dependency/provider/selector/EOL/publication behavior changes.
+- Bundle ID: `electron-typecheck-defect-fixes-R3`
+- SPEC Revision approved: PENDING
+- PLAN Revision approved: PENDING
+- Decision: PENDING
+- User message: 2026-08-03, “승인이야. 다음 단계로 가자” — interpreted as authorization to prepare and present revision 3, not approval of unseen substantive content or BUILD.
+- Constraints / expiry: Requested approval is limited to the boolean-only Kimi status correction in `electron/main.ts`, focused verification/evidence, and the repeated actual cycle. Existing Phase 2 implementation stays intact. Any returned/copied auth value, authorization/routing use, edit to `kimi-login.mjs`, dependency/provider/selector/EOL-policy/build-topology change, Phase 3/4 work, push, PR, tag, release, or deploy invalidates this bundle.
 
 ## High PLAN Approval
 
@@ -148,3 +156,4 @@
 
 - Revision 1 (2026-08-03): Initial Phase 2 plan. Records the 33-error and 25-residual measured baselines, three Electron-local `AiName` declarations, evidence-backed Kimi status rule/consumer impact, no-eager-migration legacy snapshot decision, Vite/tsconfig boundary, deterministic build manifest, EOL constraints, and deferred Phase 1 observations.
 - Revision 2 (2026-08-03): Added pre-removal provider/default equality evidence, canonical `DEFAULT_ENABLED_AIS`, an order/default fixture and AC, and the pre-approved shared exact Kimi predicate for generic completion plus persisted status. Approval remains valid without another request.
+- Revision 3 (2026-08-03): Replaces the disproved cookie-only completion assumption with legacy exact-cookie OR validated exact-origin boolean-only current renderer storage status; freezes the no-value-crossing boundary, leaves the standalone login script and other providers unchanged, adds current-signal failure fixtures and AC-14, and requires a repeated user-operated actual cycle.

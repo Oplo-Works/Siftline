@@ -445,6 +445,58 @@ interface CouncilRuntimeState extends CouncilRoomState {
   threadPrepared: Partial<Record<AiName, boolean>>
 }
 
+interface CouncilRetryEnvelope {
+  ai: AiName
+  promptText: string
+  filePaths: string[]
+  attachedFiles: Array<{ name: string; path: string; ext: string }>
+  prebuiltPrompt: string
+  dispatchMode: 'single' | 'broadcast'
+  intent: CouncilIntentState
+}
+
+function cloneCouncilRetryEnvelope(envelope: CouncilRetryEnvelope): CouncilRetryEnvelope {
+  return {
+    ...envelope,
+    filePaths: [...envelope.filePaths],
+    attachedFiles: envelope.attachedFiles.map((file) => ({ ...file })),
+    intent: {
+      ...envelope.intent,
+      targetAis: envelope.intent.targetAis ? [...envelope.intent.targetAis] : undefined,
+    },
+  }
+}
+
+function councilRetryHasAvailableAttachments(
+  envelope: CouncilRetryEnvelope,
+  exists: (filePath: string) => boolean,
+): boolean {
+  const paths = new Set([
+    ...envelope.filePaths,
+    ...envelope.attachedFiles.map((file) => file.path),
+  ])
+  return [...paths].every((filePath) => exists(filePath))
+}
+
+function sanitizeCouncilFailureMessage(
+  errorMessage: string,
+  envelope: CouncilRetryEnvelope,
+): string {
+  const pathVariants = new Set(
+    [...envelope.filePaths, ...envelope.attachedFiles.map((file) => file.path)]
+      .filter((filePath) => filePath.length > 0)
+      .flatMap((filePath) => [
+        filePath,
+        filePath.replace(/\\/g, '/'),
+        filePath.replace(/\//g, '\\'),
+      ]),
+  )
+  return [...pathVariants].reduce(
+    (message, filePath) => message.split(filePath).join('[attachment]'),
+    errorMessage,
+  )
+}
+
 interface CouncilUiState {
   pinnedCandidateIds: string[]
   selectedCandidateId: string | null
@@ -523,6 +575,7 @@ let councilChatVisible = true
 let attachmentBarVisible = false
 
 let councilRoom: CouncilRuntimeState = loadPersistedCouncilRoom()
+let councilFailedReplay: CouncilRetryEnvelope | null = null
 let councilTurnChain: Promise<void> = Promise.resolve()
 let clipboardOperationChain: Promise<void> = Promise.resolve()
 let clipboardOperationSequence = 0
@@ -1360,6 +1413,7 @@ function syncCouncilRoomContext(participants: AiName[], primaryAi: AiName): Coun
 
 function clearFailedCouncilTurn(note?: string) {
   councilRoom.failedTurn = null
+  councilFailedReplay = null
   if (note) {
     councilRoom.lastIntent = {
       kind: 'none',
@@ -1378,14 +1432,13 @@ function recordCouncilTurnFailure(
   ai: AiName,
   promptText: string,
   err: unknown,
-  intent?: CouncilIntentState,
+  intent: CouncilIntentState,
+  replay: CouncilRetryEnvelope,
 ) {
-  const errorMessage = err instanceof Error ? err.message : String(err)
-  councilRoom.lastIntent = intent ?? {
-    kind: 'mention',
-    targetAi: ai,
-    note: `${AI_DISPLAY_NAMES[ai]} failed to reply.`,
-  }
+  const rawErrorMessage = err instanceof Error ? err.message : String(err)
+  const errorMessage = sanitizeCouncilFailureMessage(rawErrorMessage, replay)
+  councilRoom.lastIntent = intent
+  councilFailedReplay = cloneCouncilRetryEnvelope(replay)
   councilRoom.failedTurn = { ai, promptText, errorMessage }
   councilRoom.messages.push(
     makeCouncilMessage(
@@ -1442,6 +1495,7 @@ async function handoffInteractionMode(
 function resetCouncilRoomContext(participants?: AiName[], primaryAi: AiName = councilRoom.primaryAi): CouncilRoomState {
   setActiveCouncilSnapshotId(null)
   councilWorkflowBridgeSignature = null
+  councilFailedReplay = null
   councilRoom = {
     participants: participants && participants.length > 0 ? participants : [...DEFAULT_ENABLED_AIS],
     primaryAi,
@@ -1691,11 +1745,12 @@ async function enqueueCouncilTurn(
   aiName: AiName,
   promptText: string,
   filePaths: string[] = [],
-  attachedFiles: Array<{ name: string; path: string; ext: string }> = []
+  attachedFiles: Array<{ name: string; path: string; ext: string }> = [],
+  options: ProcessCouncilTurnOptions = {},
 ): Promise<void> {
   councilTurnChain = councilTurnChain
     .catch(() => undefined)
-    .then(() => processCouncilTurn(aiName, promptText, filePaths, attachedFiles))
+    .then(() => processCouncilTurn(aiName, promptText, filePaths, attachedFiles, options))
   return councilTurnChain
 }
 
@@ -1726,6 +1781,10 @@ async function runCouncilBroadcast(
   // round receives the identical prompt — including the same view of the
   // previous round's per-AI replies.
   const messagesSnapshot = councilRoom.messages.slice()
+  const promptEntries = targets.map((ai) => ({
+    ai,
+    prebuiltPrompt: buildCouncilBroadcastPromptForAi(ai, userText, messagesSnapshot),
+  }))
 
   const targetLabels = targets.map((ai) => AI_DISPLAY_NAMES[ai]).join(', ')
   councilRoom.status = 'running'
@@ -1751,33 +1810,28 @@ async function runCouncilBroadcast(
   emitCouncilRoomUpdate()
 
   const successes: AiName[] = []
-  const failures: Array<{ ai: AiName; error: unknown }> = []
+  const failures: Array<{ ai: AiName; error: unknown; prebuiltPrompt: string }> = []
 
   // Serialize the channel queue so the existing councilTurnChain still settles
   // sequentially with respect to OTHER queued turns (retry, telegram), but
   // the targets within THIS broadcast are launched in parallel.
   const broadcastPromise = (async () => {
-    const promptByAi = new Map<AiName, string>()
-    for (const ai of targets) {
-      promptByAi.set(ai, buildCouncilBroadcastPromptForAi(ai, userText, messagesSnapshot))
-    }
-
     const settled = await Promise.allSettled(
-      targets.map((ai, index) =>
+      promptEntries.map(({ ai, prebuiltPrompt }, index) =>
         processCouncilTurn(ai, userText, filePaths, attachedFiles, {
           skipStatusMgmt: true,
           prebuiltPlaceholder: placeholders[index],
-          prebuiltPrompt: promptByAi.get(ai),
+          prebuiltPrompt,
         })
       )
     )
 
     settled.forEach((res, i) => {
-      const ai = targets[i]
+      const { ai, prebuiltPrompt } = promptEntries[i]
       if (res.status === 'fulfilled') {
         successes.push(ai)
       } else {
-        failures.push({ ai, error: res.reason })
+        failures.push({ ai, error: res.reason, prebuiltPrompt })
       }
     })
   })()
@@ -1789,12 +1843,21 @@ async function runCouncilBroadcast(
 
   // Failures are recorded after the parallel run completes so error system
   // messages don't interleave with live placeholder updates.
-  for (const { ai, error } of failures) {
-    recordCouncilTurnFailure(ai, userText, error, {
+  for (const { ai, error, prebuiltPrompt } of failures) {
+    const intent: CouncilIntentState = {
       kind: targets.length === 1 ? 'mention' : 'all',
       targetAi: ai,
       targetAis: targets.length === 1 ? undefined : targets,
       note: `${AI_DISPLAY_NAMES[ai]} failed to reply.`,
+    }
+    recordCouncilTurnFailure(ai, userText, error, intent, {
+      ai,
+      promptText: userText,
+      filePaths: [...filePaths],
+      attachedFiles: attachedFiles.map((file) => ({ ...file })),
+      prebuiltPrompt,
+      dispatchMode: targets.length === 1 ? 'single' : 'broadcast',
+      intent,
     })
   }
 
@@ -4203,6 +4266,7 @@ ipcMain.handle('load-council-snapshot', (_e, snapshotId: string) => {
 
   const runtime = loadPersistedCouncilRoomFromSnapshot(hydratedSnapshot.room)
   councilRoom = runtime
+  councilFailedReplay = null
   enabledAiNames = [...runtime.participants]
   setActiveCouncilSnapshotId(hydratedSnapshot.id)
   store.set('councilRoomSnapshot', cloneCouncilRoomState())
@@ -4416,19 +4480,58 @@ ipcMain.handle('retry-council-turn', async () => {
   if (!councilRoom.failedTurn) return cloneCouncilRoomState()
 
   const { ai, promptText } = councilRoom.failedTurn
+  const replay = councilFailedReplay
+  if (!replay || replay.ai !== ai || replay.promptText !== promptText) {
+    councilRoom.failedTurn = {
+      ...councilRoom.failedTurn,
+      errorMessage: 'Exact retry data is no longer available. Reattach any files and send the message again.',
+    }
+    councilRoom.lastIntent = {
+      kind: 'none',
+      note: 'Retry was not sent because its live replay data is unavailable.',
+    }
+    emitCouncilRoomUpdate()
+    return cloneCouncilRoomState()
+  }
+
+  if (!councilRetryHasAvailableAttachments(replay, fs.existsSync)) {
+    councilRoom.failedTurn = {
+      ...councilRoom.failedTurn,
+      errorMessage: 'One or more retry attachments are no longer available. Reattach the files and send the message again.',
+    }
+    councilRoom.lastIntent = {
+      kind: 'none',
+      note: 'Retry was not sent because an attachment is unavailable.',
+    }
+    emitCouncilRoomUpdate()
+    return cloneCouncilRoomState()
+  }
+
+  const retryEnvelope = cloneCouncilRetryEnvelope(replay)
   clearFailedCouncilTurn(`Retrying ${AI_DISPLAY_NAMES[ai]}...`)
   emitCouncilRoomUpdate()
 
   try {
-    await enqueueCouncilTurn(ai, promptText)
+    await enqueueCouncilTurn(
+      ai,
+      promptText,
+      retryEnvelope.filePaths,
+      retryEnvelope.attachedFiles,
+      { prebuiltPrompt: retryEnvelope.prebuiltPrompt },
+    )
     clearFailedCouncilTurn(`${AI_DISPLAY_NAMES[ai]} recovered successfully.`)
     emitCouncilRoomUpdate()
   } catch (err) {
-    recordCouncilTurnFailure(ai, promptText, err, {
-      kind: 'mention',
-      targetAi: ai,
-      note: `${AI_DISPLAY_NAMES[ai]} failed again.`,
-    })
+    recordCouncilTurnFailure(
+      ai,
+      promptText,
+      err,
+      {
+        ...retryEnvelope.intent,
+        note: `${AI_DISPLAY_NAMES[ai]} failed again.`,
+      },
+      retryEnvelope,
+    )
   }
 
   return cloneCouncilRoomState()
@@ -7286,6 +7389,7 @@ export function apiLoadCouncilSnapshot(snapshotId: string) {
 
   const runtime = loadPersistedCouncilRoomFromSnapshot(hydratedSnapshot.room)
   councilRoom = runtime
+  councilFailedReplay = null
   enabledAiNames = [...runtime.participants]
   setActiveCouncilSnapshotId(hydratedSnapshot.id)
   store.set('councilRoomSnapshot', cloneCouncilRoomState())

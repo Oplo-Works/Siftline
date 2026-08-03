@@ -67,7 +67,7 @@ check(
   ['gemini', ...EXPECTED_AI_ORDER.filter((ai) => ai !== 'gemini')],
 )
 
-checkMatch(mainSource, /import \{ AI_NAMES, DEFAULT_ENABLED_AIS, type AiName \} from '\.\.\/src\/types\.js'/)
+checkMatch(mainSource, /import \{ AI_NAMES, AI_ROLE_PRESETS, DEFAULT_ENABLED_AIS, type AiName \} from '\.\.\/src\/types\.js'/)
 checkNoMatch(mainSource, /^(?:export )?type AiName\s*=/m)
 checkNoMatch(promptSource, /^(?:export )?type AiName\s*=/m)
 checkNoMatch(preloadSource, /^(?:export )?type AiName\s*=/m)

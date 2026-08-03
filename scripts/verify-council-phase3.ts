@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
+import ts from 'typescript'
 
 import { buildCouncilModeratorSnapshot } from '../src/councilModerator'
 import {
@@ -21,6 +22,20 @@ let assertions = 0
 function check(condition: unknown, message: string): asserts condition {
   assert.ok(condition, message)
   assertions++
+}
+
+function loadFunctions<T extends Record<string, unknown>>(source: string, names: string[]): T {
+  const sourceFile = ts.createSourceFile('fixture.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  const declarations = sourceFile.statements.filter(
+    (node): node is ts.FunctionDeclaration =>
+      ts.isFunctionDeclaration(node) && Boolean(node.name && names.includes(node.name.text)),
+  )
+  assert.equal(declarations.length, names.length, `Expected functions: ${names.join(', ')}`)
+  const selected = declarations.map((node) => node.getText(sourceFile)).join('\n')
+  const transpiled = ts.transpileModule(selected, {
+    compilerOptions: { module: ts.ModuleKind.None, target: ts.ScriptTarget.ES2020 },
+  }).outputText
+  return new Function(`${transpiled}\nreturn { ${names.join(', ')} }`)() as T
 }
 
 const expectedOrder: AiName[] = [
@@ -99,6 +114,79 @@ check(!mainSource.includes('AI_REVIEWER_BRIEFS'), 'duplicate active reviewer bri
 check(!mainSource.includes('AI_REVIEWER_PERSONAS'), 'dead reviewer persona table must be absent')
 check(!/function\s+buildReviewerPrompt\s*\(/.test(mainSource), 'dead reviewer prompt builder must be absent')
 check(mainSource.includes('AI_ROLE_PRESETS[reviewerAi]'), 'review prompt must consume the canonical role object')
+
+const { cloneCouncilRetryEnvelope, councilRetryHasAvailableAttachments, sanitizeCouncilFailureMessage } = loadFunctions<{
+  cloneCouncilRetryEnvelope: (envelope: {
+    ai: AiName
+    promptText: string
+    filePaths: string[]
+    attachedFiles: Array<{ name: string; path: string; ext: string }>
+    prebuiltPrompt: string
+    dispatchMode: 'single' | 'broadcast'
+    intent: { kind: 'mention' | 'all'; targetAi?: AiName; targetAis?: AiName[]; note: string }
+  }) => {
+    ai: AiName
+    promptText: string
+    filePaths: string[]
+    attachedFiles: Array<{ name: string; path: string; ext: string }>
+    prebuiltPrompt: string
+    dispatchMode: 'single' | 'broadcast'
+    intent: { kind: 'mention' | 'all'; targetAi?: AiName; targetAis?: AiName[]; note: string }
+  }
+  councilRetryHasAvailableAttachments: (
+    envelope: {
+      filePaths: string[]
+      attachedFiles: Array<{ name: string; path: string; ext: string }>
+    },
+    exists: (filePath: string) => boolean,
+  ) => boolean
+  sanitizeCouncilFailureMessage: (
+    errorMessage: string,
+    envelope: {
+      filePaths: string[]
+      attachedFiles: Array<{ name: string; path: string; ext: string }>
+    },
+  ) => string
+}>(mainSource, ['cloneCouncilRetryEnvelope', 'councilRetryHasAvailableAttachments', 'sanitizeCouncilFailureMessage'])
+
+const replayFixture = {
+  ai: 'gemini' as const,
+  promptText: '@Gemini retry this',
+  filePaths: ['fixture-a.png'],
+  attachedFiles: [{ name: 'fixture-a.png', path: 'fixture-a.png', ext: 'png' }],
+  prebuiltPrompt: 'exact expanded prompt',
+  dispatchMode: 'broadcast' as const,
+  intent: { kind: 'all' as const, targetAis: ['gemini', 'claude'] as AiName[], note: 'original dispatch' },
+}
+const replayClone = cloneCouncilRetryEnvelope(replayFixture)
+replayFixture.filePaths[0] = 'mutated.png'
+replayFixture.attachedFiles[0].path = 'mutated.png'
+replayFixture.intent.targetAis[0] = 'grok'
+assert.deepEqual(replayClone.filePaths, ['fixture-a.png'])
+assert.deepEqual(replayClone.attachedFiles, [{ name: 'fixture-a.png', path: 'fixture-a.png', ext: 'png' }])
+assert.deepEqual(replayClone.intent.targetAis, ['gemini', 'claude'])
+assertions += 3
+assert.equal(councilRetryHasAvailableAttachments(replayClone, (filePath) => filePath === 'fixture-a.png'), true)
+assert.equal(councilRetryHasAvailableAttachments(replayClone, () => false), false)
+assertions += 2
+const privatePath = 'C:\\private\\fixture-a.png'
+const redacted = sanitizeCouncilFailureMessage(
+  `Failed to read ${privatePath} and C:/private/fixture-a.png`,
+  {
+    filePaths: [privatePath],
+    attachedFiles: [{ name: 'fixture-a.png', path: privatePath, ext: 'png' }],
+  },
+)
+assert.equal(redacted.includes('C:\\private'), false)
+assert.equal(redacted.includes('C:/private'), false)
+assert.equal((redacted.match(/\[attachment\]/g) ?? []).length, 2)
+assertions += 3
+check(/if \(!replay \|\| replay\.ai !== ai \|\| replay\.promptText !== promptText\)[\s\S]*?return cloneCouncilRoomState\(\)[\s\S]*?councilRetryHasAvailableAttachments/.test(mainSource), 'missing runtime replay must stop before attachment/send checks')
+check(/await enqueueCouncilTurn\([\s\S]*?retryEnvelope\.filePaths,[\s\S]*?retryEnvelope\.attachedFiles,[\s\S]*?prebuiltPrompt: retryEnvelope\.prebuiltPrompt/.test(mainSource), 'retry must dispatch exact prompt and both attachment forms')
+check(!/store\.set\([^\n]*councilFailedReplay/.test(mainSource), 'runtime replay must never be persisted')
+check(/councilFailedReplay = null[\s\S]*?councilTurnChain/.test(mainSource), 'runtime replay must start empty after app restart')
+check(/function clearFailedCouncilTurn[\s\S]*?councilRoom\.failedTurn = null\s+councilFailedReplay = null/.test(mainSource), 'public and runtime failure state must clear together')
+check((mainSource.match(/councilRoom = runtime\s+councilFailedReplay = null/g) ?? []).length === 2, 'both snapshot load paths must discard runtime replay state')
 
 const displayNames: Record<AiName, string> = {
   chatgpt: 'ChatGPT',

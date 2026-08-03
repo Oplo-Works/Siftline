@@ -4,8 +4,8 @@
 - Risk: Standard
 - Bundle ID: `council-chat-phase3-defect-fixes-R1`
 - PLAN Revision: 1
-- SPEC: `docs/features/council-chat-phase3-defect-fixes/SPEC.md`, revision 1, READY_FOR_APPROVAL
-- Status: READY_FOR_APPROVAL
+- SPEC: `docs/features/council-chat-phase3-defect-fixes/SPEC.md`, revision 1, APPROVED
+- Status: APPROVED — WF:BUILD
 - Base Branch/Commit: `codex/council-chat-phase3-defect-fixes` / `394cee2f5b42f26dfecc27548746e424ea6612a8`
 
 ## Baseline
@@ -32,13 +32,13 @@
 
 ## Technical Decisions
 
-- Canonical roles: extend `AiRolePreset` with `outputGuide`; make `AI_ROLE_PRESETS` contain the current active main brief wording. Main imports/adapts it rather than maintaining prose. Delete only the proven dead persona table/builder.
+- Canonical roles: make `AI_ROLE_PRESETS` one `Record<AiName, { title, role, focus, outputGuide }>` object. Preserve short UI titles in `title`; store the active main brief wording in the other fields. Main imports it rather than maintaining prose. Human moderator copy uses `title`, its prompt uses `role`. Delete only the proven dead persona table/builder.
 - Retry storage: use a separate in-memory replay envelope, not `CouncilRoomState`/electron-store. Capture cloned attachment metadata and exact prebuilt prompt at failure time. Public failure UI may expose availability but never paths/content.
 - Retry dispatch: extend the serialized enqueue/process boundary to accept the preserved options. Do not reconstruct a broadcast retry through delivered-count delta logic.
 - Summary selection: implement a pure newest-fit selector in `electron/councilPrompt.ts`; reverse selected output only after selection.
-- Kimi direction: add an App callback to `AccountsPanel`. The Kimi action invokes existing focus/enable logic and closes Accounts. Guard `open-login-window` so the product route cannot accidentally use the child process. Leave root manual Kimi scripts unchanged.
+- Kimi direction: add an App callback to `AccountsPanel`. The Kimi action closes Accounts, enables/exposes Kimi through a dedicated path, and preserves the pre-action Council `primaryAi`; it must not call the handler that sets Kimi primary. Guard `open-login-window` so the product route cannot accidentally use the child process. Leave root manual Kimi scripts unchanged.
 - Gemini insertion: add a dedicated contenteditable line-wise helper. Use browser commands that dispatch real input semantics, verify exact structure, and only then return success. Never set `innerText` directly.
-- Readback: normalize CRLF/NBSP/zero-width artifacts, derive line signatures, and require a compatible structure candidate for multiline prompts. Continue checking the exact Siftline identity.
+- Readback: normalize CRLF/NBSP/zero-width artifacts and derive the ordered sequence of non-empty trimmed lines. First log counts/digests/verdicts for all providers without changing their pass/fail gate. Measure all seven real composers; only then explicitly enforce structure for each provider with stable evidence. Continue checking the exact Siftline identity and never enforce an unmeasured provider.
 - Clipboard: preserve the single mutex. Add timestamps around queue entry/begin/end. Do not include payload length if it could identify sensitive content beyond existing generic prompt-length logs; never log content/path. Do not implement restoration.
 - Image lock: no speculative critical-section shrink in the first implementation slice. Direct Gemini insertion removes routine prompt contention; image fallback latency remains an explicit, measured correctness tradeoff.
 - Risk stop: if implementation requires auth/localStorage value transfer, provider-cookie predicate edits, clipboard-content snapshot/restore, schema/dependency/selector change, or a Phase 4 routing decision, stop and return to SPEC/PLAN.
@@ -47,22 +47,23 @@
 
 | Slice | User-visible goal | AC IDs | Expected paths | Data/API impact | Validation | Rollback | Status |
 |---|---|---|---|---|---|---|---|
-| S1 — Canonical roles | UI and injected prompts show the same seven specialties; dead Kimi persona disappears. | AC-1, AC-2, AC-13, AC-14 | `src/types.ts`, `electron/main.ts`, focused script | Adds canonical `outputGuide`; no persisted/API data. | Source/runtime role fixture, tsc, build manifest. | Revert S1 commit; no migration. | DRAFT |
-| S2 — Recent-first context | Older-context summaries keep what happened nearest to the current round. | AC-5, AC-6, AC-15 | `electron/councilPrompt.ts`, focused script | Pure prompt text selection only. | Budget/order/round fallback fixtures plus Phase 1 regressions. | Revert pure helper/test changes. | DRAFT |
-| S3 — Exact retry | Retry resends the original failed operation with attachments rather than a new text-only delta prompt. | AC-3, AC-4, AC-13, AC-14 | `electron/main.ts`, possibly `src/types.ts` for non-sensitive availability, `src/components/CouncilChatPanel.tsx`, focused script | Runtime-only path metadata; no persistence/schema. | Mocked dispatch/restart/missing-file/lifecycle fixtures; controlled recovery UI smoke. | Clear runtime envelope and revert slice. | DRAFT |
-| S4 — Kimi panel login | Accounts' Kimi button takes the user to the only working login surface. | AC-7, AC-8, AC-9, AC-13 | `src/components/AccountsPanel.tsx`, `src/App.tsx`, `electron/main.ts`, focused script | UI navigation only; no auth/session value transfer. | Renderer/source fixture and actual Logout → Open panel → user Login → Logged in. | Revert callback/guard; Phase 2 status remains. | DRAFT |
-| S5 — Structure-safe Gemini path | Normal Gemini prompts preserve multiline structure without taking clipboard ownership; flattening is detected. | AC-9, AC-10, AC-11, AC-12, AC-14 | `electron/main.ts`, focused script | No clipboard read/restore; timing metadata only. | Pure verifier cases, mocked concurrency, actual Gemini composer structure, existing image-capable-panel regression. | Revert direct helper/metrics; current serialized clipboard fallback remains recoverable. | DRAFT |
-| S6 — Integrated test/review packet | Phase 3 is reviewable with honest provider/environment evidence. | AC-1–AC-15 | feature evidence/review docs, HANDOFF, DEV_LOG | Documentation only. | Full commands, staged diff review, independent review. | Revert metadata commit only. | DRAFT |
+| S1 — Canonical roles | Compact UI titles remain stable while injected prompts share the same seven specialties; dead Kimi persona disappears. | AC-1, AC-2, AC-13, AC-14 | `src/types.ts`, role consumers, `electron/main.ts`, focused scripts | Adds canonical `role`/`focus`/`outputGuide`; no persisted/API data. | Source/runtime role fixture, UI before/after wording, Phase 1 Kimi moderator assertion, tsc, build manifest. | Revert S1 commit; no migration. | APPROVED |
+| S2 — Recent-first context | Older-context summaries keep what happened nearest to the current round. | AC-5, AC-6, AC-15 | `electron/councilPrompt.ts`, focused script | Pure prompt text selection only. | Budget/order/round fallback fixtures plus Phase 1 regressions. | Revert pure helper/test changes. | APPROVED |
+| S3 — Exact retry | Retry resends the original failed operation with attachments rather than a new text-only delta prompt. | AC-3, AC-4, AC-13, AC-14 | `electron/main.ts`, possibly `src/types.ts` for non-sensitive availability, `src/components/CouncilChatPanel.tsx`, focused script | Runtime-only path metadata; no persistence/schema. | Mocked dispatch/restart/missing-file/lifecycle fixtures; controlled recovery UI smoke. | Clear runtime envelope and revert slice. | APPROVED |
+| S4 — Kimi panel login | Accounts' Kimi button takes the user to the only working login surface without changing Council primary. | AC-7, AC-8, AC-9, AC-13 | `src/components/AccountsPanel.tsx`, `src/App.tsx`, `electron/main.ts`, focused script | UI navigation only; no auth/session value transfer. | Renderer/source fixture, primary before/after observation, actual Logout → Open panel → user Login → Logged in. | Revert callback/guard; Phase 2 status remains. | APPROVED |
+| S5 — Structure-safe Gemini path | Observe all seven composers first; then normal Gemini prompts preserve multiline structure without taking clipboard ownership and measured flattening is detected. | AC-9, AC-10, AC-11, AC-12, AC-14 | `electron/main.ts`, focused script | No clipboard read/restore; timing metadata only. | Pure verifier cases, all-seven observation matrix, mocked concurrency, actual Gemini composer structure, existing image-capable-panel regression. | Revert direct helper/metrics; current serialized clipboard fallback remains recoverable. | APPROVED |
+| S6 — Integrated test/review packet | Phase 3 is reviewable with honest provider/environment evidence. | AC-1–AC-15 | feature evidence/review docs, HANDOFF, DEV_LOG | Documentation only. | Full commands, staged diff review, independent review. | Revert metadata commit only. | APPROVED |
 
 ## Slice Detail
 
 ### S1 — Canonical roles
 
 1. Capture the three current role tables and prove the dead builder has zero call sites before deletion.
-2. Add `outputGuide` to the canonical type and move the active brief wording into `AI_ROLE_PRESETS` while preserving all seven keys and canonical AI order.
+2. Change the canonical type to `title` (existing short UI text), `role` (active long prompt role), `focus`, and `outputGuide`; preserve all seven keys and canonical AI order.
 3. Adapt main prompt builders to the canonical fields. Update comments/names so no second prose table is implied.
 4. Delete `AI_REVIEWER_PERSONAS` and `buildReviewerPrompt()` as one bounded block; do not touch active final-revision builders.
-5. Fixture every UI/prompt consumer against canonical title/detail and assert Kimi is `Long-Context Deep Research Analyst`.
+5. Fixture UI consumers against short `title`, prompt consumers against long `role`/`focus`/`outputGuide`, and lock semantic consistency between each title/role pair. Keep visible short titles byte-identical.
+6. Keep `describeMissingAngle().missing` on Kimi's short title and its `nextPrompt` on Kimi's long role. Update the Phase 1 fixture to assert `.role` exactly; do not weaken its Kimi assertion.
 
 ### S2 — Recent-first context
 
@@ -82,19 +83,21 @@
 ### S4 — Kimi panel login
 
 1. Add `onOpenKimiPanel` to Accounts. For Kimi, render `Open panel`/clear help text instead of promising a standalone Login/Re-login.
-2. In App, close Accounts, restore BrowserViews, and call existing focus/enable synchronization for Kimi.
+2. In App, close Accounts, restore BrowserViews, enable/expose Kimi through a dedicated synchronization path, and preserve the exact pre-action `primaryAi`; do not call the primary-changing focus handler.
 3. Ensure the renderer does not invoke `openLoginWindow('kimi')`; add a defensive main guard. Keep other six standalone scripts/flows unchanged.
 4. Do not modify `kimi-login.mjs`, `kimi-login.bat`, renderer storage, status predicates, or logout clearing.
-5. Run the real user-visible route; record status booleans only.
+5. Run the real user-visible route; record status booleans and Council primary before/after only.
 
 ### S5 — Structure-safe Gemini path
 
-1. Extend `ComposerVerification` with expected/observed line counts and a structure verdict. Select any readback candidate that fully passes, not merely the first text source.
-2. Add negative cases where `A\n\nB` becomes `A B` or `AB`; both must fail despite matching whitespace-free characters.
-3. Implement line-wise Gemini insertion using `execCommand('insertText')` for text and supported paragraph/line-break commands for boundaries. Clear/select once, not per line. Dispatch no synthetic flattening rewrite.
-4. Use the direct helper before the clipboard path. If it verifies, return without entering `withClipboardLock`; otherwise log structural metrics and use the current serialized compatibility fallback.
-5. Add queue-wait and lock-hold timing fields to mutex logs; retain operation/provider identity only.
-6. Keep image fallback's current critical section in revision 1. Re-run simultaneous multi-panel image mapping because text and image paths still share the mutex.
+1. Extend `ComposerVerification` with an observation-only structural signature: normalize CRLF/NBSP/zero-width artifacts, trim each line, discard empty lines, preserve the remaining line sequence, and log only counts/digests/match.
+2. Add negative cases where `A\n\nB` becomes `A B` or `AB`; both must mismatch despite matching whitespace-free characters. Add the positive case `A\n\nB` → `A\nB`, whose non-empty-line signatures match.
+3. Run the observation build through all seven actual provider composers and record the matrix in `TEST_EVIDENCE.md`. Do not change any provider's block/pass result during this step.
+4. After the complete matrix is inspected, define an explicit enforcement set containing only providers with stable evidence. Never add an unmeasured provider. Gemini must be evidenced and enforced before AC-10 can pass.
+5. Implement line-wise Gemini insertion using `execCommand('insertText')` for text and supported paragraph/line-break commands for boundaries. Clear/select once, not per line. Dispatch no synthetic flattening rewrite.
+6. Use the direct helper before the clipboard path. If its enforced verification passes, return without entering `withClipboardLock`; otherwise log structural metrics and use the current serialized compatibility fallback.
+7. Add queue-wait and lock-hold timing fields to mutex logs; retain operation/provider identity only.
+8. Keep image fallback's current critical section in revision 1. Re-run simultaneous multi-panel image mapping because text and image paths still share the mutex.
 
 ### S6 — Integrated validation and review
 
@@ -107,11 +110,11 @@
 ## Validation Detail
 
 - Typecheck: `npx tsc --noEmit`; require exit 0 and inspect output.
-- Focused script: bundle/run `scripts/verify-council-phase3.ts`; include canonical role equality, no dead symbols, summary budgets/order, mention-free intent, exact retry arguments/lifecycle, Kimi route guard, line-structure positives/negatives, and clipboard mutex ordering/timing fields.
+- Focused script: bundle/run `scripts/verify-council-phase3.ts`; include short-title/long-role semantic fixtures, no dead symbols, summary budgets/order, mention-free intent, exact retry arguments/lifecycle, Kimi route/primary guard, negative flattening plus positive blank-line-fold signatures, observation-before-enforcement, and clipboard mutex ordering/timing fields.
 - Existing regressions: rerun `scripts/verify-council-phase1.ts` and `scripts/verify-electron-phase2.ts` after rebuilding their temporary bundles; require their existing assertions to remain PASS or explain an intentional canonical-role text update without weakening assertions.
 - Build: `npm run build`; expect six outputs and transforms 50/9/1/1. Preload, spoof-preload, CSS, and HTML must remain byte-identical. Renderer and main may change only for approved slices and every artifact delta must be explained before staging.
-- Kimi manual: from logged-out state, click Accounts Kimi `Open panel`; verify no child window, Kimi becomes enabled/focused, user logs in in-panel, Accounts later reports true, Logout still reports false. If the user does not perform credentials, record BLOCKED and do not complete S4.
-- Gemini manual: insert a known multiline prompt containing identity line, section headers, bullets, blank lines, and final language block; inspect readback/method/line metrics before send. No prompt body enters evidence.
+- Kimi manual: record current Council primary, then from logged-out state click Accounts Kimi `Open panel`; verify no child window, Kimi becomes enabled/exposed, Council primary remains identical, user logs in in-panel, Accounts later reports true, Logout still reports false. If the user does not perform credentials, record BLOCKED and do not complete S4.
+- Composer manual: first use an observation-only build to record line-signature counts/digests/verdicts for all seven providers without changing send gates. Then enable structure enforcement only for measured-stable providers. Gemini must insert a known multiline prompt containing identity line, section headers, bullets, blank lines, and final language block through the direct path; no prompt body enters evidence.
 - Retry manual/harness: deterministic mocked failure proves exact args. If an actual provider check is performed, use a disposable small non-sensitive file and visible user action; never force duplicate sends into an external account without confirmation.
 - Image mapping: test only image-capable provider panels. DeepSeek remains excluded for the documented provider limitation. Verify target-image correspondence under concurrent Council fan-out.
 - EOL: `git ls-files --eol` before/after for every touched surgical path. Preserve main/types/App/Accounts CRLF, Council prompt working-tree CRLF, and new script/docs LF. Reject whole-file rewrites before staging.
@@ -141,11 +144,12 @@
 
 - Mode: STANDARD_BUNDLE
 - Bundle ID: `council-chat-phase3-defect-fixes-R1`
-- SPEC Revision approved: PENDING
-- PLAN Revision approved: PENDING
-- Decision: PENDING
-- User message: N/A — awaiting explicit approval of SPEC revision 1 and PLAN revision 1.
-- Constraints / expiry: Approval, if granted, covers only S1–S6 above. Any authentication/storage-value transfer, clipboard content read/restore, persistent retry paths/prompts, dependency/selector/schema/EOL-policy change, Phase 4 routing, push, PR, tag, release, or deploy invalidates it and requires a revised approval.
+- SPEC Revision approved: 1
+- PLAN Revision approved: 1
+- Decision: APPROVED — proceed to BUILD without reapproval for the three recorded conditions
+- User message: 2026-08-03 — “council-chat-phase3-defect-fixes SPEC revision 1 / PLAN revision 1 을 승인한다 ... 반영 후 BUILD 를 진행하라.”
+- Approved conditions: observe structure without blocking until all seven providers are measured and use non-empty trimmed-line signatures; preserve Council `primaryAi` when exposing Kimi; keep short UI `title` and long prompt `role` as separate fields of the single canonical object.
+- Constraints / expiry: Approval covers only S1–S6 above. Any authentication/storage-value transfer, clipboard content read/restore, persistent retry paths/prompts, dependency/selector/schema/EOL-policy change, Phase 4 routing, push, PR, tag, release, or deploy invalidates it and requires a revised approval.
 
 ## High PLAN Approval
 
@@ -156,3 +160,4 @@
 ## Revision History
 
 - Revision 1 (2026-08-03): Initial plan for canonical roles/dead-code removal, exact runtime-only retry with attachments, recent-first context, embedded Kimi login navigation, and structure-aware Gemini insertion/readback with the existing mutex retained for fallbacks.
+- Revision 1 approved conditions (2026-08-03): added the all-seven observation gate and non-empty-line signature rule, Kimi primary invariance, and canonical short-title/long-role split. User explicitly waived reapproval and authorized BUILD.

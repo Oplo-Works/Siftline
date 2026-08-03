@@ -326,3 +326,14 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
 - Publish Intent/Target: NOT_REQUIRED / none — no push, PR, tag, or release.
 - Decisions / Risks / Follow-ups: automatic clipboard restoration and Kimi renderer-storage transfer are rejected for revision 1; mention-free default routing remains Phase 4. Kimi load-failure status and cookie-domain helper consistency are recorded as deferred candidates only.
 - Next: READY_FOR_APPROVAL — Human approves or revises SPEC revision 1 + PLAN revision 1 together; no BUILD before approval.
+
+## 2026-08-03T19:08:36Z — council-chat-phase3-defect-fixes / APPROVAL → BUILD
+
+- Stage: WF:SPEC_PLAN → WF:BUILD
+- Role/Runtime: Implementation Owner / Codex (`codex-sol-deep` requested; repository PIN: CANDIDATE)
+- Risk: Standard — existing auth/storage/clipboard-content boundaries remain unchanged.
+- Human Decision: APPROVED — SPEC revision 1 and PLAN revision 1; user directed BUILD without reapproval for three recorded conditions.
+- Conditions: structural signatures are observation-only until all seven actual providers are measured and use ordered non-empty trimmed lines; Accounts `Open Kimi panel` preserves Council `primaryAi`; one canonical role object separates short UI `title` from long prompt `role` plus `focus`/`outputGuide`.
+- Validation Boundary: provider structure cannot become blocking without measured evidence. The Phase 1 Kimi moderator assertion remains exact on the long prompt role. S4 requires an actual user Logout → Open panel → Login cycle; without it S4 is BLOCKED and other slices continue.
+- Constraints: no auth predicate/storage transfer, clipboard read/restore, retry persistence, dependency/selector/schema/EOL-policy change, Phase 4 routing, push, PR, tag, release, or deploy.
+- Next: BUILD S1 — canonical roles and dead-code removal.

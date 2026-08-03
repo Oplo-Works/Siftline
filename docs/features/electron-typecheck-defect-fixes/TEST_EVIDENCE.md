@@ -1,12 +1,20 @@
 # Test Evidence: Electron Typecheck and Surfaced Defect Fixes
 
-- Overall Result: **PASS for approved revision-3 scope** — Electron-inclusive typecheck, 60 focused assertions, isolated Saved Sessions, six-output build equivalence, Council Chat smoke, and actual Kimi `true → false → true` all pass. Current fresh Kimi authentication reports true without `kimi-auth` through a validated boolean-only renderer boundary. A separate observation remains: the Accounts Kimi Login launcher did not complete login, while direct login in the main Kimi panel succeeded; `kimi-login.mjs` was explicitly outside revision-3 scope and remains unchanged.
+- Overall Result: **PASS / independently reviewed** — Electron-inclusive typecheck, 60 focused assertions, isolated Saved Sessions, six-output build equivalence, Council Chat smoke, and actual Kimi `true → false → true` all pass. Current fresh Kimi authentication reports true without `kimi-auth` through a validated boolean-only renderer boundary. Opus 5 independently reproduced the required checks and returned PASS. A separate observation remains: the Accounts Kimi Login launcher did not complete login, while direct login in the main Kimi panel succeeded; `kimi-login.mjs` was explicitly outside revision-3 scope and remains unchanged.
 - Implementation Base: `4a95621c84e43faa6ada6e4f507631443d759975`
 - Revision-3 Implementation Base: `175617c` — approved revision-3 metadata
 - Implementation Head: `d4e0a65f992d7d09885e2b3e8e380b0fdd9351c1` — `fix(electron): detect current Kimi login state`
 - Verified Target: `d4e0a65f992d7d09885e2b3e8e380b0fdd9351c1`
 - Environment: Windows NT 10.0.26200.0; Node v24.12.0; npm 11.6.2; TypeScript 5.9.3; Electron 41.2.0; Vite 5.4.21; `core.autocrlf=true` from system Git config.
 - Data handling: Cookie/token values and real reply bodies were not read into evidence or written to this file or Git. Authentication evidence contains only boolean status, cookie names/domains/flags, and boolean presence of non-secret local-storage key names. Saved Session fixtures were synthetic and isolated.
+
+## Independent Review
+
+- Decision: **PASS**, user-delivered Opus 5 `CHAT_ONLY_READ_ONLY` review on 2026-08-03.
+- Independently reproduced: focused script 60/60 PASS; `npx tsc --noEmit` exit 0; renderer JS, CSS, HTML, preload, and spoof-preload remained byte-identical to the original baseline; main alone changed to 169306 bytes / `3F426EBB...` as expected.
+- Source review confirmed exact Kimi HTTPS suffix matching, the two-second timeout, runtime signal sanitization, all-three-key requirement, and boolean-presence-only evaluation. It also confirmed all seven BrowserViews load regardless of enabled state and that the Kimi `did-finish-load` notification closes the early-Accounts-query timing gap.
+- Reviewer correction: the earlier instruction to broaden Kimi's cookie predicate was disproved by the performed AC-4 cycle because current Kimi login creates renderer storage rather than the legacy cookie. The implementation correctly stopped after the measured failure, recorded it without reclassification, and returned to SPEC/PLAN revision 3 instead of applying the unsupported instruction.
+- Follow-up classification: Accounts' standalone Kimi Login flow is not a revision-3 regression because it only transfers cookies while current Kimi authentication resides in renderer storage. The user-facing nonworking button is mandatory Phase 3 scope; no Phase 2 code was reopened.
 
 ## Command Evidence
 

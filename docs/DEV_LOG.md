@@ -298,3 +298,17 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
   works; carry it as a visible follow-up unless independent review finds it blocks the approved scope.
 - Publish Intent/Target: NOT_REQUIRED / none — push/PR/tag/release not attempted
 - Next: READY_FOR_REVIEW + Opus 5 CHAT_ONLY_READ_ONLY
+
+## 2026-08-03T18:41:32Z — electron-typecheck-defect-fixes / CLOSE
+
+- Stage: WF:CLOSE
+- Role/Runtime: Implementation Owner / Codex (`codex-sol-deep` requested; repository PIN: CANDIDATE)
+- Risk: Standard status-display boundary
+- Implementation: `4a95621c84e43faa6ada6e4f507631443d759975`..`d4e0a65f992d7d09885e2b3e8e380b0fdd9351c1`
+- Review: Opus 5 `CHAT_ONLY_READ_ONLY` — **PASS**, user-delivered 2026-08-03; reproduced focused 60/60, typecheck exit 0, five original-baseline-identical non-main hashes, and expected main-only change.
+- Human Decision: N/A — Standard review PASS satisfies the CLOSE entry gate.
+- Summary: Reviewer confirmed the exact-origin boolean-only Kimi renderer signal, timeout/sanitizer/all-three-key boundary, default-disabled BrowserView availability, and load-completion Accounts refresh. The prior request to broaden a cookie predicate was explicitly withdrawn because AC-4 proved current Kimi authentication is renderer-storage based; the measured failure and revision-3 reapproval path were correct.
+- Validation: `docs/features/electron-typecheck-defect-fixes/TEST_EVIDENCE.md` — PASS and independently reviewed; AC-1–AC-14 complete.
+- Publish Intent/Target: NOT_REQUIRED / none — the approved bundle prohibits push, PR, tag, and release; none attempted.
+- Decisions / Risks / Follow-ups: Accounts' standalone Kimi Login transfers cookies only and cannot carry current renderer-storage authentication. It is not a Phase 2 regression but is mandatory Phase 3 scope. Kimi page-load availability and cookie-domain matcher consistency remain Phase 3 planning candidates.
+- Next: DONE for Phase 2; Main Driver → Phase 3 WF:SPEC_PLAN.

@@ -5,7 +5,7 @@
 - Bundle ID: `electron-typecheck-defect-fixes-R2`
 - PLAN Revision: 2
 - SPEC: `docs/features/electron-typecheck-defect-fixes/SPEC.md`, revision 2, APPROVED
-- Status: APPROVED
+- Status: READY_FOR_REVIEW — AC-4 BLOCKED
 - Base Branch/Commit: `codex/council-chat-phase1-defect-fixes` / `eb6eac2112cc390794833c73656d6a8da78a9b76`; planning branch `codex/electron-typecheck-defect-fixes`
 
 ## Baseline

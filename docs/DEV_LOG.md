@@ -213,3 +213,21 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
 - Scope: existing exclusions and no-push rule unchanged. `_to_delete/` is task-external review trash;
   the agent will neither preserve it as user data nor modify/delete it.
 - Next: BUILD Slice 1
+
+## 2026-08-03T16:50:22Z — electron-typecheck-defect-fixes / review packet
+
+- Stage: WF:TEST → WF:REVIEW  - Role/Runtime: Implementation Owner / Codex
+  (`codex-sol-deep` requested; repository PIN: CANDIDATE)  - Risk: Standard
+- Implementation: `4a95621c84e43faa6ada6e4f507631443d759975`..`9c5bf90c14606853551bf7e0b15dd01cf3783b31`
+- Human Decision: revision 2 APPROVED; Kimi user-transition nonresponse must remain BLOCKED
+- Summary: Electron-inclusive strict typecheck, canonical provider/default sources, exhaustive seven-provider
+  login status, shared exact Kimi predicate, legacy snapshot persisted/current type split, and residual
+  cookie/window/attachment strict fixes implemented. No Phase 3/4, dependency, selector, EOL-policy,
+  package/lock, push, or PR change.
+- Validation: `TEST_EVIDENCE.md` — tsc 0; focused 36/36; isolated Saved Sessions PASS and temp removed;
+  build outputs 6 / transforms 50/9/1/1 / non-main five hashes identical; actual seven-boolean status and
+  Kimi exact cookie metadata; user-confirmed Chat smoke; raw whitespace 116 all CR-only/actionable 0;
+  secret/scope findings 0. Official PTY launcher exit 0. AC-4 remains BLOCKED.
+- Review: pending Opus 5 CHAT_ONLY_READ_ONLY; `OPUS5_REVIEW_REQUEST.md`
+- Publish Intent/Target: NOT_REQUIRED / none — push/PR prohibited
+- Next: READY_FOR_REVIEW + Opus 5; afterward obtain Kimi manual transition before CLOSE

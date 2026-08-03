@@ -2,81 +2,75 @@
 
 ## Identity
 
-- Status: IN_PROGRESS
+- Status: READY_FOR_REVIEW
 - Task ID: `electron-typecheck-defect-fixes`
-- Stage: WF:BUILD
+- Stage: WF:REVIEW
 - Risk: Standard
-- Updated At: 2026-08-03T16:38:50Z
+- Updated At: 2026-08-03T16:50:22Z
 
 ## Context Summary
 
-Council Chat Phase 1은 Opus 5 독립 PASS 후 로컬 close metadata 커밋
-`eb6eac2`로 WF:CLOSE를 완료했다. push/PR은 수행하지 않았다. Phase 2는
-`codex/electron-typecheck-defect-fixes` 브랜치에서 SPEC/PLAN revision 1만 작성했다.
-Electron-inclusive in-memory typecheck 기준은 총 33건이며, S1 type-only import만
-적용한 시뮬레이션 뒤에도 25건이 남는다. Kimi Accounts 오표시의 유일 소비처,
-인증/익명 세션의 비밀값 없는 cookie-name 차이, legacy Saved Session sanitizer와
-실제 store count 0, Vite/tsconfig 경계 및 6개 빌드 산출물 기준선을 조사했다.
+Phase 2 revision 2 구현은 `9c5bf90`에 커밋됐다. root typecheck가 Electron을 포함하고,
+canonical `AiName`/ordered provider/default 목록, exhaustive login status, exact Kimi predicate,
+legacy snapshot persistence input, cookie-domain/window/attachment strict fixes를 반영했다.
+Typecheck 0, focused 36 assertions, isolated Saved Sessions, build 50/9/1/1과 non-main
+5개 산출물 byte identity, actual Chat smoke, EOL/scope/secret 검증이 PASS했다.
+단, 사용자 조작이 필요한 Kimi logout false → login true 전환은 수행되지 않아 AC-4와
+S2/번들 완료 상태는 BLOCKED다. 이 상태를 유지한 채 구현 범위의 Opus 5 독립 리뷰를 요청한다.
 
 ## Ownership
 
-- Outgoing Role / Runtime: Main Driver / Codex (`codex-sol-deep` requested;
+- Outgoing Role / Runtime: Implementation Owner / Codex (`codex-sol-deep` requested;
   repository Runtime PIN remains CANDIDATE)
-- Next Role: Implementation Owner
-- Next Runtime ID: current Codex BUILD session
-- Next Action: approved revision 2 S1부터 순서대로 구현·실측
-- Reason: revision 1 approval plus three pre-approved BUILD conditions recorded in revision 2
+- Next Role: Independent Reviewer — Opus 5, `CHAT_ONLY_READ_ONLY`
+- Next Runtime ID: user-selected Opus 5 review session
+- Next Action: `4a95621..9c5bf90`와 review request/evidence를 읽고 verdict/findings 반환
+- Reason: implementation packet is reviewable; AC-4 remains a separate manual completion blocker
 
 ## Git and Worktree
 
 - Branch / Worktree: `codex/electron-typecheck-defect-fixes` @
   `C:\Users\Sales01\Documents\AI-Council-Chat`
-- Phase 1 Base: `b753232768f466f9130834c6e5a25b4d50c0cd1b`
-- Phase 1 Implementation: `d88c4da0d36281544649d09d17efdc677adb6055`
-- Phase 1 Close Metadata: `eb6eac2112cc390794833c73656d6a8da78a9b76`
-- Phase 2 Planning Base: `eb6eac2112cc390794833c73656d6a8da78a9b76`
-- Phase 2 Planning State: SELF — resolve from Git history after planning commit
-- Worktree State: USER_DIRTY_ONLY after explicit planning paths are committed
+- Phase 2 Planning Commit: `0363a6ecc8e13c9dfcfce0c39617e6d4d149e8fe`
+- Approved Revision-2 Metadata: `4a95621c84e43faa6ada6e4f507631443d759975`
+- Implementation Base: `4a95621c84e43faa6ada6e4f507631443d759975`
+- Implementation Head: `9c5bf90c14606853551bf7e0b15dd01cf3783b31`
+- Review Range: `4a95621..9c5bf90`
+- Review Packet Metadata State: SELF — resolve after metadata commit
+- Worktree State: USER_DIRTY_ONLY after review packet commit
 - Preserved User Changes:
   - `docs/handoff_history/HANDOFF_PROMPT_council_chat_fixes.md` (untracked)
   - `docs/handoff_history/COWORK_SESSION_HANDOFF_council_chat_review.md` (untracked)
-- Ignored task-external trash: `_to_delete/` (agent does not modify/delete it)
+- Ignored task-external trash: `_to_delete/` (agent did not modify/delete it)
 
 ## Publish
 
-- Push Intent: NOT_REQUIRED — user explicitly prohibited push/PR
+- Push Intent: NOT_REQUIRED — push/PR prohibited
 - Approved Target: none
-- Expected Remote Head: N/A
-- Last Reconciled Remote Head: `origin/main` matched Phase 1 base `b753232` at Phase 1 start
 - Push Result: NOT_ATTEMPTED
 
 ## Scope, Validation, and Decisions
 
-- Approved Inputs:
-  - `docs/features/electron-typecheck-defect-fixes/SPEC.md` revision 2
-  - `docs/features/electron-typecheck-defect-fixes/PLAN.md` revision 2
-- Baseline Typecheck: in-memory `include: ["src", "electron"]` — 33 diagnostics;
-  in-memory S1 simulation — 25 residual diagnostics
-- Baseline Build: `npm run build` exit 0; same-source before/after six-file manifest byte-identical;
-  transforms 50/8/1/1
-- S2 Evidence: Kimi `undefined` affects Accounts display/control only, not Council routing;
-  authenticated `kimi-auth` on `www.kimi.com`, absent in deleted anonymous profile; values never captured
-- S3 Decision: explicit legacy persisted input + current sanitized output; no eager migration;
-  actual real store Saved Session count is 0 and isolated fixture is required in BUILD
-- Follow-up Decision: Gemini mutex latency, clipboard restoration, and line-count readback are deferred
-  to a separate Phase 3 candidate, not mixed into the typecheck bundle
-- Human Decision: APPROVED; BUILD in progress without another approval request
+- Approved Inputs: SPEC/PLAN revision 2
+- Evidence: `docs/features/electron-typecheck-defect-fixes/TEST_EVIDENCE.md`
+- Review Request: `docs/features/electron-typecheck-defect-fixes/OPUS5_REVIEW_REQUEST.md`
+- Automated: tsc 0; focused 36/36; Saved Session isolated integration PASS; build PASS
+- Build contract: outputs 6, transforms 50/9/1/1, renderer/CSS/HTML/preload/spoof hashes unchanged
+- Actual app: seven boolean login statuses including Kimi true; exact `kimi-auth` name/domain;
+  Chat smoke user-confirmed and final room idle/pending 0/error 0
+- Diff: raw CR findings 116, CR-only 116, actionable 0; seven implementation paths; secrets 0
+- AC State: AC-1–3 and AC-5–13 PASS; AC-4 BLOCKED
+- Review: pending Opus 5
 
 ## Risks and Blockers
 
-- Open Findings: none in planning artifacts; 33 expected implementation diagnostics are scoped by S1-S4
-- Known Risks:
-  - actual Kimi logout/login must be completed by the user; BLOCKED prevents S2/bundle completion
-  - cookie-domain handling must preserve six existing provider rules
-  - Saved Session compatibility must be proved in an isolated profile because the real store is empty
-  - `core.autocrlf=true` requires task-scoped CR-only whitespace classification and per-file EOL preservation
-- Blocker: none at BUILD start; Kimi user transition can become an explicit AC-4 blocker later
+- Blocker: user-operated Kimi true → logout false → login true not observed. Do not mark S2 or bundle complete.
+- Known risks:
+  - standalone Kimi login script's existing DOM completion still needs the blocked transition proof
+  - provider DOMs remain external; selectors intentionally unchanged
+  - npm audit 25 remains outside scope
 - Do NOT:
-  - push, create PR/tag/release, deploy, or alter credentials/provider configuration
-  - edit dependencies, selectors, `.gitattributes`, Phase 3/4 code, or repository-wide EOL
-  - stage, commit, move, or delete the two user-owned untracked handoff paths; do not touch `_to_delete/`
+  - reclassify AC-4 as PASS from fixture/positive status alone
+  - edit during CHAT_ONLY review
+  - push, PR, tag, release, deploy, change credentials/providers/selectors/dependencies/EOL policy
+  - stage, commit, move, or delete the two user-owned handoff paths; do not touch `_to_delete/`

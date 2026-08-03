@@ -25,6 +25,9 @@ import {
   summarizeContextBeforePreviousRound as summarizeContextBeforePreviousRoundPure,
 } from './councilPrompt.js'
 import { buildResponseLanguageDirective, detectPreferredReplyLanguage } from '../src/responseLanguage.js'
+import { AI_NAMES, DEFAULT_ENABLED_AIS, type AiName } from '../src/types.js'
+
+export type { AiName } from '../src/types.js'
 
 const require = createRequire(import.meta.url)
 // electron-store ships CJS
@@ -45,7 +48,6 @@ app.commandLine.appendSwitch('disable-quic')
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled')
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'deepseek' | 'perplexity' | 'kimi'
 type InteractionMode = 'workflow' | 'chat'
 
 interface AiConfig {
@@ -74,16 +76,7 @@ interface StoreSchema {
     pinnedCandidateIds: string[]
     selectedCandidateId: string | null
   }
-  councilSnapshots: Array<{
-    id: string
-    title: string
-    savedAt: number
-    messageCount: number
-    isFavorite: boolean
-    room: CouncilRoomState
-    uiState: CouncilUiState
-    insight: CouncilSnapshotInsight
-  }>
+  councilSnapshots: PersistedCouncilSnapshotRecord[]
   activeCouncilSnapshotId: string | null
   /**
    * Telegram bridge settings.  When `enabled` is true and both `botToken` and
@@ -375,8 +368,6 @@ const store = new Store<StoreSchema>({
 
 let mainWindow: BrowserWindow | null = null
 const views: Map<AiName, BrowserView> = new Map()
-const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'kimi', 'perplexity']
-const DEFAULT_ENABLED_AI_NAMES: AiName[] = ['chatgpt', 'claude', 'gemini']
 export const AI_DISPLAY_NAMES: Record<AiName, string> = {
   chatgpt: 'ChatGPT',
   claude: 'Claude',
@@ -387,7 +378,7 @@ export const AI_DISPLAY_NAMES: Record<AiName, string> = {
   kimi: 'Kimi',
 }
 // Which AIs are currently visible — user can toggle panels on/off
-let enabledAiNames: AiName[] = [...DEFAULT_ENABLED_AI_NAMES]
+let enabledAiNames: AiName[] = [...DEFAULT_ENABLED_AIS]
 let resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
 // ─── Workflow pause-point gate ────────────────────────────────────────────────
@@ -480,6 +471,22 @@ interface CouncilSnapshotRecord {
   isFavorite: boolean
   isArchived: boolean
   lifecycle: CouncilSnapshotLifecycle
+  room: CouncilRoomState
+  uiState: CouncilUiState
+  insight: CouncilSnapshotInsight
+}
+
+interface PersistedCouncilSnapshotRecord {
+  id: string
+  title: string
+  label?: string | null
+  note?: string | null
+  savedAt: number
+  lastOpenedAt?: number
+  messageCount: number
+  isFavorite: boolean
+  isArchived?: boolean
+  lifecycle?: CouncilSnapshotLifecycle | string | null
   room: CouncilRoomState
   uiState: CouncilUiState
   insight: CouncilSnapshotInsight
@@ -621,7 +628,7 @@ const STREAMING_GUARD_OVERRIDE_MS_OVERRIDE: Partial<Record<AiName, number>> = {
 
 function createEmptyCouncilRuntimeState(): CouncilRuntimeState {
   return {
-    participants: [...DEFAULT_ENABLED_AI_NAMES],
+    participants: [...DEFAULT_ENABLED_AIS],
     primaryAi: 'gemini',
     status: 'idle',
     pendingAi: null,
@@ -711,7 +718,7 @@ function defaultCouncilSnapshotTitle(room: CouncilRoomState): string {
   return normalized.length <= 60 ? normalized : `${normalized.slice(0, 57).trimEnd()}...`
 }
 
-function sanitizeCouncilSnapshotRecord(record: CouncilSnapshotRecord): CouncilSnapshotRecord {
+function sanitizeCouncilSnapshotRecord(record: PersistedCouncilSnapshotRecord): CouncilSnapshotRecord {
   const room = loadPersistedCouncilRoomFromSnapshot(record.room)
   const uiState = sanitizeCouncilUiState(record.uiState)
   const insight = sanitizeCouncilSnapshotInsight(record.insight)
@@ -760,7 +767,7 @@ function loadPersistedCouncilRoomFromSnapshot(snapshot: CouncilRoomState | null 
     : []
 
   return {
-    participants: safeParticipants.length > 0 ? safeParticipants : [...DEFAULT_ENABLED_AI_NAMES],
+    participants: safeParticipants.length > 0 ? safeParticipants : [...DEFAULT_ENABLED_AIS],
     primaryAi: AI_NAMES.includes(snapshot.primaryAi) ? snapshot.primaryAi : 'gemini',
     status: 'idle',
     pendingAi: null,
@@ -1342,7 +1349,7 @@ function bridgeWorkflowToCouncil(
 
 function syncCouncilRoomContext(participants: AiName[], primaryAi: AiName): CouncilRoomState {
   const nextParticipants = participants.filter((ai) => AI_NAMES.includes(ai))
-  councilRoom.participants = nextParticipants.length > 0 ? nextParticipants : [...DEFAULT_ENABLED_AI_NAMES]
+  councilRoom.participants = nextParticipants.length > 0 ? nextParticipants : [...DEFAULT_ENABLED_AIS]
   councilRoom.primaryAi = primaryAi
   if (currentInteractionMode === 'chat') {
     updateViewBounds()
@@ -1436,7 +1443,7 @@ function resetCouncilRoomContext(participants?: AiName[], primaryAi: AiName = co
   setActiveCouncilSnapshotId(null)
   councilWorkflowBridgeSignature = null
   councilRoom = {
-    participants: participants && participants.length > 0 ? participants : [...DEFAULT_ENABLED_AI_NAMES],
+    participants: participants && participants.length > 0 ? participants : [...DEFAULT_ENABLED_AIS],
     primaryAi,
     status: 'idle',
     pendingAi: null,
@@ -3023,18 +3030,19 @@ function computeViewBounds(aiName: AiName, indexInEnabled: number, totalEnabled:
 
 function updateViewBounds() {
   if (!mainWindow) return
-  const [winWidth, winHeight] = mainWindow.getSize()
+  const window = mainWindow
+  const [winWidth, winHeight] = window.getSize()
   let enabledIndex = 0
   AI_NAMES.forEach((name) => {
     const view = views.get(name)
     if (!view) return
     try {
       if (enabledAiNames.includes(name)) {
-        try { mainWindow.addBrowserView(view) } catch { /* already added */ }
+        try { window.addBrowserView(view) } catch { /* already added */ }
         view.setBounds(computeViewBounds(name, enabledIndex, enabledAiNames.length, winWidth, winHeight))
         enabledIndex++
       } else {
-        try { mainWindow.removeBrowserView(view) } catch { /* already removed */ }
+        try { window.removeBrowserView(view) } catch { /* already removed */ }
         view.setBounds({ x: -10000, y: 0, width: 100, height: 100 })
       }
     } catch {
@@ -3593,6 +3601,16 @@ const LOGIN_TITLES = {
 LOGIN_TITLES.deepseek = 'DeepSeek Login - Siftline'
 LOGIN_TITLES.kimi = 'Kimi Login - Siftline'
 
+function cookieDomainIncludes(cookie: Pick<Electron.Cookie, 'domain'>, expectedDomain: string): boolean {
+  return typeof cookie.domain === 'string' && cookie.domain.includes(expectedDomain)
+}
+
+function isKimiAuthenticatedCookie(cookie: Pick<Electron.Cookie, 'name' | 'domain'>): boolean {
+  if (cookie.name !== 'kimi-auth' || typeof cookie.domain !== 'string') return false
+  const domain = cookie.domain.replace(/^\./, '').toLowerCase()
+  return domain === 'kimi.com' || domain.endsWith('.kimi.com')
+}
+
 /** Check whether the login session already has valid session cookies.
  *  Uses loginSes.cookies.get({}) (no domain filter) to catch cookies set on
  *  subdomains like www.perplexity.ai that a domain-filtered query would miss. */
@@ -3602,22 +3620,22 @@ async function isLoginComplete(aiName: AiName, loginSes: Electron.Session, url: 
 
   if (aiName === 'gemini') {
     return all.some((c) =>
-      (c.domain.includes('google.com')) &&
+      cookieDomainIncludes(c, 'google.com') &&
       (c.name === 'SID' || c.name === '__Secure-1PSID')
     )
   }
   if (aiName === 'claude') {
     if (!url.startsWith('https://claude.ai') || url.includes('/login') || url.includes('/oauth')) return false
-    const claudeCookies = all.filter((c) => c.domain.includes('claude.ai') || c.domain.includes('anthropic.com'))
+    const claudeCookies = all.filter((c) => cookieDomainIncludes(c, 'claude.ai') || cookieDomainIncludes(c, 'anthropic.com'))
     return claudeCookies.length > 0
   }
   if (aiName === 'chatgpt') {
-    const relevant = all.filter((c) => c.domain.includes('chatgpt.com') || c.domain.includes('openai.com'))
+    const relevant = all.filter((c) => cookieDomainIncludes(c, 'chatgpt.com') || cookieDomainIncludes(c, 'openai.com'))
     return relevant.length >= 3 &&
       relevant.some((c) => c.name.includes('session') || c.name.includes('token') || c.name === '__cf_bm')
   }
   if (aiName === 'perplexity') {
-    const relevant = all.filter((c) => c.domain.includes('perplexity.ai'))
+    const relevant = all.filter((c) => cookieDomainIncludes(c, 'perplexity.ai'))
     return relevant.length >= 3 &&
       relevant.some((c) => c.name.includes('session') || c.name.includes('token') || c.name.startsWith('pplx'))
   }
@@ -3626,25 +3644,18 @@ async function isLoginComplete(aiName: AiName, loginSes: Electron.Session, url: 
     // X auth cookies alone are too early: they can appear before grok.com
     // finishes establishing the actual product session, which makes the app
     // look "logged in" while the panel still behaves like a degraded visitor.
-    const grokCookies = all.filter((c) => c.domain.includes('grok.com'))
+    const grokCookies = all.filter((c) => cookieDomainIncludes(c, 'grok.com'))
     const hasGrokSSO = grokCookies.some((c) => c.name === 'sso' || c.name === 'sso-rw')
     return hasGrokSSO
   }
   if (aiName === 'deepseek') {
-    const deepseekCookies = all.filter((c) => c.domain.includes('deepseek.com'))
+    const deepseekCookies = all.filter((c) => cookieDomainIncludes(c, 'deepseek.com'))
     return deepseekCookies.some((c) =>
       c.name.toLowerCase().includes('session') || c.name.toLowerCase().includes('token') || c.name.toLowerCase().includes('user')
     )
   }
   if (aiName === 'kimi') {
-    const kimiCookies = all.filter((c) => c.domain.includes('kimi.com') || c.domain.includes('moonshot.cn'))
-    return kimiCookies.some((c) =>
-      c.name.toLowerCase().includes('session') ||
-      c.name.toLowerCase().includes('token') ||
-      c.name.toLowerCase().includes('access') ||
-      c.name.toLowerCase().includes('refresh') ||
-      c.name.toLowerCase().includes('user')
-    )
+    return all.some(isKimiAuthenticatedCookie)
   }
   return false
 }
@@ -3661,10 +3672,11 @@ async function copyCookiesToMainSession(aiName: AiName, loginSes: Electron.Sessi
 
   // Keep only cookies whose domain matches the AI's relevant domains
   const toCopy = allCookies.filter((c) =>
-    allowedDomains.some((d) => c.domain.includes(d.replace(/^\./, '')))
+    allowedDomains.some((d) => cookieDomainIncludes(c, d.replace(/^\./, '')))
   )
 
   for (const cookie of toCopy) {
+    if (!cookie.domain) continue
     const protocol = cookie.secure ? 'https' : 'http'
     const host = cookie.domain.replace(/^\./, '')
     const url = `${protocol}://${host}${cookie.path || '/'}`
@@ -3816,75 +3828,58 @@ function openLoginWindow(aiName: AiName): void {
   })
 }
 
-/** Return login status for all 4 AIs based on their persist session cookies.
+/** Return login status for every AI based on its persist session and provider predicate.
  *  Uses cookies.get({}) (no domain filter) to avoid missing cookies set on
  *  subdomains like www.chatgpt.com or www.perplexity.ai. */
 async function getLoginStatus(): Promise<Record<AiName, boolean>> {
-  const [geminiAll, claudeAll, chatgptAll, perplexityAll, grokAll, deepseekAll] = await Promise.all([
-    session.fromPartition('persist:gemini').cookies.get({}),
-    session.fromPartition('persist:claude').cookies.get({}),
-    session.fromPartition('persist:chatgpt').cookies.get({}),
-    session.fromPartition('persist:perplexity').cookies.get({}),
-    session.fromPartition('persist:grok').cookies.get({}),
-    session.fromPartition('persist:deepseek').cookies.get({}),
-  ])
+  const entries = await Promise.all(AI_NAMES.map(async (aiName) => {
+    const cookies = await session.fromPartition(`persist:${aiName}`).cookies.get({})
+    return [aiName, await getPersistedLoginStatus(aiName, cookies)] as const
+  }))
+  return Object.fromEntries(entries) as Record<AiName, boolean>
+}
 
-  const geminiC = geminiAll.filter((c) => c.domain.includes('google.com'))
-  const claudeC = claudeAll.filter((c) => c.domain.includes('claude.ai') || c.domain.includes('anthropic.com'))
-  const chatgptC = chatgptAll.filter((c) => c.domain.includes('chatgpt.com') || c.domain.includes('openai.com'))
-  const perplexityC = perplexityAll.filter((c) => c.domain.includes('perplexity.ai'))
-  const grokSiteC = grokAll.filter((c) => c.domain.includes('grok.com'))
-  const deepseekC = deepseekAll.filter((c) => c.domain.includes('deepseek.com'))
-  const grokHasSSO = grokSiteC.some((c) => c.name === 'sso' || c.name === 'sso-rw')
-  const deepseekLoggedIn = deepseekC.some((c) =>
-    c.name.toLowerCase().includes('session') || c.name.toLowerCase().includes('token') || c.name.toLowerCase().includes('user')
-  )
-
-  // ── ChatGPT ──────────────────────────────────────────────────────────────
-  // Cookie-based detection is unreliable: every cookie on chatgpt.com /
-  // openai.com is present in the anonymous state too.
-  // URL-based detection also broke: ChatGPT now shows chatgpt.com/ with a
-  // "Log in" button even when the user is NOT logged in (no auth redirect).
-  //
-  // Most reliable signal: DOM check.  When NOT logged in, the page contains
-  // <a href="/auth/login">.  When logged in that link is absent.
-  // We fall back to false if the view is unavailable or still loading.
-  const chatgptView = views.get('chatgpt')
-  let chatgptLoggedIn = false
-  if (chatgptView && !chatgptView.webContents.isDestroyed()) {
-    const chatgptUrl = chatgptView.webContents.getURL()
-    if (chatgptUrl.startsWith('https://chatgpt.com/') && !chatgptUrl.includes('/auth/')) {
-      try {
-        chatgptLoggedIn = await Promise.race<boolean>([
-          chatgptView.webContents.executeJavaScript(`
-            (function() {
-              if (document.readyState !== 'complete') return false
-              // Presence of a login link means NOT logged in
-              const loginLink = document.querySelector('a[href="/auth/login"]')
-              return !loginLink
-            })()
-          `),
-          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000)),
-        ])
-      } catch { chatgptLoggedIn = false }
-    }
+async function getPersistedLoginStatus(aiName: AiName, cookies: Electron.Cookie[]): Promise<boolean> {
+  if (aiName === 'gemini') {
+    return cookies.some((c) => cookieDomainIncludes(c, 'google.com') && (c.name === 'SID' || c.name === '__Secure-1PSID'))
+  }
+  if (aiName === 'claude') {
+    return cookies.some((c) => cookieDomainIncludes(c, 'claude.ai') || cookieDomainIncludes(c, 'anthropic.com'))
+  }
+  if (aiName === 'grok') {
+    return cookies.some((c) => cookieDomainIncludes(c, 'grok.com') && (c.name === 'sso' || c.name === 'sso-rw'))
+  }
+  if (aiName === 'deepseek') {
+    return cookies.some((c) => cookieDomainIncludes(c, 'deepseek.com') && (
+      c.name.toLowerCase().includes('session') || c.name.toLowerCase().includes('token') || c.name.toLowerCase().includes('user')
+    ))
+  }
+  if (aiName === 'perplexity') {
+    return cookies.some((c) => cookieDomainIncludes(c, 'perplexity.ai') && c.name === '__Secure-next-auth.session-token')
+  }
+  if (aiName === 'kimi') {
+    return cookies.some(isKimiAuthenticatedCookie)
   }
 
-  // ── Perplexity ────────────────────────────────────────────────────────────
-  // Cookie dump confirms: pplx.visitor-id / pplx.metadata / pplx.edge-* are
-  // set on first anonymous visit.  __Secure-next-auth.session-token is written
-  // by next-auth only upon a *completed* sign-in (never for anonymous users).
-  const perplexityLoggedIn = perplexityC.some((c) =>
-    c.name === '__Secure-next-auth.session-token'
-  )
-
-  return {
-    gemini: geminiC.some((c) => c.name === 'SID' || c.name === '__Secure-1PSID'),
-    claude: claudeC.length > 0,
-    chatgpt: chatgptLoggedIn,
-    grok: grokHasSSO,
-    deepseek: deepseekLoggedIn,
-    perplexity: perplexityLoggedIn,
+  // ChatGPT cookie names are not a reliable distinction from anonymous state.
+  if (aiName !== 'chatgpt') return false
+  const chatgptView = views.get('chatgpt')
+  if (!chatgptView || chatgptView.webContents.isDestroyed()) return false
+  const chatgptUrl = chatgptView.webContents.getURL()
+  if (!chatgptUrl.startsWith('https://chatgpt.com/') || chatgptUrl.includes('/auth/')) return false
+  try {
+    return await Promise.race<boolean>([
+      chatgptView.webContents.executeJavaScript(`
+        (function() {
+          if (document.readyState !== 'complete') return false
+          const loginLink = document.querySelector('a[href="/auth/login"]')
+          return !loginLink
+        })()
+      `),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000)),
+    ])
+  } catch {
+    return false
   }
 }
 
@@ -4025,7 +4020,7 @@ ipcMain.handle('logout-all', async () => {
 ipcMain.handle('set-enabled-ais', (_e, ais: AiName[]) => {
   if (!Array.isArray(ais) || ais.length === 0) return false
   enabledAiNames = ais.filter((n) => AI_NAMES.includes(n))
-  if (enabledAiNames.length === 0) enabledAiNames = [...DEFAULT_ENABLED_AI_NAMES]
+  if (enabledAiNames.length === 0) enabledAiNames = [...DEFAULT_ENABLED_AIS]
   updateViewBounds()
   return true
 })
@@ -5755,6 +5750,22 @@ const FILE_UPLOAD_BUTTON_SELECTORS: Partial<Record<AiName, string[]>> = {
   ],
 }
 
+interface AttachmentSnapshot {
+  count: number
+  names: string[]
+}
+
+function sanitizeAttachmentSnapshot(raw: unknown): AttachmentSnapshot {
+  if (!raw || typeof raw !== 'object') return { count: 0, names: [] }
+  const candidate = raw as { count?: unknown; names?: unknown }
+  return {
+    count: typeof candidate.count === 'number' ? candidate.count : 0,
+    names: Array.isArray(candidate.names)
+      ? candidate.names.filter((name): name is string => typeof name === 'string')
+      : [],
+  }
+}
+
 /**
  * Attach files to an AI BrowserView.
  *
@@ -5861,8 +5872,8 @@ async function attachFilesViaJSDrop(
         const mimeType = getMimeTypeForFile(filePath)
         const fileName = path.basename(filePath)
 
-        const getAttachmentSnapshot = async () => {
-          return await view.webContents.executeJavaScript(`
+        const getAttachmentSnapshot = async (): Promise<AttachmentSnapshot> => {
+          const raw: unknown = await view.webContents.executeJavaScript(`
             (() => {
               const input = document.querySelector('#prompt-textarea')
                 || document.querySelector('textarea')
@@ -5893,7 +5904,8 @@ async function attachFilesViaJSDrop(
               }
               return { count, names };
             })()
-          `).catch(() => ({ count: 0, names: [] as string[] }))
+          `).catch(() => null)
+          return sanitizeAttachmentSnapshot(raw)
         }
 
         const baselineSnapshot = await getAttachmentSnapshot()

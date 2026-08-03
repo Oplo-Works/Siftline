@@ -1,4 +1,7 @@
 import { buildResponseLanguageDirective, detectPreferredReplyLanguage } from '../src/responseLanguage.js'
+import type { AiName } from '../src/types.js'
+
+export type { AiName } from '../src/types.js'
 
 /**
  * Pure helpers for building Siftline prompts and parsing user intent.
@@ -6,8 +9,6 @@ import { buildResponseLanguageDirective, detectPreferredReplyLanguage } from '..
  * are side-effect free and take all state via parameters, which also makes
  * them trivial to test in isolation.
  */
-
-export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'deepseek' | 'perplexity'
 
 export interface CouncilMessage {
   id: string

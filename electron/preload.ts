@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { AiName } from '../src/types.js'
 
-export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'deepseek' | 'perplexity'
+export type { AiName } from '../src/types.js'
 
 export interface WorkflowResult {
   success: boolean

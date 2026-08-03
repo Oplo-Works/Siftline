@@ -244,30 +244,65 @@ export interface PreviousRoundReply {
   text: string
 }
 
+export interface PreviousRoundBounds {
+  startUserIndex: number
+  endIndex: number
+  currentUserIndex: number
+}
+
+function isValidRoundReply(message: CouncilMessage): boolean {
+  return message.kind === 'assistant'
+    && Boolean(message.ai)
+    && !message.pending
+    && !message.error
+    && message.text.trim().length > 0
+}
+
 /**
- * Find the AI assistant replies that belong to the round immediately before
- * the most recent user message.  "Round" boundaries are user messages — the
- * previous round is the assistant replies between the second-to-last user
- * message and the last user message.
- *
- * Returns an empty array when there is no previous round (e.g. round 1).
+ * Find the most recent user-bounded segment that contains at least one valid
+ * assistant reply. User-only note segments are skipped, while their bounds
+ * remain available to the earlier-context summarizer.
  */
-export function extractPreviousRoundReplies(messages: CouncilMessage[]): PreviousRoundReply[] {
+export function findPreviousRoundBounds(messages: CouncilMessage[]): PreviousRoundBounds | null {
   const userIndices: number[] = []
   for (let i = 0; i < messages.length; i++) {
     if (messages[i].kind === 'user') userIndices.push(i)
   }
-  if (userIndices.length === 0) return []
-  const lastUserIdx = userIndices[userIndices.length - 1]
-  const prevUserIdx = userIndices.length >= 2 ? userIndices[userIndices.length - 2] : -1
+  if (userIndices.length < 2) return null
+
+  const currentUserIndex = userIndices[userIndices.length - 1]
+  for (let userPosition = userIndices.length - 2; userPosition >= 0; userPosition--) {
+    const startUserIndex = userIndices[userPosition]
+    const endIndex = userIndices[userPosition + 1]
+    let hasValidReply = false
+    for (let i = startUserIndex + 1; i < endIndex; i++) {
+      if (isValidRoundReply(messages[i])) {
+        hasValidReply = true
+        break
+      }
+    }
+    if (hasValidReply) return { startUserIndex, endIndex, currentUserIndex }
+  }
+
+  return null
+}
+
+/**
+ * Find the AI assistant replies from the most recent answered round before
+ * the latest user message. User-only notes do not hide an answered round.
+ *
+ * Returns an empty array when there is no previous round (e.g. round 1).
+ */
+export function extractPreviousRoundReplies(messages: CouncilMessage[]): PreviousRoundReply[] {
+  const bounds = findPreviousRoundBounds(messages)
+  if (!bounds) return []
 
   // Keep only the latest non-pending, non-error reply per AI within the slice.
   const latestPerAi = new Map<AiName, PreviousRoundReply>()
-  for (let i = prevUserIdx + 1; i < lastUserIdx; i++) {
+  for (let i = bounds.startUserIndex + 1; i < bounds.endIndex; i++) {
     const m = messages[i]
-    if (m.kind !== 'assistant' || !m.ai || m.pending || m.error) continue
+    if (!isValidRoundReply(m) || !m.ai) continue
     const text = m.text.trim()
-    if (!text) continue
     latestPerAi.set(m.ai, { ai: m.ai, text })
   }
   return [...latestPerAi.values()]
@@ -382,13 +417,25 @@ export function summarizeContextBeforePreviousRound(
   displayNames: Record<AiName, string>,
   maxChars: number,
 ): string {
-  const userIndices: number[] = []
-  for (let i = 0; i < messages.length; i++) {
-    if (messages[i].kind === 'user') userIndices.push(i)
+  const bounds = findPreviousRoundBounds(messages)
+  if (!bounds) {
+    // Preserve the pre-Phase-1 behavior when no segment contains a valid
+    // assistant reply. Earlier background still belongs in the prompt even if
+    // every attempted reply so far is pending, errored, or blank.
+    const userIndices: number[] = []
+    for (let i = 0; i < messages.length; i++) {
+      if (messages[i].kind === 'user') userIndices.push(i)
+    }
+    if (userIndices.length < 2) return ''
+    const fallbackCutoffIndex = userIndices[userIndices.length - 2]
+    const fallbackEarlier = messages.slice(0, fallbackCutoffIndex)
+    if (fallbackEarlier.length === 0) return ''
+    return summarizeCouncilMessages(fallbackEarlier, maxChars, displayNames)
   }
-  if (userIndices.length < 2) return ''
-  const cutoffIdx = userIndices[userIndices.length - 2]
-  const earlier = messages.slice(0, cutoffIdx)
+  const earlier = [
+    ...messages.slice(0, bounds.startUserIndex),
+    ...messages.slice(bounds.endIndex, bounds.currentUserIndex),
+  ]
   if (earlier.length === 0) return ''
   return summarizeCouncilMessages(earlier, maxChars, displayNames)
 }

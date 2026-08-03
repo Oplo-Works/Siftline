@@ -517,9 +517,32 @@ let attachmentBarVisible = false
 
 let councilRoom: CouncilRuntimeState = loadPersistedCouncilRoom()
 let councilTurnChain: Promise<void> = Promise.resolve()
+let clipboardOperationChain: Promise<void> = Promise.resolve()
+let clipboardOperationSequence = 0
 let currentInteractionMode: InteractionMode = 'chat'
 const viewThreadOwners: Partial<Record<AiName, InteractionMode | null>> = {}
 let councilWorkflowBridgeSignature: string | null = null
+
+/**
+ * Serialize every OS clipboard write/paste critical section in this process.
+ * Prompt text fallback and image attachment fallback share the same global
+ * clipboard, so separate per-feature locks would still race with each other.
+ */
+async function withClipboardLock<T>(label: string, operation: () => Promise<T>): Promise<T> {
+  const previous = clipboardOperationChain
+  let release!: () => void
+  clipboardOperationChain = new Promise<void>((resolve) => { release = resolve })
+  const operationId = ++clipboardOperationSequence
+
+  await previous.catch(() => undefined)
+  try {
+    sendLog('info', `[clipboard-lock] begin #${operationId} ${label}`)
+    return await operation()
+  } finally {
+    release()
+    try { sendLog('info', `[clipboard-lock] end #${operationId} ${label}`) } catch { /* logging must not hold the lock */ }
+  }
+}
 
 // ─── Browser Identity Spoofing ───────────────────────────────────────────────
 // Electron exposes itself via User-Agent AND sec-ch-ua headers, which causes
@@ -1844,6 +1867,177 @@ async function execWithFallback(
   return { success: false }
 }
 
+interface ComposerReadback {
+  valueText: string | null
+  innerText: string | null
+  textContent: string | null
+  isContentEditable: boolean
+  supportsValue: boolean
+}
+
+interface ComposerVerification {
+  text: string
+  readbackSource: 'value' | 'innerText' | 'textContent' | 'none'
+  isContentEditable: boolean
+  supportsValue: boolean
+  ok: boolean
+  observedChars: number
+  expectedComparableChars: number
+  observedComparableChars: number
+  expectedIdentity: string | null
+  observedIdentity: string | null
+}
+
+function normalizeComposerText(text: string): string {
+  return text
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\n+$/g, '')
+}
+
+function normalizeComposerComparableText(text: string): string {
+  return normalizeComposerText(text)
+    .replace(/[\u200b-\u200d\ufeff]/g, '')
+    .replace(/\s+/g, '')
+}
+
+function extractCouncilPromptIdentity(text: string): string | null {
+  const normalized = normalizeComposerText(text)
+    .replace(/[\u200b-\u200d\ufeff]/g, '')
+    .trimStart()
+  return normalized.match(/^You are participating in Siftline as ([^.]+)\./)?.[1]?.trim() ?? null
+}
+
+async function readComposerText(
+  view: BrowserView,
+  jsonSelector: string,
+): Promise<ComposerReadback | null> {
+  return view.webContents.executeJavaScript(`
+    (() => {
+      const target = document.querySelector(${jsonSelector});
+      if (!target) return null;
+      return {
+        valueText: typeof target.value === 'string' ? target.value : null,
+        innerText: typeof target.innerText === 'string' ? target.innerText : null,
+        textContent: typeof target.textContent === 'string' ? target.textContent : null,
+        isContentEditable: Boolean(target.isContentEditable),
+        supportsValue: 'value' in target,
+      };
+    })()
+  `).catch(() => null) as Promise<ComposerReadback | null>
+}
+
+async function verifyComposerText(
+  view: BrowserView,
+  jsonSelector: string,
+  expected: string,
+): Promise<ComposerVerification> {
+  const readback = await readComposerText(view, jsonSelector)
+  const normalizedExpected = normalizeComposerText(expected)
+  const comparableExpected = normalizeComposerComparableText(expected)
+  const expectedIdentity = extractCouncilPromptIdentity(normalizedExpected)
+  const candidates = [
+    { source: 'value' as const, text: readback?.valueText },
+    { source: 'innerText' as const, text: readback?.innerText },
+    { source: 'textContent' as const, text: readback?.textContent },
+  ].filter((candidate): candidate is {
+    source: 'value' | 'innerText' | 'textContent'
+    text: string
+  } => typeof candidate.text === 'string')
+  const evaluated = candidates.map((candidate) => {
+    const normalized = normalizeComposerText(candidate.text)
+    const comparable = normalizeComposerComparableText(candidate.text)
+    const identity = extractCouncilPromptIdentity(normalized)
+    const identityMatches = expectedIdentity === null || identity === expectedIdentity
+    return {
+      ...candidate,
+      normalized,
+      comparable,
+      identity,
+      ok: comparable === comparableExpected && identityMatches,
+    }
+  })
+  const selected = evaluated.find((candidate) => candidate.ok) ?? evaluated[0]
+  const normalizedActual = selected?.normalized ?? ''
+  const comparableActual = selected?.comparable ?? ''
+
+  return {
+    text: selected?.text ?? '',
+    readbackSource: selected?.source ?? 'none',
+    isContentEditable: readback?.isContentEditable ?? false,
+    supportsValue: readback?.supportsValue ?? false,
+    ok: selected?.ok ?? false,
+    observedChars: normalizedActual.length,
+    expectedComparableChars: comparableExpected.length,
+    observedComparableChars: comparableActual.length,
+    expectedIdentity,
+    observedIdentity: selected?.identity ?? null,
+  }
+}
+
+function logComposerVerification(
+  aiName: AiName | undefined,
+  method: string,
+  expectedChars: number,
+  verification: ComposerVerification,
+): void {
+  const aiLabel = aiName ?? 'unknown'
+  const expectedIdentity = verification.expectedIdentity ?? 'n/a'
+  const observedIdentity = verification.observedIdentity ?? 'n/a'
+  sendLog(
+    verification.ok ? 'info' : 'warn',
+    `[pasteText] ${aiLabel}: method=${method} verified=${verification.ok} ` +
+      `readback=${verification.readbackSource} ` +
+      `expectedChars=${expectedChars} observedChars=${verification.observedChars} ` +
+      `expectedComparableChars=${verification.expectedComparableChars} ` +
+      `observedComparableChars=${verification.observedComparableChars} ` +
+      `expectedIdentity=${expectedIdentity} observedIdentity=${observedIdentity}`
+  )
+}
+
+async function insertComposerTextWithExecCommand(
+  view: BrowserView,
+  jsonSelector: string,
+  text: string,
+): Promise<boolean> {
+  return view.webContents.executeJavaScript(`
+    (() => {
+      const target = document.querySelector(${jsonSelector});
+      if (!target) return false;
+      target.focus();
+      document.execCommand('selectAll', false, null);
+      document.execCommand('delete', false, null);
+      return document.execCommand('insertText', false, ${JSON.stringify(text)});
+    })()
+  `).catch(() => false) as Promise<boolean>
+}
+
+async function insertComposerTextWithNativeSetter(
+  view: BrowserView,
+  jsonSelector: string,
+  text: string,
+): Promise<boolean> {
+  return view.webContents.executeJavaScript(`
+    (() => {
+      const target = document.querySelector(${jsonSelector});
+      if (!target || target.isContentEditable || !('value' in target)) return false;
+      const expected = ${JSON.stringify(text)};
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+        || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      if (setter) setter.call(target, expected);
+      else target.value = expected;
+      target.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'insertText',
+        data: expected,
+      }));
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()
+  `).catch(() => false) as Promise<boolean>
+}
+
 /** Instant paste — inserts the full text at once via clipboard-style execCommand.
  *  Works for both contenteditable (Gemini, Claude, ChatGPT) and
  *  native textarea elements (Perplexity).
@@ -1883,74 +2077,72 @@ async function pasteText(view: BrowserView, text: string, selector: string, aiNa
     await sleep(50)
   }
 
-  // ── Kimi: use execCommand('insertText') instead of Ctrl+V ────────────────
-  // Kimi converts clipboard pastes that exceed ~4000 bytes into a TXT file
-  // attachment, leaving the input empty and blocking send.  execCommand fires
-  // an 'input' event (not 'paste'), so Kimi's paste-size guard is bypassed.
-  if (aiName === 'kimi') {
-    const inserted = await view.webContents.executeJavaScript(`
-      (() => {
-        const target = document.querySelector(${jsonSelector});
-        if (!target) return false;
-        target.focus();
-        // Clear existing content with Ctrl+A + Delete via execCommand
-        document.execCommand('selectAll', false, null);
-        document.execCommand('delete', false, null);
-        // Insert text directly — fires 'input' event, bypasses paste handler
-        const ok = document.execCommand('insertText', false, ${JSON.stringify(text)});
-        if (!ok) {
-          // execCommand not supported: fall through to clipboard path
-          return false;
-        }
-        return true;
-      })()
-    `).catch(() => false)
+  // Direct DOM insertion is the default for every AI except Gemini. Unlike OS
+  // clipboard paste, this path has no process-global resource and remains
+  // parallel-safe. It also preserves Kimi's long-prompt protection because no
+  // paste event is emitted for the site's ~4000-byte TXT-conversion guard.
+  // Gemini's contenteditable was measured accepting only the first line from a
+  // multi-line insertText call, so its structure-preserving primary path is the
+  // serialized clipboard operation below.
+  if (aiName !== 'gemini') {
+    const inserted = await insertComposerTextWithExecCommand(view, jsonSelector, text)
+    if (inserted) await sleep(150)
+    const directVerification = await verifyComposerText(view, jsonSelector, text)
+    logComposerVerification(aiName, 'execCommand', text.length, directVerification)
+    if (directVerification.ok) return
 
-    if (inserted) {
-      await sleep(150)
-      return
+    const isLongKimiPrompt = aiName === 'kimi' && Buffer.byteLength(text, 'utf8') > 4000
+    if (isLongKimiPrompt) {
+      const message = '[pasteText] kimi: direct insertion verification failed; refusing clipboard fallback for prompt over 4000 bytes'
+      sendLog('error', message)
+      throw new Error('Prompt injection verification failed for kimi')
     }
-    // If execCommand failed, fall through to clipboard paste below
-    sendLog('warn', '[pasteText] kimi: execCommand insertText failed — falling back to clipboard paste')
   }
 
-  // Use Electron clipboard + Ctrl+A/Ctrl+V via sendInputEvent.
+  // Gemini primary path and compatibility fallback: the complete clipboard
+  // write/paste/readback is serialized with image attachment fallback through
+  // one module-wide lock, preserving every prompt line and block boundary.
   const { clipboard } = require('electron')
-  clipboard.writeText(text)
-
-  // Ctrl+A to clear, then Ctrl+V to paste
-  view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'A', modifiers: ['ctrl'] })
-  view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'A', modifiers: ['ctrl'] })
-  await sleep(50)
-  view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'V', modifiers: ['ctrl'] })
-  view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'V', modifiers: ['ctrl'] })
-  await sleep(150)
-
-  // Last-resort fallback: directly set the value via JS and dispatch the
-  // native input event. We DO NOT mutate innerText for contenteditable
-  // because that crashes React apps (like DeepSeek) with unhandled exceptions!
-  await view.webContents.executeJavaScript(`
-    (() => {
-      const target = document.querySelector(${jsonSelector});
-      if (!target) return false;
-      const currentValue = target.value ?? target.innerText ?? '';
-      const expected = ${JSON.stringify(text)};
-      // Already populated by the paste — nothing to do.
-      if (currentValue && currentValue.includes(expected.slice(0, 32))) return 'paste-ok';
-
-      // Manual injection path ONLY for standard inputs/textareas
-      if ('value' in target && !target.isContentEditable) {
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
-          || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-        if (setter) setter.call(target, expected);
-        else target.value = expected;
-        target.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: expected }));
-        target.dispatchEvent(new Event('change', { bubbles: true }));
-        return 'fallback-injected';
+  const clipboardVerification = await withClipboardLock(
+    `prompt:${aiName ?? 'unknown'}`,
+    async () => {
+      try { view.webContents.focus() } catch { /* view may be detached */ }
+      if (inputRect) {
+        view.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(inputRect.x), y: Math.round(inputRect.y), button: 'left', clickCount: 1 })
+        view.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(inputRect.x), y: Math.round(inputRect.y), button: 'left', clickCount: 1 })
+        await sleep(50)
       }
-      return 'fallback-skipped-contenteditable';
-    })()
-  `).catch(() => { /* swallow — best-effort fallback */ })
+
+      clipboard.writeText(text)
+      view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'A', modifiers: ['ctrl'] })
+      view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'A', modifiers: ['ctrl'] })
+      await sleep(50)
+      view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'V', modifiers: ['ctrl'] })
+      view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'V', modifiers: ['ctrl'] })
+      await sleep(150)
+      return verifyComposerText(view, jsonSelector, text)
+    }
+  )
+  logComposerVerification(
+    aiName,
+    aiName === 'gemini' ? 'clipboard-primary' : 'clipboard',
+    text.length,
+    clipboardVerification,
+  )
+  if (clipboardVerification.ok) return
+
+  // Last-resort injection for React-controlled native inputs/textareas only.
+  // Never mutate innerText for contenteditable editors: doing so can crash
+  // React applications such as DeepSeek.
+  await insertComposerTextWithNativeSetter(view, jsonSelector, text)
+  await sleep(50)
+  const setterVerification = await verifyComposerText(view, jsonSelector, text)
+  logComposerVerification(aiName, 'native-setter', text.length, setterVerification)
+  if (setterVerification.ok) return
+
+  const message = `[pasteText] ${aiName ?? 'unknown'}: prompt injection verification failed after all safe methods`
+  sendLog('error', message)
+  throw new Error(`Prompt injection verification failed for ${aiName ?? 'target'}`)
 }
 
 /**
@@ -6301,13 +6493,30 @@ async function attachFilesViaClipboardPaste(
       try {
         const image = nativeImage.createFromPath(imgPath)
         if (image.isEmpty()) { sendLog('warn', `[file-attach] ${ai}: nativeImage empty for ${path.basename(imgPath)}`); continue }
-        clipboard.writeImage(image)
-        await sleep(200)
-        // Use Electron's built-in paste command — more reliable than sendInputEvent
-        // for triggering Chromium's paste pipeline (which handles image clipboard data)
-        view.webContents.paste()
-        await sleep(2000)
-        sendLog('info', `[file-attach] ${ai}: pasted ${path.basename(imgPath)} via clipboard`)
+        const pasted = await withClipboardLock(`image:${ai}`, async () => {
+          // Another queued clipboard operation may have focused a different
+          // BrowserView while this image waited for the lock. Re-focus both
+          // the target composer and its webContents inside the critical section.
+          const refreshedInput = await execWithFallback(
+            view, config.inputSelectors,
+            (sel) => `(() => { const el = document.querySelector(\`${sel}\`); if (el) { el.focus(); el.click(); return true; } return false; })()`
+          )
+          if (!refreshedInput.success) return false
+          try { view.webContents.focus() } catch { /* view may be detached */ }
+          await sleep(300)
+
+          clipboard.writeImage(image)
+          await sleep(200)
+          // Electron's paste command triggers Chromium's image clipboard pipeline.
+          view.webContents.paste()
+          await sleep(2000)
+          return true
+        })
+        if (pasted) {
+          sendLog('info', `[file-attach] ${ai}: pasted ${path.basename(imgPath)} via clipboard`)
+        } else {
+          sendLog('warn', `[file-attach] ${ai}: input lost before serialized clipboard paste for ${path.basename(imgPath)}`)
+        }
       } catch (err) {
         sendLog('warn', `[file-attach] ${ai}: clipboard paste failed for ${path.basename(imgPath)}: ${err instanceof Error ? err.message : String(err)}`)
       }

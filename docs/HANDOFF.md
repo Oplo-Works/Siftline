@@ -6,7 +6,7 @@
 - Task ID: `council-chat-phase3-defect-fixes`
 - Stage: WF:CLOSE
 - Risk: Standard — Kimi work is UI navigation only; auth/storage transfer is prohibited
-- Updated At: 2026-08-03T20:09:08Z
+- Updated At: 2026-08-03T20:24:20Z
 
 ## Context Summary
 
@@ -14,16 +14,17 @@ Phase 3 is closed locally after Opus 5 independently returned PASS on `394cee2..
 exact live Retry, newest-first context, embedded Kimi login navigation, and Gemini structure-safe insertion
 all pass automated and actual-app validation. Independent review accepted the renderer-hash-driven HTML
 change and classified missing non-Gemini numeric metrics as a future enforcement prerequisite, not a current
-defect. Mention-free routing remains transcript-only until the user chooses the Phase 4 product behavior.
+defect. The user accepted keeping mention-free messages transcript-only and decided a Phase 4 bundle is not
+necessary. `@all` remains available as a one-click quick mention when a full council round is wanted.
 
 ## Ownership
 
 - Outgoing Role / Runtime: Main Driver / Codex (`codex-sol-deep` requested;
   repository Runtime PIN remains CANDIDATE)
-- Next Role: Human / Main Driver
-- Next Runtime ID: current observed runtime
-- Next Action: wait for the user's mention-free routing choice: keep transcript-only, default `@all`, or add a toggle; do not write Phase 4 SPEC before that decision
-- Reason: Phase 3 is DONE, while the routing decision materially determines Phase 4 scope
+- Next Role: Future Main Driver / coding agent on the user's chosen machine
+- Next Runtime ID: read `docs/MODEL_RUNTIME_PIN.md`; repository runtime remains CANDIDATE until separately approved
+- Next Action: no active implementation task. Fetch and check out the published task branch, read the required bootstrap docs and this HANDOFF, then wait for a new explicit request
+- Reason: Phase 1–3 are complete and independently reviewed; the user decided not to open Phase 4
 
 ## Git and Worktree
 
@@ -34,8 +35,9 @@ defect. Mention-free routing remains transcript-only until the user chooses the 
 - Planning Artifact State: SELF
 - Implementation Base / Head: `73b0f74` / `75a3eec`
 - Reviewed Packet Head: `0b1336d1aa26aba433053ca49caf6da7e5a53924`
-- Close Metadata Head: SELF — resolve this local close commit
-- Worktree State: expected USER_DIRTY_ONLY after the close commit; preserved unrelated untracked paths remain
+- Close Metadata Head: `6e6aa022a6ac446879d69582373079f54473b8ea`
+- Portability Metadata Head: SELF — resolve this local handoff/publish commit
+- Worktree State: expected USER_DIRTY_ONLY after the portability commit; preserved unrelated untracked paths remain local and are not published
 - Preserved user/unrelated paths:
   - `docs/handoff_history/HANDOFF_PROMPT_council_chat_fixes.md` (untracked)
   - `docs/handoff_history/COWORK_SESSION_HANDOFF_council_chat_review.md` (untracked)
@@ -43,9 +45,10 @@ defect. Mention-free routing remains transcript-only until the user chooses the 
 
 ## Publish
 
-- Push Intent: NOT_REQUIRED — planning bundle is local; Phase 3 also prohibits push before CLOSE
-- Approved Target: none
-- Push Result: NOT_ATTEMPTED
+- Push Intent: AUTO_AT_CLOSE — user explicitly requested commit and push on 2026-08-03
+- Approved Target: `origin/codex/council-chat-phase3-defect-fixes` (current non-protected task branch)
+- Expected Remote Head: SELF — resolve this portability metadata commit
+- Push Result: PENDING until the exact local head is pushed and verified
 
 ## Approval Bundle
 
@@ -69,6 +72,10 @@ defect. Mention-free routing remains transcript-only until the user chooses the 
   providers may be enforced; Gemini gets a verified direct path before routine clipboard ownership ends.
 - Phase 4 mention-free default routing is explicitly excluded and current transcript-only behavior is
   an AC-15 regression guard.
+- Post-close product decision: no Phase 4 bundle. Mention-free messages remain transcript-only notes;
+  the existing `@all` quick-mention button is the deliberate route for a full parallel round.
+- The user retired Workflow from normal use. Shared type/build/prompt coverage remains, but future work
+  should not expand or manually prioritize Workflow without a new explicit request.
 
 ## Risks and Blockers
 
@@ -84,15 +91,19 @@ defect. Mention-free routing remains transcript-only until the user chooses the 
   unavailable providers remain BLOCKED rather than inferred PASS.
 - Deferred candidates only: Kimi false status during provider/network load failure and the inconsistent
   substring-versus-suffix cookie-domain helpers.
-- Do not push, PR, tag, release, deploy, merge, or rebase.
+- This handoff authorizes one normal push of the exact current task branch only. Do not open a PR, push a
+  tag, release, deploy, merge, rebase, or force-push without separate explicit approval.
 - Do not stage, commit, move, or delete the two untracked handoff-history files or `_to_delete/`.
 
-## Phase 4 Candidates — Decision Pending
+## Deferred Optional Work — No Phase 4 Planned
 
-- Single-mention prompt falsely says other AIs are answering in parallel.
-- `pendingAi` is a single value although up to seven providers can run concurrently.
-- Council IPC and Telegram handlers duplicate roughly 90 lines.
-- Mention-free default routing: waiting for the user's choice among current transcript-only behavior,
-  default `@all`, or a user-facing toggle. Do not begin Phase 4 SPEC until this is decided.
-- Deferred Phase 3 observations: Kimi status depends on the live BrowserView; `cookieDomainIncludes()` uses
-  substring matching while newer Kimi helpers use strict suffix matching.
+- Low-severity truthfulness copy: a single-target mention still receives peer-parallel wording, and Council
+  UI help still says `sequential`/`in order` although broadcast execution is parallel.
+- Display-only state: `pendingAi` is a single value although placeholders represent every concurrent target.
+- Maintenance debt: Council IPC and Telegram handlers duplicate roughly 90 lines. Do not refactor without a
+  behavior-changing reason and corresponding Telegram regression coverage.
+- Kimi status depends on the live BrowserView; a provider/network load failure can temporarily report false.
+- Auth hardening must be a separate High-risk bundle: `cookieDomainIncludes()` uses substring matching while
+  newer Kimi helpers use strict suffix matching. Do not mix it with UI cleanup.
+- Separate repository maintenance remains optional: `.gitattributes`/EOL normalization and the existing npm
+  audit findings. None blocks the current working application.

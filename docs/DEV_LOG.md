@@ -386,3 +386,23 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
   routing choice. `.gitattributes`, repository EOL normalization, and existing npm audit findings remain
   separate optional bundles.
 - Next: DONE for Phase 3; Human/Main Driver waits for the routing decision before Phase 4 SPEC.
+
+## 2026-08-03T20:24:20Z — council-chat-phase3-defect-fixes / portable publish handoff
+
+- Stage: post-CLOSE portability and publish
+- Role/Runtime: Main Driver / Codex (`codex-sol-deep` requested; repository PIN: CANDIDATE)
+- Risk: Low metadata-only follow-up; no product code or behavior change.
+- Implementation: Phase 1–3 cumulative branch through close `6e6aa02`; portability metadata commit SELF.
+- Review: Phase 1–3 independently PASS; no new implementation review required for metadata-only handoff.
+- Human Decision: user accepted the read-only necessity review, decided no Phase 4 bundle is needed, and
+  explicitly requested commit and push for continuation on another PC or with another coding agent.
+- Summary: mention-free messages remain transcript-only notes and the existing one-click `@all` route is the
+  deliberate full-council action. HANDOFF now routes future agents to the cumulative task branch and a dated
+  cross-machine snapshot records checkout commands, completed work, evidence, decisions, and local-only files.
+- Validation: required typecheck/build and staged scope/EOL/secret checks must pass before the one authorized
+  branch push. No code changed in this follow-up.
+- Publish Intent/Target: AUTO_AT_CLOSE / `origin/codex/council-chat-phase3-defect-fixes`; expected remote head
+  SELF. A normal branch push does not match the repository's `v*` release workflow trigger.
+- Decisions / Risks / Follow-ups: no Phase 4 SPEC. Optional truthfulness copy, pending display, duplication,
+  Kimi availability, auth-domain hardening, EOL policy, and npm audit work stay deferred and separately scoped.
+- Next: DONE after verified push; future Main Driver starts only from a new explicit request.

@@ -2,10 +2,10 @@
 
 - Feature ID: `electron-typecheck-defect-fixes`
 - Risk: Standard
-- Bundle ID: `electron-typecheck-defect-fixes-R1`
-- PLAN Revision: 1
-- SPEC: `docs/features/electron-typecheck-defect-fixes/SPEC.md`, revision 1, READY_FOR_APPROVAL
-- Status: NEEDS_APPROVAL
+- Bundle ID: `electron-typecheck-defect-fixes-R2`
+- PLAN Revision: 2
+- SPEC: `docs/features/electron-typecheck-defect-fixes/SPEC.md`, revision 2, APPROVED
+- Status: APPROVED
 - Base Branch/Commit: `codex/council-chat-phase1-defect-fixes` / `eb6eac2112cc390794833c73656d6a8da78a9b76`; planning branch `codex/electron-typecheck-defect-fixes`
 
 ## Baseline
@@ -23,19 +23,21 @@
 - An in-memory S1 type-import substitution leaves 25 diagnostics: TS18048 x20, TS18047 x2, TS2345 x1, TS2741 x1, TS7006 x1. This measured result supersedes the initial hypothesis that S1 causes most TS18048 errors.
 - Kimi status consumer trace: preload IPC → renderer `window.electronAPI.getLoginStatus()` → `AccountsPanel.refresh()` only. `undefined` produces the false Accounts state; Council enabled/preflight routing does not read it.
 - Kimi cookie evidence, values omitted: authenticated persisted Kimi has `kimi-auth` on `www.kimi.com`; a deleted isolated anonymous profile lacks that cookie. Generic anonymous cookies and broad DOM signals are insufficient.
+- Pre-removal list equality: main and renderer `AI_NAMES` both print `chatgpt,claude,deepseek,gemini,grok,kimi,perplexity` in exactly that order; main `DEFAULT_ENABLED_AI_NAMES` and renderer `DEFAULT_ENABLED_AIS` both print `chatgpt,claude,gemini`. This output must be copied into `TEST_EVIDENCE.md` before the duplicate lines are removed.
 - Saved Sessions evidence: all reads sanitize before summaries; the real local `councilSnapshots` array currently has count 0. Compatibility must therefore be tested with an isolated synthetic legacy record, not claimed from the empty store.
 - Existing EOL: main i/crlf w/crlf; Council prompt i/lf w/crlf; preload i/lf w/lf; tsconfig i/lf w/lf. Global Git config reports `core.autocrlf=true`.
 - Preserved user-owned untracked paths are excluded from every stage/staging operation:
-  - `_to_delete/`
   - `docs/handoff_history/COWORK_SESSION_HANDOFF_council_chat_review.md`
   - `docs/handoff_history/HANDOFF_PROMPT_council_chat_fixes.md`
+- `_to_delete/` is prior-review trash, not a preserved user file. It remains outside task scope and the agent will not modify or delete it; if the user deletes it, it stays absent.
 
 ## Technical Decisions
 
-- Type/provider source: import canonical `AiName` into all three Electron TypeScript entry modules that currently redeclare it, and preserve their existing type exports. Use the `.js` module specifier compatible with the existing ESM/bundler convention. Main also imports canonical runtime `AI_NAMES` from the side-effect-free `src/types.ts` and removes its duplicate list, so the exhaustive login loop follows the app's provider list. Do not hand-synchronize another union/list.
+- Type/provider source: import canonical `AiName` into all three Electron TypeScript entry modules that currently redeclare it, and preserve their existing type exports. Use the `.js` module specifier compatible with the existing ESM/bundler convention. Main also imports canonical runtime `AI_NAMES` and `DEFAULT_ENABLED_AIS` from the side-effect-free `src/types.ts`, removing both adjacent duplicate lists. Do not hand-synchronize another union/list.
+- Provider-order contract: canonical order is `chatgpt → claude → deepseek → gemini → grok → kimi → perplexity`; canonical defaults are `chatgpt → claude → gemini`. The order drives panel placement and sequential Council targets, so a focused fixture fails on reorder as well as omission.
 - Typecheck/build boundary: update only root `include` to `["src", "electron"]`; leave compiler options, the `tsconfig.node.json` reference, Vite entries, Rollup externals, package scripts, and output directories unchanged.
 - Exhaustive login result: obtain partition cookies through `AI_NAMES` iteration and derive a boolean for every name. Keep provider-specific predicates explicit. Avoid a six/seven-key object literal as the final completeness mechanism.
-- Kimi status predicate: persisted status requires exact `kimi-auth` plus a Kimi domain. The standalone login flow remains unchanged until the approved actual transition shows whether its DOM completion signal and cookie transfer already produce that cookie. If they do not, stop and revise the finding rather than weaken status detection to anonymous cookies.
+- Kimi status predicate: persisted status requires exact `kimi-auth` plus a Kimi domain. Reuse that predicate in the Kimi branch of `isLoginComplete()` so generic anonymous session/token cookies cannot complete the generic window early. Do not change the other six provider predicates. The standalone login script's DOM close behavior remains unchanged; its transferred cookies must satisfy the shared persisted predicate. If they do not, record BLOCKED/FAIL rather than weaken detection.
 - Optional cookie domains: use a small explicit domain-normalization/match helper that returns no match for missing domains. During copying, skip cookies without a usable host. This resolves the full 20-error family and is a runtime hardening fix, not an optional-chain suppression.
 - Window narrowing: capture the guarded `mainWindow` in a local constant before the synchronous callback, preserving add/remove behavior.
 - Attachment snapshot typing: validate/declare the `executeJavaScript` snapshot boundary as `{ count: number; names: string[] } | null` so names are strings before comparison.
@@ -49,14 +51,16 @@
 ### Slice 1 — Activate the checker and canonicalize provider types
 
 1. Edit root `tsconfig.json` include to `src` plus `electron` without changing other compiler/build options.
-2. Replace local `AiName` unions in `electron/main.ts`, `electron/preload.ts`, and `electron/councilPrompt.ts` with canonical imports/re-exports; make main use canonical runtime `AI_NAMES` and retain existing public type surfaces.
-3. Run the real `npx tsc --noEmit`, record the post-S1 count/code/file list, and confirm it matches or explain any difference from the 25-error in-memory baseline.
-4. Verify emitted JS contains no type import and Vite still discovers the same three Electron entries.
+2. Capture the exact pre-removal equality/output of both provider arrays and both default-enabled arrays.
+3. Replace local `AiName` unions in `electron/main.ts`, `electron/preload.ts`, and `electron/councilPrompt.ts` with canonical imports/re-exports; make main use canonical runtime `AI_NAMES` and `DEFAULT_ENABLED_AIS`, retaining existing public type surfaces.
+4. Add a focused fixture that asserts both canonical arrays and the provider order used by panel/sequential-target call sites.
+5. Run the real `npx tsc --noEmit`, record the post-S1 count/code/file list, and confirm it matches or explain any difference from the 25-error in-memory baseline.
+6. Verify emitted JS contains no preload type import and Vite still discovers the same three Electron entries.
 
 ### Slice 2 — Fix exhaustive login state and cookie nullability
 
 1. Extract explicit safe cookie-domain matching used by login predicates and cookie copy. Missing domain returns false/skip.
-2. Refactor `getLoginStatus()` to iterate `AI_NAMES`, preserve the existing provider rules, and add exact Kimi persisted detection.
+2. Refactor `getLoginStatus()` to iterate `AI_NAMES`, preserve the existing six provider rules, and add exact Kimi persisted detection. Reuse the same predicate in only the Kimi branch of `isLoginComplete()`.
 3. Add focused positive/negative fixtures using cookie names/domains only; cover unrelated-domain `kimi-auth` and missing domain.
 4. Run the app. Observe current Kimi Logged in, perform Logout, verify false, then open Kimi Login and wait for the user to complete it before verifying true. Record only booleans and cookie names/domains.
 5. If actual login completion does not establish `kimi-auth`, mark S2 blocked/failing, document the observed non-secret signals, and return to SPEC/PLAN approval rather than guessing.
@@ -128,10 +132,10 @@
 
 - Mode: STANDARD_BUNDLE
 - Bundle ID: `electron-typecheck-defect-fixes-R1`
-- SPEC Revision approved: pending (revision 1 proposed)
-- PLAN Revision approved: pending (revision 1 proposed)
-- Decision: NEEDS_APPROVAL
-- User message: pending
+- SPEC Revision approved: 2 (revision 1 plus explicitly pre-approved BUILD conditions)
+- PLAN Revision approved: 2 (revision 1 plus explicitly pre-approved BUILD conditions)
+- Decision: APPROVED
+- User message: 2026-08-03, revision 1 approved; record the order/default contracts and align only Kimi's completion predicate, then begin BUILD without reapproval.
 - Constraints / expiry: Phase 2 S1-S4 only; approval expires if substantive scope, authentication predicate, migration decision, build topology, dependency/provider/selector/EOL/publication behavior changes.
 
 ## High PLAN Approval
@@ -143,3 +147,4 @@
 ## Revision History
 
 - Revision 1 (2026-08-03): Initial Phase 2 plan. Records the 33-error and 25-residual measured baselines, three Electron-local `AiName` declarations, evidence-backed Kimi status rule/consumer impact, no-eager-migration legacy snapshot decision, Vite/tsconfig boundary, deterministic build manifest, EOL constraints, and deferred Phase 1 observations.
+- Revision 2 (2026-08-03): Added pre-removal provider/default equality evidence, canonical `DEFAULT_ENABLED_AIS`, an order/default fixture and AC, and the pre-approved shared exact Kimi predicate for generic completion plus persisted status. Approval remains valid without another request.

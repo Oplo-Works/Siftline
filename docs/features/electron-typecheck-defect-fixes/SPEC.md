@@ -2,9 +2,9 @@
 
 - Feature ID: `electron-typecheck-defect-fixes`
 - Risk: Standard
-- Bundle ID: `electron-typecheck-defect-fixes-R1`
-- SPEC Revision: 1
-- Status: READY_FOR_APPROVAL
+- Bundle ID: `electron-typecheck-defect-fixes-R2`
+- SPEC Revision: 2
+- Status: APPROVED
 - Last Updated: 2026-08-03
 
 ## Context / User / Goal
@@ -21,7 +21,7 @@
 
 - In:
   - Change root `tsconfig.json` to include both `src` and `electron` so `npx tsc --noEmit` checks the Electron main, preload, prompt, and Telegram TypeScript graph.
-  - Replace Electron-local `AiName` unions with type-only imports from `src/types.ts`. Preserve existing exported type contracts. The investigation found three declarations, not one: `councilPrompt.ts` and `preload.ts` both omit Kimi; `main.ts` happens to match today but is still a divergent copy. Reuse canonical runtime `AI_NAMES` in main instead of retaining a second provider list.
+  - Replace Electron-local `AiName` unions with type-only imports from `src/types.ts`. Preserve existing exported type contracts. The investigation found three declarations, not one: `councilPrompt.ts` and `preload.ts` both omit Kimi; `main.ts` happens to match today but is still a divergent copy. Reuse canonical runtime `AI_NAMES` and `DEFAULT_ENABLED_AIS` in main instead of retaining the two adjacent duplicate lists.
   - Make `getLoginStatus()` enumerate `AI_NAMES` and return an explicit boolean for every provider, including Kimi.
   - Use the observed persisted Kimi authentication signal: a cookie named exactly `kimi-auth` on a `kimi.com` domain. Verify the false/true transition in the running app before treating that predicate as complete.
   - Model legacy Saved Session records honestly at the persistence boundary, sanitize them into the current required `CouncilSnapshotRecord`, and retain backward-compatible defaults for the five newer fields.
@@ -56,14 +56,15 @@
 - `src/types.ts` is the canonical `AiName` and includes Kimi.
 - `electron/councilPrompt.ts` and `electron/preload.ts` each redeclare an older six-provider union that omits Kimi; `electron/main.ts` redeclares the current seven-provider union.
 - `councilPrompt.ts` causes the measured TS2322/TS2345 family. `preload.ts` does not currently emit a diagnostic because its IPC values are not checked against the renderer declaration in the same expression, but it is the same latent omission.
-- All three Electron declarations will use canonical `AiName`; their existing type exports will be preserved so callers keep the same import surface. Type-only imports disappear from emitted JavaScript. Main will additionally import canonical `AI_NAMES` as its exhaustive runtime provider list; `src/types.ts` has no runtime imports, and Vite will bundle/tree-shake this value without adding an output entry.
+- All three Electron declarations will use canonical `AiName`; their existing type exports will be preserved so callers keep the same import surface. Type-only imports disappear from emitted JavaScript. Main will additionally import canonical `AI_NAMES` and `DEFAULT_ENABLED_AIS`; `src/types.ts` has no runtime imports, and Vite will bundle/tree-shake these values without adding an output entry.
+- Before removal, `electron/main.ts` and `src/types.ts` both contain exactly `['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'kimi', 'perplexity']` in the same order, and their default-enabled lists are both `['chatgpt', 'claude', 'gemini']`. Provider order is a behavior contract: it controls panel layout (`orderedEnabledNames` and view iteration) and sequential Council target ordering. The focused fixture must lock that canonical order.
 
 ### S2 — Kimi login status omission
 
 - `getLoginStatus()` fetches six partitions and returns six keys. Its declared `Record<AiName, boolean>` exposes the missing Kimi key as TS2741, while JavaScript returns `undefined`.
 - The only renderer consumer is `AccountsPanel.refresh()`. It reads `status[ai]`; Kimi's `undefined` is falsy, so an authenticated Kimi session is shown as “Not logged in,” the button says “Login,” and Logout is disabled.
 - Council activation, enabled-provider routing, and send preflight do not consume this return value. They use `enabledAis`, `AI_NAMES`, and BrowserView/session checks, so the omission misreports Accounts state but does not itself disable Kimi or remove it from Council routing.
-- Positive/negative evidence supports `domain contains kimi.com && name === 'kimi-auth'` for persisted login status. Generic analytics/UI cookies exist anonymously. Existing broad name matching in `isLoginComplete()` does not match `kimi-auth`, while the standalone `kimi-login.mjs` currently closes on DOM composer detection. The BUILD transition must determine whether the standalone completion rule needs alignment; do not replace it speculatively before observing the real logout/login cycle.
+- Positive/negative evidence supports `domain contains kimi.com && name === 'kimi-auth'` for persisted login status. Generic analytics/UI cookies exist anonymously. Existing broad name matching in `isLoginComplete()` does not match `kimi-auth` and can accept an anonymous cookie whose name contains a generic auth-like fragment. The approved BUILD aligns only the Kimi branch with the exact shared predicate before the real transition; the other six provider predicates retain their semantics. The standalone `kimi-login.mjs` still closes on its existing DOM composer detection, after which the imported cookie set must satisfy the shared predicate.
 
 ### S3 — Legacy Saved Session persistence shape
 
@@ -84,6 +85,7 @@
 - A future provider is added to canonical `AiName`/`AI_NAMES`: Electron type consumers see it immediately, and login status iteration over the canonical list assigns a boolean rather than silently omitting the property.
 - A cookie has no domain: authentication predicates return false for that cookie; cookie-copy code skips it because no valid URL can be constructed. It must not throw.
 - Kimi has only anonymous cookies: report false. Kimi has the observed `kimi-auth` cookie on a Kimi domain: report true. A same-named cookie on an unrelated domain must not count.
+- Both Kimi login-completion checking and persisted Accounts status use that same predicate, so an anonymous session/token-named cookie cannot close the generic login path early.
 - Kimi logout/login cannot be completed because the user declines or the provider is unavailable: record the transition AC as BLOCKED and do not claim S2 or the bundle complete.
 - ChatGPT's existing DOM-based status and all other provider predicates must retain their current semantics while collection changes from hand-enumeration to `AI_NAMES` iteration.
 - A legacy snapshot lacks all five newer fields: expose the approved defaults and keep it visible in normal/in-progress filters, sortable by `savedAt` as opened time, and mutable through existing lifecycle/archive/annotation actions.
@@ -109,14 +111,16 @@
 | AC-10 | Production build retains the same six-output topology. Renderer/CSS/HTML, preload, and spoof-preload remain byte-identical; the main graph's expected 8→9 transform change and artifact diff are attributable to canonical `AI_NAMES` plus approved S1-S4 runtime code. | Before/after SHA-256 manifest, file sizes, Vite transform counts, and `npm run build` exit 0. | PENDING |
 | AC-11 | Accounts, Saved Sessions, Council Chat startup/one synthetic message, and affected attachment UI smoke checks pass. Workflow is not manually exercised because the user has retired it from normal use and no Workflow behavior is changed; compile/build guard its shared TypeScript graph. | `build-and-run.bat` manual evidence. | PENDING |
 | AC-12 | Task-only diff, EOL, secret, and scope checks show actionable whitespace 0, preserve all target EOLs, and show no dependency/lock/selector/schema-version/`.gitattributes` changes. Every PASS includes inspected real output and counts in `TEST_EVIDENCE.md`. | Task-scoped `git diff --check`, `git diff --cached --ignore-cr-at-eol`, `git ls-files --eol`, scoped secret scan, and path audit with `core.autocrlf=true` recorded. | PENDING |
+| AC-13 | Before duplicate removal, main and renderer provider/default lists are proven identical. After removal, canonical provider order remains `chatgpt, claude, deepseek, gemini, grok, kimi, perplexity`, preserving panel layout and sequential Council target order; canonical defaults remain `chatgpt, claude, gemini`. | Captured pre-change output, focused order/default fixture, and affected call-site inspection. | PENDING |
 
 ## Approval
 
 - Mode: STANDARD_BUNDLE_IN_PLAN
 - Standard ledger: `docs/features/electron-typecheck-defect-fixes/PLAN.md#approval-bundle`
 - High decision: N/A
-- User message: pending approval of SPEC revision 1 / PLAN revision 1. BUILD is prohibited before that approval.
+- User message: 2026-08-03, SPEC revision 1 / PLAN revision 1 approved with three BUILD-time conditions; revision 2 records the provider-order contract, canonical default list, and Kimi predicate alignment. Approval explicitly remains valid through revision 2 without another request.
 
 ## Revision History
 
 - Revision 1 (2026-08-03): Initial Phase 2 approval bundle based on the 33-diagnostic probe, direct consumer tracing, non-secret Kimi authenticated/anonymous cookie comparison, real-store metadata inspection, and baseline production-build manifest.
+- Revision 2 (2026-08-03): Recorded the pre-removal provider/default list equality and order AC, imported canonical `DEFAULT_ENABLED_AIS` alongside `AI_NAMES`, and pre-approved aligning only Kimi's generic login-completion branch with the exact persisted predicate. User approval of revision 1 explicitly extends through these conditions.

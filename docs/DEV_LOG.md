@@ -201,3 +201,15 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
   dependencies/audit/selectors, push/PR/tag/release 제외. `core.autocrlf=true`와 네 target별 EOL을 기록했다.
 - Publish Intent/Target: NOT_REQUIRED / none — push/PR 금지
 - Next: NEEDS_APPROVAL + Human Approver
+
+## 2026-08-03 — electron-typecheck-defect-fixes / APPROVAL → BUILD
+
+- Stage: WF:SPEC_PLAN → WF:BUILD  - Role/Runtime: Implementation Owner / Codex
+  (`codex-sol-deep` requested; repository PIN: CANDIDATE)  - Risk: Standard
+- Human Decision: APPROVED — revision 1 plus three BUILD-time conditions; revision 2 records
+  those conditions and remains approved without another request
+- Conditions: capture/fixture canonical provider order, canonicalize adjacent default-enabled list,
+  and align only Kimi's `isLoginComplete()` branch with the exact shared `kimi-auth` predicate.
+- Scope: existing exclusions and no-push rule unchanged. `_to_delete/` is task-external review trash;
+  the agent will neither preserve it as user data nor modify/delete it.
+- Next: BUILD Slice 1

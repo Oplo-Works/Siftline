@@ -2,11 +2,11 @@
 
 ## Identity
 
-- Status: NEEDS_APPROVAL
+- Status: IN_PROGRESS
 - Task ID: `electron-typecheck-defect-fixes`
-- Stage: WF:SPEC_PLAN
+- Stage: WF:BUILD
 - Risk: Standard
-- Updated At: 2026-08-03T16:04:18Z
+- Updated At: 2026-08-03T16:38:50Z
 
 ## Context Summary
 
@@ -22,10 +22,10 @@ Electron-inclusive in-memory typecheck 기준은 총 33건이며, S1 type-only i
 
 - Outgoing Role / Runtime: Main Driver / Codex (`codex-sol-deep` requested;
   repository Runtime PIN remains CANDIDATE)
-- Next Role: Human Approver
-- Next Runtime ID: N/A
-- Next Action: `electron-typecheck-defect-fixes` SPEC revision 1 / PLAN revision 1 승인 또는 수정 지시
-- Reason: Standard bundle approval gate; product/config/test BUILD는 아직 시작할 수 없음
+- Next Role: Implementation Owner
+- Next Runtime ID: current Codex BUILD session
+- Next Action: approved revision 2 S1부터 순서대로 구현·실측
+- Reason: revision 1 approval plus three pre-approved BUILD conditions recorded in revision 2
 
 ## Git and Worktree
 
@@ -38,9 +38,9 @@ Electron-inclusive in-memory typecheck 기준은 총 33건이며, S1 type-only i
 - Phase 2 Planning State: SELF — resolve from Git history after planning commit
 - Worktree State: USER_DIRTY_ONLY after explicit planning paths are committed
 - Preserved User Changes:
-  - `_to_delete/` (untracked)
   - `docs/handoff_history/HANDOFF_PROMPT_council_chat_fixes.md` (untracked)
   - `docs/handoff_history/COWORK_SESSION_HANDOFF_council_chat_review.md` (untracked)
+- Ignored task-external trash: `_to_delete/` (agent does not modify/delete it)
 
 ## Publish
 
@@ -52,9 +52,9 @@ Electron-inclusive in-memory typecheck 기준은 총 33건이며, S1 type-only i
 
 ## Scope, Validation, and Decisions
 
-- Proposed Inputs:
-  - `docs/features/electron-typecheck-defect-fixes/SPEC.md` revision 1
-  - `docs/features/electron-typecheck-defect-fixes/PLAN.md` revision 1
+- Approved Inputs:
+  - `docs/features/electron-typecheck-defect-fixes/SPEC.md` revision 2
+  - `docs/features/electron-typecheck-defect-fixes/PLAN.md` revision 2
 - Baseline Typecheck: in-memory `include: ["src", "electron"]` — 33 diagnostics;
   in-memory S1 simulation — 25 residual diagnostics
 - Baseline Build: `npm run build` exit 0; same-source before/after six-file manifest byte-identical;
@@ -65,7 +65,7 @@ Electron-inclusive in-memory typecheck 기준은 총 33건이며, S1 type-only i
   actual real store Saved Session count is 0 and isolated fixture is required in BUILD
 - Follow-up Decision: Gemini mutex latency, clipboard restoration, and line-count readback are deferred
   to a separate Phase 3 candidate, not mixed into the typecheck bundle
-- Human Decision: NEEDS_APPROVAL; BUILD prohibited
+- Human Decision: APPROVED; BUILD in progress without another approval request
 
 ## Risks and Blockers
 
@@ -75,9 +75,8 @@ Electron-inclusive in-memory typecheck 기준은 총 33건이며, S1 type-only i
   - cookie-domain handling must preserve six existing provider rules
   - Saved Session compatibility must be proved in an isolated profile because the real store is empty
   - `core.autocrlf=true` requires task-scoped CR-only whitespace classification and per-file EOL preservation
-- Blocker: Human approval of SPEC revision 1 / PLAN revision 1
+- Blocker: none at BUILD start; Kimi user transition can become an explicit AC-4 blocker later
 - Do NOT:
-  - begin BUILD before approval
   - push, create PR/tag/release, deploy, or alter credentials/provider configuration
   - edit dependencies, selectors, `.gitattributes`, Phase 3/4 code, or repository-wide EOL
-  - stage, commit, move, or delete the three user-owned untracked paths
+  - stage, commit, move, or delete the two user-owned untracked handoff paths; do not touch `_to_delete/`

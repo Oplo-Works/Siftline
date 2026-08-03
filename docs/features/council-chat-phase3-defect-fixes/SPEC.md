@@ -4,7 +4,7 @@
 - Risk: Standard
 - Bundle ID: `council-chat-phase3-defect-fixes-R1`
 - SPEC Revision: 1
-- Status: APPROVED — WF:BUILD
+- Status: DONE — WF:CLOSE
 - Last Updated: 2026-08-03
 
 ## Context / User / Goal
@@ -126,21 +126,21 @@
 
 | ID | Observable criterion | Verification | Status |
 |---|---|---|---|
-| AC-1 | Exactly one seven-provider role object remains with short `title` and long `role` plus `focus`/`outputGuide`. Existing compact UI titles remain unchanged; injected Council/Workflow roles derive from the long fields and Kimi remains the long-context research role. | `rg`, focused source/runtime fixtures, and UI/prompt inspection. | Pending |
-| AC-2 | `AI_REVIEWER_PERSONAS` and unused `buildReviewerPrompt()` are absent with no orphan references or behaviorally different duplicate role prose. | Scoped source search, typecheck, build. | Pending |
-| AC-3 | A live failed turn retries with the same per-AI prompt mode and the same attachment paths/metadata; no attachment is silently dropped. | Mocked orchestration fixture plus controlled app recovery check. | Pending |
-| AC-4 | Retry state is runtime-only, cleared on lifecycle boundaries, and never persisted/logged. Missing replay state or missing files produces an actionable failure instead of a text-only send. | Persistence/source fixture, scoped secret/path scan, UI failure check. | Pending |
-| AC-5 | Bounded summaries retain the newest complete messages and emit the retained subset in chronological order. | Pure fixtures covering mixed speakers and multiple budgets. | Pending |
-| AC-6 | Previous-round extraction and null-bounds earlier-context fallback still pass while their older summary uses the recent-first policy. | Existing Phase 1 fixtures plus new regression cases. | Pending |
-| AC-7 | Accounts Kimi action closes the modal, enables/exposes Kimi, and shows the embedded login surface without spawning/calling the standalone path; Council `primaryAi` is identical immediately before and after the action. | Renderer fixture and actual user-visible run with before/after primary observation. | Pending |
-| AC-8 | Other six Accounts login/logout actions and Kimi logout/status transitions retain their Phase 2 behavior. | Source contract fixture and manual smoke; Kimi user action if required. | Pending |
-| AC-9 | No auth/localStorage/cookie value or previous clipboard value crosses a new boundary, enters logs/evidence, or is persisted. | Source review and task-diff secret/value scan. | Pending |
-| AC-10 | After all-seven observation, Gemini's measured normal multiline prompt preserves headers, bullets, non-empty-line boundaries, and final language-rule separation through the direct path without acquiring the clipboard lock; Gemini structure enforcement is enabled only from that evidence. | Focused insertion fixture and actual composer readback before send. | Pending |
-| AC-11 | The non-empty-trimmed-line signature detects `A\n\nB` flattened to `A B`, even when whitespace-free characters and identity match, while harmless folding to `A\nB` and single-line/provider-compatible inputs pass. | Positive/negative verifier fixtures with line metrics. | Pending |
-| AC-12 | Before any structure gate changes, expected/observed signature metrics are recorded for all seven real providers. Only measured-stable providers may be explicitly enforced. Compatibility text/image fallbacks remain serialized; panel-image correspondence does not regress; wait/hold timing is content-free. | Seven-provider observation matrix, concurrency fixture, image-capable-panel regression, log-field inspection. | Pending |
-| AC-13 | Electron-inclusive typecheck exits 0 and production build keeps six outputs and transform topology 50/9/1/1. Preload/spoof remain byte-identical; renderer/main changes are fully attributable. | `npx tsc --noEmit`, `npm run build`, SHA-256 manifest. | Pending |
-| AC-14 | Target EOLs are preserved, actionable whitespace and secret findings are 0, and no dependency/lock/selector/schema/`.gitattributes`/Phase 4 path changes appear. | Task-scoped diff/EOL/secret checks before and after staging. | Pending |
-| AC-15 | Mention-free Council messages remain transcript-only; no default `@all` or default-primary routing is introduced. | Existing intent fixture and source diff inspection. | Pending |
+| AC-1 | Exactly one seven-provider role object remains with short `title` and long `role` plus `focus`/`outputGuide`. Existing compact UI titles remain unchanged; injected Council/Workflow roles derive from the long fields and Kimi remains the long-context research role. | `rg`, focused source/runtime fixtures, and UI/prompt inspection. | PASS |
+| AC-2 | `AI_REVIEWER_PERSONAS` and unused `buildReviewerPrompt()` are absent with no orphan references or behaviorally different duplicate role prose. | Scoped source search, typecheck, build. | PASS |
+| AC-3 | A live failed turn retries with the same per-AI prompt mode and the same attachment paths/metadata; no attachment is silently dropped. | Mocked orchestration fixture plus controlled app recovery check. | PASS |
+| AC-4 | Retry state is runtime-only, cleared on lifecycle boundaries, and never persisted/logged. Missing replay state or missing files produces an actionable failure instead of a text-only send. | Persistence/source fixture, scoped secret/path scan, UI failure check. | PASS |
+| AC-5 | Bounded summaries retain the newest complete messages and emit the retained subset in chronological order. | Pure fixtures covering mixed speakers and multiple budgets. | PASS |
+| AC-6 | Previous-round extraction and null-bounds earlier-context fallback still pass while their older summary uses the recent-first policy. | Existing Phase 1 fixtures plus new regression cases. | PASS |
+| AC-7 | Accounts Kimi action closes the modal, enables/exposes Kimi, and shows the embedded login surface without spawning/calling the standalone path; Council `primaryAi` is identical immediately before and after the action. | Renderer fixture and actual user-visible run with before/after primary observation. | PASS |
+| AC-8 | Other six Accounts login/logout actions and Kimi logout/status transitions retain their Phase 2 behavior. | Source contract fixture and manual smoke; Kimi user action if required. | PASS |
+| AC-9 | No auth/localStorage/cookie value or previous clipboard value crosses a new boundary, enters logs/evidence, or is persisted. | Source review and task-diff secret/value scan. | PASS |
+| AC-10 | After all-seven observation, Gemini's measured normal multiline prompt preserves headers, bullets, non-empty-line boundaries, and final language-rule separation through the direct path without acquiring the clipboard lock; Gemini structure enforcement is enabled only from that evidence. | Focused insertion fixture and actual composer readback before send. | PASS |
+| AC-11 | The non-empty-trimmed-line signature detects `A\n\nB` flattened to `A B`, even when whitespace-free characters and identity match, while harmless folding to `A\nB` and single-line/provider-compatible inputs pass. | Positive/negative verifier fixtures with line metrics. | PASS |
+| AC-12 | Before any structure gate changes, expected/observed signature metrics are recorded for all seven real providers. Only measured-stable providers may be explicitly enforced. Compatibility text/image fallbacks remain serialized; panel-image correspondence does not regress; wait/hold timing is content-free. | Seven-provider observation matrix, concurrency fixture, image-capable-panel regression, log-field inspection. | PASS — exact retained metrics for Gemini/Kimi; other providers remain observe-only. |
+| AC-13 | Electron-inclusive typecheck exits 0 and production build keeps six outputs and transform topology 50/9/1/1. Preload/spoof remain byte-identical; renderer/main changes are fully attributable. When approved renderer code changes, `index.html` may change only to reference the new content-hashed renderer asset filename. | `npx tsc --noEmit`, `npm run build`, SHA-256 manifest and asset-reference comparison. | PASS |
+| AC-14 | Target EOLs are preserved, actionable whitespace and secret findings are 0, and no dependency/lock/selector/schema/`.gitattributes`/Phase 4 path changes appear. | Task-scoped diff/EOL/secret checks before and after staging. | PASS |
+| AC-15 | Mention-free Council messages remain transcript-only; no default `@all` or default-primary routing is introduced. | Existing intent fixture and source diff inspection. | PASS |
 
 ## Approval
 
@@ -153,3 +153,4 @@
 
 - Revision 1 (2026-08-03): Initial Phase 3 bundle. Consolidates roles, specifies exact runtime-only retry with attachments, makes summaries recent-first, selects embedded Kimi-panel login without auth transfer, and defines structure-aware Gemini insertion/readback. Explicitly excludes clipboard restoration, auth predicate/storage transfer, and mention-free default routing.
 - Revision 1 approved conditions (2026-08-03): keep structural metrics observation-only until all seven providers are measured, define signatures as ordered non-empty trimmed lines and add harmless-fold coverage, preserve `primaryAi` when opening Kimi, and split canonical short UI `title` from long prompt `role` in the same object. Approval remains valid; no revision increment or reapproval is required.
+- Revision 1 close correction (2026-08-03): independent review confirmed that renderer changes legitimately rename Vite's content-hashed JS asset and therefore update only the corresponding `index.html` script reference. The earlier byte-identical-HTML expectation was inherited incorrectly from the Electron-only Phase 2 bundle; scope and design are unchanged.

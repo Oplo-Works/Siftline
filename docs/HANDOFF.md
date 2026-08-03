@@ -2,29 +2,28 @@
 
 ## Identity
 
-- Status: READY_FOR_REVIEW
+- Status: DONE
 - Task ID: `council-chat-phase3-defect-fixes`
-- Stage: WF:REVIEW
+- Stage: WF:CLOSE
 - Risk: Standard — Kimi work is UI navigation only; auth/storage transfer is prohibited
-- Updated At: 2026-08-03T19:55:00Z
+- Updated At: 2026-08-03T20:09:08Z
 
 ## Context Summary
 
-Phase 2 closed locally at `394cee2` after Opus 5 independently returned PASS. The user approved Phase 3
-SPEC/PLAN revision 1 with three BUILD-time conditions: structural composer metrics remain observation-only
-until all seven providers are measured, opening Kimi preserves Council primary, and the one canonical role
-object separates short UI titles from long prompt roles. S1-S5 are implemented; automated validation and
-the final user-operated Kimi/image checks pass. The bundle is ready for read-only independent review. Automatic clipboard restoration
-and authentication-value transfer remain rejected; mention-free routing stays transcript-only.
+Phase 3 is closed locally after Opus 5 independently returned PASS on `394cee2..0b1336d`. Canonical roles,
+exact live Retry, newest-first context, embedded Kimi login navigation, and Gemini structure-safe insertion
+all pass automated and actual-app validation. Independent review accepted the renderer-hash-driven HTML
+change and classified missing non-Gemini numeric metrics as a future enforcement prerequisite, not a current
+defect. Mention-free routing remains transcript-only until the user chooses the Phase 4 product behavior.
 
 ## Ownership
 
 - Outgoing Role / Runtime: Main Driver / Codex (`codex-sol-deep` requested;
   repository Runtime PIN remains CANDIDATE)
-- Next Role: Independent Reviewer / Opus 5 (`CHAT_ONLY_READ_ONLY`)
+- Next Role: Human / Main Driver
 - Next Runtime ID: current observed runtime
-- Next Action: review `394cee2..HEAD` using the Phase 3 review request and return PASS/FAIL with findings
-- Reason: implementation, automated gates, actual Kimi route, and concurrent image mapping are complete
+- Next Action: wait for the user's mention-free routing choice: keep transcript-only, default `@all`, or add a toggle; do not write Phase 4 SPEC before that decision
+- Reason: Phase 3 is DONE, while the routing decision materially determines Phase 4 scope
 
 ## Git and Worktree
 
@@ -34,7 +33,9 @@ and authentication-value transfer remain rejected; mention-free routing stays tr
 - Phase 3 Planning Base: `394cee2f5b42f26dfecc27548746e424ea6612a8`
 - Planning Artifact State: SELF
 - Implementation Base / Head: `73b0f74` / `75a3eec`
-- Worktree State: TASK_CLEAN at local review-packet HEAD plus preserved unrelated untracked paths
+- Reviewed Packet Head: `0b1336d1aa26aba433053ca49caf6da7e5a53924`
+- Close Metadata Head: SELF — resolve this local close commit
+- Worktree State: expected USER_DIRTY_ONLY after the close commit; preserved unrelated untracked paths remain
 - Preserved user/unrelated paths:
   - `docs/handoff_history/HANDOFF_PROMPT_council_chat_fixes.md` (untracked)
   - `docs/handoff_history/COWORK_SESSION_HANDOFF_council_chat_review.md` (untracked)
@@ -71,10 +72,11 @@ and authentication-value transfer remain rejected; mention-free routing stays tr
 
 ## Risks and Blockers
 
-- No known approval blocker remains for the approved scope. The user confirmed the actual Kimi Logout →
-  Open panel → Login cycle and the final concurrent image-capable-panel mapping. Exact numeric structure
-  metrics are retained for Kimi/Gemini; the other five have user-confirmed equality verdicts only, explicitly
-  disclosed for independent review rather than reconstructed.
+- No Phase 3 blocker remains. The user confirmed the actual Kimi Logout → Open panel → Login cycle and the
+  final concurrent image-capable-panel mapping; Opus 5 independently returned PASS.
+- Gemini remains the only structure-enforced provider. Before expanding enforcement to another provider,
+  collect and record that target's actual expected/observed line count and digest. User verbal confirmation
+  alone is not sufficient to expand the enforcement set.
 - Any Kimi auth/storage-value transfer, provider-cookie predicate change, clipboard content read/restore,
   persistent retry paths/prompts, dependency/selector/schema/EOL-policy change, or Phase 4 routing
   invalidates revision 1 and requires a new risk/approval pass.
@@ -84,3 +86,13 @@ and authentication-value transfer remain rejected; mention-free routing stays tr
   substring-versus-suffix cookie-domain helpers.
 - Do not push, PR, tag, release, deploy, merge, or rebase.
 - Do not stage, commit, move, or delete the two untracked handoff-history files or `_to_delete/`.
+
+## Phase 4 Candidates — Decision Pending
+
+- Single-mention prompt falsely says other AIs are answering in parallel.
+- `pendingAi` is a single value although up to seven providers can run concurrently.
+- Council IPC and Telegram handlers duplicate roughly 90 lines.
+- Mention-free default routing: waiting for the user's choice among current transcript-only behavior,
+  default `@all`, or a user-facing toggle. Do not begin Phase 4 SPEC until this is decided.
+- Deferred Phase 3 observations: Kimi status depends on the live BrowserView; `cookieDomainIncludes()` uses
+  substring matching while newer Kimi helpers use strict suffix matching.

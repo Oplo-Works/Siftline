@@ -1,10 +1,21 @@
 # Test Evidence: Council Chat Phase 3 Defect Fixes
 
-- Overall Result: **PASS / ready for independent review**. Focused Phase 3, Phase 1, and Phase 2 fixtures pass; Electron-inclusive typecheck exits 0; the production build retains six outputs and transform topology 50/9/1/1. The user completed the final Kimi Accounts route cycle and concurrent image-panel mapping against the final running build and reported both PASS.
+- Overall Result: **PASS / independently reviewed**. Focused Phase 3, Phase 1, and Phase 2 fixtures pass; Electron-inclusive typecheck exits 0; the production build retains six outputs and transform topology 50/9/1/1. The user completed the final Kimi Accounts route cycle and concurrent image-panel mapping against the final running build. Opus 5 independently rebuilt/re-ran the required scripts, inspected the implementation and evidence gaps, and returned PASS for WF:CLOSE.
 - Implementation Base: `394cee2f5b42f26dfecc27548746e424ea6612a8`
 - Implementation Head: `75a3eec` — `fix(council): preserve Gemini prompt structure`
+- Independently Reviewed Target: `0b1336d1aa26aba433053ca49caf6da7e5a53924`
 - Environment: Windows NT 10.0.26200.0; Node v24.12.0; npm 11.6.2; TypeScript 5.9.3; Electron 41.2.0; Vite 5.4.21; Git 2.55.0.windows.1; `core.autocrlf=true`.
 - Data handling: no provider reply body, prompt body, attachment path, cookie/localStorage value, previous clipboard value, or clipboard content is copied into this evidence. Actual-app evidence records only provider identity, boolean/verdict state, counts, truncated digests, and timing metadata already displayed by Siftline.
+
+## Independent Review
+
+- Decision: **PASS**, user-delivered Opus 5 `CHAT_ONLY_READ_ONLY` review on 2026-08-03; WF:CLOSE authorized.
+- Independently rebuilt and reproduced: Phase 3 80/80 PASS, Phase 2 60/60 PASS, Phase 1 17/17 PASS, and `npx tsc --noEmit` exit 0.
+- Independent P3-D fixture reduced the budget through 200/60/40/22 and confirmed oldest lines drop first while every retained subset remains chronological.
+- Source inspection confirmed `CouncilRetryEnvelope` is separate from `CouncilRoomState` and snapshots/store persistence, and both retry guards stop before send when the live envelope mismatches or an attachment disappears.
+- All three approval conditions passed: Gemini-only enforcement with observe-mode fallback for the other six, Kimi primary invariance, and canonical short `title` versus long `role` separation.
+- Reviewer resolved the HTML discrepancy: Phase 3 intentionally changes renderer source, so Vite renamed `index-tey943na.js` to `index-C03ZazMl.js`; `index.html` remained 988 bytes and changed only in that script reference. The inherited byte-identical expectation was incorrect, not the build output.
+- Reviewer classified the five-provider missing numeric line/digest values as an evidence gap, not a current safety gap, because only Gemini is enforced. Expansion beyond Gemini now has an explicit prerequisite: collect and record actual expected/observed line counts and digests for every target provider before adding it to enforcement; verbal confirmation alone is insufficient.
 
 ## Command Evidence
 
@@ -59,7 +70,7 @@ No provider other than Gemini is structure-blocked. For providers whose exact nu
 
 | Output | Phase 3 base bytes / SHA-256 | Final bytes / SHA-256 | Result |
 |---|---|---|---|
-| `dist/index.html` | 988 / `04A5FC2C...` | 988 / `A1D68199EE76F52657AC0AA22962D5FB041A0DC016F1994140BB39FD57F91590` | Attributed change: only the content-hashed renderer JS filename reference changes when approved renderer code changes. This contradicts PLAN's literal byte-identical HTML expectation and is disclosed for review. |
+| `dist/index.html` | 988 / `04A5FC2C...` | 988 / `A1D68199EE76F52657AC0AA22962D5FB041A0DC016F1994140BB39FD57F91590` | Independently accepted attributed change: script reference only, `index-tey943na.js` → `index-C03ZazMl.js`. SPEC/PLAN expectation corrected at CLOSE. |
 | renderer JS | 289374 / `4DE4C68D...` | 292052 / `69A0B89AEE8EB44A160451E32ECB2AC2BA60A8CCDD617A172D19CF066006E8EC` | Expected S1/S4 renderer changes. |
 | renderer CSS | 71575 / `A5971E30...` | 71575 / `A5971E3096B594067615BAC3EE5E92F758E02C13CC408726B1A5A1F67458C8F5` | Byte-identical. |
 | `dist-electron/preload.js` | 4763 / `874B05A1...` | 4763 / `874B05A15CBE0024AC2501E4B35402250D4458FDC8E7EAEA7E51B0946A7A53CC` | Byte-identical. |
@@ -94,8 +105,8 @@ Build outputs are ignored and are not task-owned/staged. The renderer filename i
 | AC-9 | PASS | No auth/storage/clipboard value transfer; scoped scan clean. |
 | AC-10 | PASS | Actual direct Gemini recovery preserved 128/128 lines with equal digest and no clipboard lock; enforcement only Gemini. |
 | AC-11 | PASS | Negative flattening and positive harmless-fold fixtures pass. |
-| AC-12 | PASS WITH EVIDENCE GRANULARITY DISCLOSED | All seven were observed twice and user-confirmed matching; Kimi/Gemini exact metrics are retained, the other five have equality verdicts only. Final image-capable-panel mapping passed; mutex timing fixture/log fields pass. |
-| AC-13 | PASS WITH DISCLOSED PLAN DISCREPANCY | Typecheck/build topology/preload/spoof pass; renderer/main attributed. HTML changes only because its hashed renderer asset reference changes. |
+| AC-12 | PASS | All seven were observed twice and user-confirmed matching; Kimi/Gemini exact metrics are retained, the other five remain observe-only. Final image-capable-panel mapping passed; mutex timing fixture/log fields pass. Enforcement expansion requires exact target-provider metrics first. |
+| AC-13 | PASS | Typecheck/build topology/preload/spoof pass; renderer/main attributed. Independent review confirmed HTML changed only because its approved content-hashed renderer asset reference changed. |
 | AC-14 | PASS | EOL preserved, actionable whitespace 0, scoped secret/scope findings 0. |
 | AC-15 | PASS | Mention-free routing remains transcript-only in both duplicated runtime entry points and fixture. |
 
@@ -103,6 +114,6 @@ Build outputs are ignored and are not task-owned/staged. The renderer filename i
 
 - Provider composers and DOM behavior remain external and mutable; selectors were not changed.
 - Gemini can transiently expose only the first inserted line. The final bounded direct retry reduces this observed timing failure, but compatibility fallback remains visible and serialized rather than being claimed infallible.
-- Exact numeric metrics were retained for Kimi and Gemini. The final combined run supplied user-confirmed equality verdicts, but not numeric counts/digest strings, for the other five; this evidence limitation is explicit for independent review.
-- PLAN's byte-identical `index.html` validation sentence is not achievable when Vite rewrites the content-hashed renderer JS reference after an approved renderer change. The file remains 988 bytes and its only attributable reason to change is that asset reference; independent review should confirm this classification.
+- Exact numeric metrics were retained for Kimi and Gemini. The final combined run supplied user-confirmed equality verdicts, but not numeric counts/digest strings, for the other five. Gemini remains the only enforced provider. Before enforcing any other provider, collect and record that provider's actual expected/observed line count and digest; verbal confirmation cannot authorize expansion.
+- Independent review confirmed the 988-byte `index.html` change is solely the content-hashed renderer asset reference. SPEC/PLAN now state the correct expectation for renderer-changing bundles.
 - Existing npm audit findings were not changed or addressed; dependency work is out of scope.

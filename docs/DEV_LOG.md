@@ -361,3 +361,28 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
   `CHAT_ONLY_READ_ONLY`; independent verdict pending.
 - Publish Intent/Target: NOT_REQUIRED / none — push/PR/tag/release not attempted.
 - Next: READY_FOR_REVIEW + Opus 5; close only after independent PASS.
+
+## 2026-08-03T20:09:08Z — council-chat-phase3-defect-fixes / CLOSE
+
+- Stage: WF:REVIEW → WF:CLOSE
+- Role/Runtime: Implementation Owner / Codex (`codex-sol-deep` requested; repository PIN: CANDIDATE)
+- Risk: Standard — approved UI/Council reliability scope; no auth/storage-value boundary expansion.
+- Implementation: `394cee2f5b42f26dfecc27548746e424ea6612a8..0b1336d1aa26aba433053ca49caf6da7e5a53924`; close metadata commit follows locally.
+- Review: Opus 5 `CHAT_ONLY_READ_ONLY` — **PASS**, user-delivered 2026-08-03. Reviewer rebuilt and
+  reproduced Phase 3 80/80, Phase 2 60/60, Phase 1 17/17, and `npx tsc --noEmit` exit 0; separately
+  verified newest-first budgets and non-persistent guarded Retry behavior.
+- Human Decision: N/A — Standard reviewer PASS satisfies the CLOSE entry gate.
+- Summary: All three approved conditions passed: Gemini-only structural enforcement with safe observe mode
+  for the other six, Kimi panel opening with Council primary unchanged, and canonical short UI title versus
+  long prompt role. S1–S6 and AC-1–AC-15 are complete.
+- Validation: `docs/features/council-chat-phase3-defect-fixes/TEST_EVIDENCE.md` — PASS and independently
+  reviewed. Reviewer confirmed `index.html` changed only from the renderer asset reference
+  `index-tey943na.js` → `index-C03ZazMl.js`; SPEC/PLAN now correct the inherited byte-identical expectation.
+- Publish Intent/Target: NOT_REQUIRED / none — the approved bundle prohibits push, PR, tag, and release;
+  none attempted.
+- Decisions / Risks / Follow-ups: Gemini remains the only enforced provider. Expanding enforcement requires
+  actual expected/observed line counts and digests for every target provider; verbal confirmation is not
+  sufficient. Phase 4 candidates are recorded in HANDOFF, but SPEC work waits for the user's mention-free
+  routing choice. `.gitattributes`, repository EOL normalization, and existing npm audit findings remain
+  separate optional bundles.
+- Next: DONE for Phase 3; Human/Main Driver waits for the routing decision before Phase 4 SPEC.

@@ -177,3 +177,27 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
 - Decisions / Risks / Follow-ups: Phase 2 typecheck bundle proceeds to SPEC/PLAN only.
   Phase 3/4, `.gitattributes`, npm audit, dependency/selector changes remain excluded.
 - Next: DONE for Phase 1; Main Driver → Phase 2 WF:SPEC_PLAN
+
+## 2026-08-03T16:04:18Z — electron-typecheck-defect-fixes / SPEC_PLAN
+
+- Stage: WF:SPEC_PLAN  - Role/Runtime: Main Driver / Codex
+  (`codex-sol-deep` requested; repository PIN: CANDIDATE)  - Risk: Standard
+- Baseline: `eb6eac2112cc390794833c73656d6a8da78a9b76` (Phase 1 local CLOSE)
+- Human Decision: NEEDS_APPROVAL — SPEC revision 1 / PLAN revision 1; BUILD not started
+- Summary: Electron-inclusive strict typecheck와 그로 드러난 S1-S4 결함 수정 번들을 작성했다.
+  in-memory probe 33건, S1-only simulation residual 25건을 실측했다. Electron의 세 로컬
+  `AiName` 선언을 canonical type-only import로 통일하고, Kimi Accounts login status를
+  `AI_NAMES` 순회와 실측 `kimi-auth` 조건으로 채우며, legacy Saved Session persisted input을
+  current sanitized record와 분리하는 안이다. Cookie.domain nullability, mainWindow narrowing,
+  attachment snapshot typing도 진단별 불변식으로 처리한다.
+- Investigation: Kimi status의 renderer 소비처는 AccountsPanel 하나이며 Council 활성화/라우팅에는
+  직접 사용되지 않는다. 인증 세션에는 `www.kimi.com`의 `kimi-auth`가 있고 삭제한 isolated
+  anonymous profile에는 없었다(값 미수집). 실제 store의 Saved Session count는 0이고 모든 read는
+  sanitizer를 거치므로 eager migration 대신 isolated legacy fixture를 계획했다.
+- Build Baseline: `npm run build` exit 0, transforms 50/8/1/1, 6개 산출물 same-source
+  before/after size/SHA-256 완전 동일. root tsconfig include는 Vite entry discovery와 무관하며
+  `tsconfig.node.json`의 vite.config 전용 참조도 유지한다.
+- Scope: Phase 3/4, Gemini clipboard follow-ups, `.gitattributes`/EOL normalization,
+  dependencies/audit/selectors, push/PR/tag/release 제외. `core.autocrlf=true`와 네 target별 EOL을 기록했다.
+- Publish Intent/Target: NOT_REQUIRED / none — push/PR 금지
+- Next: NEEDS_APPROVAL + Human Approver

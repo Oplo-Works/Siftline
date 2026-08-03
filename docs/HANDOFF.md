@@ -2,81 +2,82 @@
 
 ## Identity
 
-- Status: DONE
-- Task ID: `council-chat-phase1-defect-fixes`
-- Stage: WF:CLOSE
+- Status: NEEDS_APPROVAL
+- Task ID: `electron-typecheck-defect-fixes`
+- Stage: WF:SPEC_PLAN
 - Risk: Standard
-- Updated At: 2026-08-03T15:49:12Z
+- Updated At: 2026-08-03T16:04:18Z
 
 ## Context Summary
 
-Council Chat Phase 1의 승인된 P1/P2-A/P2-B 결함 수정이 구현 커밋
-`d88c4da`에 정리됐다. 공용 clipboard mutex와 panel identity/readback 검증,
-Gemini structure-preserving clipboard-primary, answered-round 검색/null-bounds 요약 폴백,
-한국어 moderator/Kimi 선택을 구현했다. 자동 검증 17/17, tsc, build, 7-provider
-identity, image-capable panel mapping, Saved Sessions/Candidate 회귀가 PASS했다.
-Telegram은 별도 채널 미제공이라는 사용자의 명시 결정으로 승인된 BLOCKED 상태다.
-Opus 5가 `b753232..d88c4da`를 독립 재검증해 PASS를 반환했으며, Phase 1은 push 없이
-local close metadata까지 완료한다.
+Council Chat Phase 1은 Opus 5 독립 PASS 후 로컬 close metadata 커밋
+`eb6eac2`로 WF:CLOSE를 완료했다. push/PR은 수행하지 않았다. Phase 2는
+`codex/electron-typecheck-defect-fixes` 브랜치에서 SPEC/PLAN revision 1만 작성했다.
+Electron-inclusive in-memory typecheck 기준은 총 33건이며, S1 type-only import만
+적용한 시뮬레이션 뒤에도 25건이 남는다. Kimi Accounts 오표시의 유일 소비처,
+인증/익명 세션의 비밀값 없는 cookie-name 차이, legacy Saved Session sanitizer와
+실제 store count 0, Vite/tsconfig 경계 및 6개 빌드 산출물 기준선을 조사했다.
 
 ## Ownership
 
-- Outgoing Role / Runtime: Implementation Owner / Codex (`codex-sol-deep` requested;
+- Outgoing Role / Runtime: Main Driver / Codex (`codex-sol-deep` requested;
   repository Runtime PIN remains CANDIDATE)
-- Next Role: Main Driver — Phase 2 WF:SPEC_PLAN
-- Next Runtime ID: current Codex planning session; repository registry entry unassigned
-- Next Action: `electron-typecheck-defect-fixes` Phase 2 SPEC/PLAN을 작성해 Human approval 요청
-- Reason: Phase 1 independent review gate passed and CLOSE is complete; user explicitly requested Phase 2 planning only
+- Next Role: Human Approver
+- Next Runtime ID: N/A
+- Next Action: `electron-typecheck-defect-fixes` SPEC revision 1 / PLAN revision 1 승인 또는 수정 지시
+- Reason: Standard bundle approval gate; product/config/test BUILD는 아직 시작할 수 없음
 
 ## Git and Worktree
 
-- Branch / Worktree: `codex/council-chat-phase1-defect-fixes` @
+- Branch / Worktree: `codex/electron-typecheck-defect-fixes` @
   `C:\Users\Sales01\Documents\AI-Council-Chat`
-- Base HEAD: `b753232768f466f9130834c6e5a25b4d50c0cd1b`
-- Implementation Base: `b753232768f466f9130834c6e5a25b4d50c0cd1b`
-- Implementation Head: `d88c4da0d36281544649d09d17efdc677adb6055`
-- Implementation Commit: `d88c4da` — `fix(council): harden Phase 1 chat paths`
-- Verified Target: `d88c4da0d36281544649d09d17efdc677adb6055`
-- Review Range: `b753232..d88c4da`
-- Review Packet Metadata State: `f6d9f03bffa2cd2ac620a46e8830f4a61b6b77b1`
-- Review Artifact Metadata State: N/A — Opus 5 review was CHAT_ONLY and is recorded in close metadata
-- Close Metadata State: SELF — resolve from Git history
-- Worktree State: USER_DIRTY_ONLY after close metadata commit
+- Phase 1 Base: `b753232768f466f9130834c6e5a25b4d50c0cd1b`
+- Phase 1 Implementation: `d88c4da0d36281544649d09d17efdc677adb6055`
+- Phase 1 Close Metadata: `eb6eac2112cc390794833c73656d6a8da78a9b76`
+- Phase 2 Planning Base: `eb6eac2112cc390794833c73656d6a8da78a9b76`
+- Phase 2 Planning State: SELF — resolve from Git history after planning commit
+- Worktree State: USER_DIRTY_ONLY after explicit planning paths are committed
 - Preserved User Changes:
+  - `_to_delete/` (untracked)
   - `docs/handoff_history/HANDOFF_PROMPT_council_chat_fixes.md` (untracked)
   - `docs/handoff_history/COWORK_SESSION_HANDOFF_council_chat_review.md` (untracked)
 
 ## Publish
 
-- Push Intent: NOT_REQUIRED — user excluded push from this bundle
+- Push Intent: NOT_REQUIRED — user explicitly prohibited push/PR
 - Approved Target: none
 - Expected Remote Head: N/A
-- Last Reconciled Remote Head: `origin/main` matched base `b753232` at task start
+- Last Reconciled Remote Head: `origin/main` matched Phase 1 base `b753232` at Phase 1 start
 - Push Result: NOT_ATTEMPTED
 
 ## Scope, Validation, and Decisions
 
-- Approved Inputs: SPEC/PLAN revision 4 approval bundle plus the user's two pre-commit corrections
-- AC State: AC-1 through AC-13 PASS under the approved AC-13 image-capable-panel definition;
-  Telegram regression remains explicitly BLOCKED/accepted and is not represented as executed
-- Evidence: `docs/features/council-chat-phase1-defect-fixes/TEST_EVIDENCE.md`
-- Review Request: `docs/features/council-chat-phase1-defect-fixes/OPUS5_REVIEW_REQUEST.md`
-- Review: PASS — Opus 5 CHAT_ONLY_READ_ONLY, user-reported 2026-08-03; no findings
-- Human Decision: revision 4 APPROVED for BUILD/TEST/commit packet; CLOSE decision not yet requested
+- Proposed Inputs:
+  - `docs/features/electron-typecheck-defect-fixes/SPEC.md` revision 1
+  - `docs/features/electron-typecheck-defect-fixes/PLAN.md` revision 1
+- Baseline Typecheck: in-memory `include: ["src", "electron"]` — 33 diagnostics;
+  in-memory S1 simulation — 25 residual diagnostics
+- Baseline Build: `npm run build` exit 0; same-source before/after six-file manifest byte-identical;
+  transforms 50/8/1/1
+- S2 Evidence: Kimi `undefined` affects Accounts display/control only, not Council routing;
+  authenticated `kimi-auth` on `www.kimi.com`, absent in deleted anonymous profile; values never captured
+- S3 Decision: explicit legacy persisted input + current sanitized output; no eager migration;
+  actual real store Saved Session count is 0 and isolated fixture is required in BUILD
+- Follow-up Decision: Gemini mutex latency, clipboard restoration, and line-count readback are deferred
+  to a separate Phase 3 candidate, not mixed into the typecheck bundle
+- Human Decision: NEEDS_APPROVAL; BUILD prohibited
 
 ## Risks and Blockers
 
-- Open Findings: none
+- Open Findings: none in planning artifacts; 33 expected implementation diagnostics are scoped by S1-S4
 - Known Risks:
-  - provider DOMs remain externally changeable; selector table was intentionally untouched
-  - Telegram must-preserve regression was not run because the user declined a test channel
-  - existing npm audit state remains 25 findings and is outside this bundle
-  - repository EOL policy and `.gitattributes` remain a separate follow-up bundle
-- Blocker: none for Phase 1
-- Approval Needed: Phase 2 SPEC/PLAN approval before any Phase 2 BUILD
+  - actual Kimi logout/login must be completed by the user; BLOCKED prevents S2/bundle completion
+  - cookie-domain handling must preserve six existing provider rules
+  - Saved Session compatibility must be proved in an isolated profile because the real store is empty
+  - `core.autocrlf=true` requires task-scoped CR-only whitespace classification and per-file EOL preservation
+- Blocker: Human approval of SPEC revision 1 / PLAN revision 1
 - Do NOT:
-  - push, create PR/tag/release, deploy, or contact Telegram/external parties
-  - stage, commit, move, or delete the two user-owned untracked handoff files
-  - expand Phase 2/3 or normalize EOL
-  - treat Workflow as a product-priority feature; the user uses Siftline Chat and the completed
-    Workflow run was shared-path regression only
+  - begin BUILD before approval
+  - push, create PR/tag/release, deploy, or alter credentials/provider configuration
+  - edit dependencies, selectors, `.gitattributes`, Phase 3/4 code, or repository-wide EOL
+  - stage, commit, move, or delete the three user-owned untracked paths

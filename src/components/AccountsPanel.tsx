@@ -80,9 +80,10 @@ const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
 
 interface Props {
   onClose: () => void
+  onOpenKimiPanel: () => Promise<void>
 }
 
-export default function AccountsPanel({ onClose }: Props) {
+export default function AccountsPanel({ onClose, onOpenKimiPanel }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('accounts')
   const [status, setStatus] = useState<Record<AiName, boolean>>({
     chatgpt: false,
@@ -136,9 +137,16 @@ export default function AccountsPanel({ onClose }: Props) {
 
   const handleLogin = async (ai: AiName) => {
     setBusyAi(ai)
-    await window.electronAPI.openLoginWindow(ai)
-    setBusyAi(null)
-    await refresh()
+    try {
+      if (ai === 'kimi') {
+        await onOpenKimiPanel()
+        return
+      }
+      await window.electronAPI.openLoginWindow(ai)
+      await refresh()
+    } finally {
+      setBusyAi(null)
+    }
   }
 
   const handleLogout = async (ai: AiName) => {
@@ -262,9 +270,11 @@ export default function AccountsPanel({ onClose }: Props) {
                           className="account-btn login-btn"
                           onClick={() => handleLogin(ai)}
                           disabled={busy || busyAll}
-                          title={loggedIn ? 'Re-login' : 'Login'}
+                          title={ai === 'kimi'
+                            ? 'Open the embedded Kimi panel to log in or manage this session'
+                            : loggedIn ? 'Re-login' : 'Login'}
                         >
-                          {busy ? '...' : loggedIn ? 'Re-login' : 'Login'}
+                          {busy ? '...' : ai === 'kimi' ? 'Open panel' : loggedIn ? 'Re-login' : 'Login'}
                         </button>
                         <button
                           className={`account-btn logout-btn ${!loggedIn ? 'disabled' : ''}`}

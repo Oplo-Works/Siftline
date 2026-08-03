@@ -110,6 +110,8 @@ assert.match(moderator.nextPrompt, new RegExp(AI_ROLE_PRESETS.kimi.role))
 assertions += 3
 
 const mainSource = fs.readFileSync(path.join(repoRoot, 'electron', 'main.ts'), 'utf8')
+const appSource = fs.readFileSync(path.join(repoRoot, 'src', 'App.tsx'), 'utf8')
+const accountsSource = fs.readFileSync(path.join(repoRoot, 'src', 'components', 'AccountsPanel.tsx'), 'utf8')
 check(!mainSource.includes('AI_REVIEWER_BRIEFS'), 'duplicate active reviewer brief table must be absent')
 check(!mainSource.includes('AI_REVIEWER_PERSONAS'), 'dead reviewer persona table must be absent')
 check(!/function\s+buildReviewerPrompt\s*\(/.test(mainSource), 'dead reviewer prompt builder must be absent')
@@ -187,6 +189,14 @@ check(!/store\.set\([^\n]*councilFailedReplay/.test(mainSource), 'runtime replay
 check(/councilFailedReplay = null[\s\S]*?councilTurnChain/.test(mainSource), 'runtime replay must start empty after app restart')
 check(/function clearFailedCouncilTurn[\s\S]*?councilRoom\.failedTurn = null\s+councilFailedReplay = null/.test(mainSource), 'public and runtime failure state must clear together')
 check((mainSource.match(/councilRoom = runtime\s+councilFailedReplay = null/g) ?? []).length === 2, 'both snapshot load paths must discard runtime replay state')
+check(/if \(ai === 'kimi'\) \{\s*await onOpenKimiPanel\(\)\s*return\s*\}[\s\S]*?openLoginWindow\(ai\)/.test(accountsSource), 'Kimi Accounts action must bypass standalone login IPC')
+check(/ai === 'kimi' \? 'Open panel'/.test(accountsSource), 'Kimi Accounts action must use an explicit panel label')
+const kimiPanelHandler = appSource.match(/const handleOpenKimiPanel = useCallback\(async \(\) => \{([\s\S]*?)\n  \}, \[enabledAis, interactionMode, primaryAi\]\)/)?.[1] ?? ''
+check(kimiPanelHandler.length > 0, 'App must define the dedicated Kimi panel handler')
+check(!kimiPanelHandler.includes('setPrimaryAi'), 'Kimi panel handler must not change Council primary')
+check(/syncCouncilRoomContext\(\{\s*participants,\s*primaryAi,\s*\}\)/.test(kimiPanelHandler), 'Kimi panel handler must sync the existing primary')
+check(/if \(aiName === 'kimi'\) \{[\s\S]*?return false\s*\}[\s\S]*?STANDALONE_LOGIN_SCRIPTS\[aiName\]/.test(mainSource), 'main must guard Kimi before standalone script lookup')
+check(!/^\s*kimi:\s*'kimi-login\.mjs'/m.test(mainSource), 'Kimi standalone helper must not be in the product login map')
 
 const displayNames: Record<AiName, string> = {
   chatgpt: 'ChatGPT',

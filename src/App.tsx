@@ -299,6 +299,24 @@ export default function App() {
     }
   }, [enabledAis, interactionMode])
 
+  const handleOpenKimiPanel = useCallback(async () => {
+    const participants = AI_NAMES.filter((ai) => ai === 'kimi' || enabledAis.includes(ai))
+    setShowAccounts(false)
+    setEnabledAis(participants)
+    window.electronAPI.setViewsVisible(true)
+
+    const enabled = await window.electronAPI.setEnabledAis(participants)
+    if (!enabled) throw new Error('Could not enable the Kimi panel')
+
+    if (interactionMode === 'chat') {
+      const room = await window.electronAPI.syncCouncilRoomContext({
+        participants,
+        primaryAi,
+      })
+      setCouncilRoom(room)
+    }
+  }, [enabledAis, interactionMode, primaryAi])
+
   useEffect(() => {
     setPanels((prev) =>
       prev.map((p) => ({
@@ -1097,6 +1115,7 @@ export default function App() {
 
       {showAccounts && (
         <AccountsPanel
+          onOpenKimiPanel={handleOpenKimiPanel}
           onClose={() => {
             setShowAccounts(false)
             window.electronAPI.setViewsVisible(true)

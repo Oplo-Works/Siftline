@@ -4056,11 +4056,14 @@ const STANDALONE_LOGIN_SCRIPTS: Partial<Record<AiName, string>> = {
   grok: 'grok-login.mjs',
   deepseek: 'deepseek-login.mjs',
   perplexity: 'perplexity-login.mjs',
-  kimi: 'kimi-login.mjs',
 }
 
 ipcMain.handle('open-login-window', (_e, aiName: AiName) => {
   if (!AI_NAMES.includes(aiName)) return false
+  if (aiName === 'kimi') {
+    sendLog('warn', '[login] Kimi uses the embedded persist:kimi panel; standalone product login is disabled.')
+    return false
+  }
 
   // Standalone login scripts avoid parent-window WebAuthn/passkey interference.
   const standaloneScript = STANDALONE_LOGIN_SCRIPTS[aiName]

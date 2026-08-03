@@ -142,16 +142,18 @@ export function summarizeCouncilMessages(
 ): string {
   if (messages.length === 0 || maxChars <= 0) return 'No earlier context.'
   let total = 0
-  const lines: string[] = []
-  for (const message of messages) {
+  const newestFirst: string[] = []
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index]
     const speaker = speakerLabel(message, displayNames)
     const snippet = message.text.replace(/\s+/g, ' ').trim().slice(0, 220)
     const line = `- ${speaker}: ${snippet}`
-    if (total + line.length > maxChars) break
-    lines.push(line)
-    total += line.length + 1
+    const separatorLength = newestFirst.length > 0 ? 1 : 0
+    if (total + separatorLength + line.length > maxChars) break
+    newestFirst.push(line)
+    total += separatorLength + line.length
   }
-  return lines.length > 0 ? lines.join('\n') : 'No earlier context.'
+  return newestFirst.length > 0 ? newestFirst.reverse().join('\n') : 'No earlier context.'
 }
 
 export function renderCouncilTranscript(

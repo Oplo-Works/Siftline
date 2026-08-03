@@ -4,6 +4,11 @@ import path from 'node:path'
 
 import { buildCouncilModeratorSnapshot } from '../src/councilModerator'
 import {
+  parseCouncilIntent,
+  summarizeCouncilMessages,
+  type CouncilMessage as PromptCouncilMessage,
+} from '../electron/councilPrompt'
+import {
   AI_NAMES,
   AI_ROLE_PRESETS,
   type AiName,
@@ -94,5 +99,41 @@ check(!mainSource.includes('AI_REVIEWER_BRIEFS'), 'duplicate active reviewer bri
 check(!mainSource.includes('AI_REVIEWER_PERSONAS'), 'dead reviewer persona table must be absent')
 check(!/function\s+buildReviewerPrompt\s*\(/.test(mainSource), 'dead reviewer prompt builder must be absent')
 check(mainSource.includes('AI_ROLE_PRESETS[reviewerAi]'), 'review prompt must consume the canonical role object')
+
+const displayNames: Record<AiName, string> = {
+  chatgpt: 'ChatGPT',
+  claude: 'Claude',
+  deepseek: 'DeepSeek',
+  gemini: 'Gemini',
+  grok: 'Grok',
+  kimi: 'Kimi',
+  perplexity: 'Perplexity',
+}
+
+const summaryMessages: PromptCouncilMessage[] = [
+  { id: 'old', kind: 'user', text: 'oldest background', createdAt: 1 },
+  { id: 'middle', kind: 'assistant', ai: 'claude', text: 'middle analysis', createdAt: 2 },
+  { id: 'new', kind: 'system', text: 'newest decision', createdAt: 3 },
+]
+const middleLine = '- Claude: middle analysis'
+const newestLine = '- System: newest decision'
+const newestTwoBudget = middleLine.length + 1 + newestLine.length
+assert.equal(
+  summarizeCouncilMessages(summaryMessages, newestTwoBudget, displayNames),
+  `${middleLine}\n${newestLine}`,
+)
+assertions++
+assert.equal(
+  summarizeCouncilMessages(summaryMessages, newestLine.length, displayNames),
+  newestLine,
+)
+assertions++
+assert.equal(
+  summarizeCouncilMessages(summaryMessages, newestLine.length - 1, displayNames),
+  'No earlier context.',
+)
+assertions++
+assert.equal(parseCouncilIntent('A transcript-only note without a mention.').kind, 'none')
+assertions++
 
 console.log(`Council Phase 3 verification: assertions=${assertions} PASS`)

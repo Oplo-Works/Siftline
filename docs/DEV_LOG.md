@@ -337,3 +337,27 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
 - Validation Boundary: provider structure cannot become blocking without measured evidence. The Phase 1 Kimi moderator assertion remains exact on the long prompt role. S4 requires an actual user Logout → Open panel → Login cycle; without it S4 is BLOCKED and other slices continue.
 - Constraints: no auth predicate/storage transfer, clipboard read/restore, retry persistence, dependency/selector/schema/EOL-policy change, Phase 4 routing, push, PR, tag, release, or deploy.
 - Next: BUILD S1 — canonical roles and dead-code removal.
+
+## 2026-08-03T19:55:00Z — council-chat-phase3-defect-fixes / review packet
+
+- Stage: WF:BUILD → WF:TEST → WF:REVIEW
+- Role/Runtime: Implementation Owner / Codex (`codex-sol-deep` requested; repository PIN: CANDIDATE)
+- Risk: Standard — no auth/storage-value, persisted retry path, or clipboard-content boundary expansion.
+- Implementation: `394cee2`..`75a3eec`; S1 canonical roles/dead code, S2 newest-first context,
+  S3 exact runtime-only retry with attachments, S4 embedded Kimi panel route with primary invariance,
+  and S5 content-free structure observation plus Gemini bounded direct insertion are complete.
+- Validation: focused Phase 3 80/80, Phase 1 17/17, Phase 2 60/60, `npx tsc --noEmit` exit 0,
+  production outputs 6 / transforms 50/9/1/1. CSS/preload/spoof are byte-identical; renderer/main deltas
+  are approved and attributed. HTML changes only in the content-hashed renderer filename reference and is
+  disclosed because PLAN's literal byte-identical expectation conflicts with approved renderer changes.
+- Actual App: user-confirmed Kimi `Logged in → Logout → Open panel → in-panel Login → Logged in`, no child
+  popup, Focus/Council primary invariant. Final concurrent image-capable-panel `@all` mapping passed with
+  DeepSeek excluded for its provider limitation. All seven structure verdicts matched; exact count/digest
+  values are retained for Kimi/Gemini and equality verdicts only for the other five.
+- Scope/EOL/Security: raw diff check 338 CR-only findings / actionable 0 under `core.autocrlf=true`;
+  target EOLs preserved; forbidden paths and secret/value-transfer findings 0. `_to_delete/` and both
+  unrelated untracked handoff-history files remain untouched and unstaged.
+- Review: `docs/features/council-chat-phase3-defect-fixes/OPUS5_REVIEW_REQUEST.md`, mode
+  `CHAT_ONLY_READ_ONLY`; independent verdict pending.
+- Publish Intent/Target: NOT_REQUIRED / none — push/PR/tag/release not attempted.
+- Next: READY_FOR_REVIEW + Opus 5; close only after independent PASS.

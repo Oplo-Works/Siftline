@@ -276,3 +276,25 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
 - Constraints: no auth values through the new probe/IPC/logs/evidence; no `kimi-login.mjs`, other-provider,
   renderer/preload, selector, dependency, EOL-policy, Phase 3/4, push, or PR change.
 - Next: BUILD revision-3 Slice 2
+
+## 2026-08-03T18:25:55Z — electron-typecheck-defect-fixes / revision 3 review packet
+
+- Stage: WF:BUILD → WF:TEST → WF:REVIEW
+- Role/Runtime: Implementation Owner / Codex (`codex-sol-deep` requested; repository PIN: CANDIDATE)
+- Risk: Standard status-display boundary
+- Implementation: revision-3 base `175617c` → head `d4e0a65`; full feature range
+  `4a95621..d4e0a65`. Only `electron/main.ts` and `scripts/verify-electron-phase2.ts` changed.
+- Summary: Kimi status retains exact `kimi-auth` legacy compatibility and otherwise accepts only a
+  validated exact-origin boolean object requiring `access_token`, `refresh_token`, and `msh_user_id`
+  presence. Partial/malformed/unrelated/destroyed/error/timeout states are false; Kimi load completion
+  emits the existing Accounts refresh event. No storage value crosses the new probe.
+- Validation: tsc exit 0; focused 60/60; isolated Saved Sessions PASS/profile removed; production build
+  outputs 6 / transforms 50/9/1/1 / non-main five hashes identical / main 169306 `3F426EBB...`;
+  actual current no-cookie Kimi true and user cycle true → false (18:18:53Z) → direct main-panel Login
+  true (18:21:16Z), other six true; Chat smoke 1→3, idle/error false/pending false; raw CR 71,
+  actionable 0, secret values 0, EOL preserved, official PTY launcher exit 0 and Siftline reopened.
+- Separate Observation: Accounts' Kimi Login launcher did not complete authentication; direct embedded
+  Kimi login worked. `kimi-login.mjs` was explicitly excluded and unchanged. Do not claim the launcher
+  works; carry it as a visible follow-up unless independent review finds it blocks the approved scope.
+- Publish Intent/Target: NOT_REQUIRED / none — push/PR/tag/release not attempted
+- Next: READY_FOR_REVIEW + Opus 5 CHAT_ONLY_READ_ONLY

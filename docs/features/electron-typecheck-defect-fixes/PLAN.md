@@ -5,7 +5,7 @@
 - Bundle ID: `electron-typecheck-defect-fixes-R3`
 - PLAN Revision: 3
 - SPEC: `docs/features/electron-typecheck-defect-fixes/SPEC.md`, revision 3, APPROVED
-- Status: APPROVED
+- Status: READY_FOR_REVIEW
 - Base Branch/Commit: `codex/council-chat-phase1-defect-fixes` / `eb6eac2112cc390794833c73656d6a8da78a9b76`; planning branch `codex/electron-typecheck-defect-fixes`
 
 ## Baseline
@@ -63,7 +63,7 @@
 5. Run the real `npx tsc --noEmit`, record the post-S1 count/code/file list, and confirm it matches or explain any difference from the 25-error in-memory baseline.
 6. Verify emitted JS contains no preload type import and Vite still discovers the same three Electron entries.
 
-### Slice 2 — Fix exhaustive login state and cookie nullability — REVISION-3 PENDING
+### Slice 2 — Fix exhaustive login state and cookie nullability — COMPLETE at `d4e0a65`
 
 1. Extract explicit safe cookie-domain matching used by login predicates and cookie copy. Missing domain returns false/skip.
 2. Preserve the exhaustive `AI_NAMES` loop and existing six provider rules. For Kimi, combine exact legacy-cookie status with a bounded boolean-only renderer-storage probe against the existing Kimi BrowserView.
@@ -86,7 +86,7 @@
 3. Re-run the checker; inspect every residual diagnostic. Fix true defects in-scope, or stop for approval if a fix changes behavior beyond S1-S4.
 4. Do not use `any`, `@ts-ignore`, blanket non-null assertions, or widespread optional chaining to make the count zero.
 
-### Slice 5 — Integrated validation and review packet — PENDING after revision-3 Slice 2
+### Slice 5 — Integrated validation and review packet — COMPLETE; independent review pending
 
 1. Run the focused verification script and inspect every assertion/count.
 2. Run Electron-inclusive typecheck and production build; create the after manifest and explain each changed artifact.

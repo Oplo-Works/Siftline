@@ -263,3 +263,16 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
 - Scope: expected runtime/test changes are `electron/main.ts` and `scripts/verify-electron-phase2.ts`;
   no dependency, selector, `kimi-login.mjs`, preload/renderer, EOL-policy, Phase 3/4, push, or PR change.
 - Next: READY_FOR_APPROVAL — explicit SPEC revision 3 + PLAN revision 3 approval required before BUILD
+
+## 2026-08-03T18:12:55Z — electron-typecheck-defect-fixes / revision 3 APPROVAL → BUILD
+
+- Stage: WF:SPEC_PLAN → WF:BUILD  - Role/Runtime: Implementation Owner / Codex
+  (`codex-sol-deep` requested; repository PIN: CANDIDATE)  - Risk: Standard status-display boundary
+- Human Decision: APPROVED — after the revision-3 SPEC/PLAN packet was presented, the user instructed
+  “빌드 시작해줘,” explicitly authorizing revision-3 BUILD.
+- Approved Slice: remaining S2 only — exact legacy cookie OR validated exact-origin boolean-only Kimi
+  renderer-storage presence, bounded failure behavior, Kimi load refresh notification, focused fixtures,
+  and repeated actual state cycle.
+- Constraints: no auth values through the new probe/IPC/logs/evidence; no `kimi-login.mjs`, other-provider,
+  renderer/preload, selector, dependency, EOL-policy, Phase 3/4, push, or PR change.
+- Next: BUILD revision-3 Slice 2

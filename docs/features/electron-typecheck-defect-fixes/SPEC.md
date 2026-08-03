@@ -4,7 +4,7 @@
 - Risk: Standard
 - Bundle ID: `electron-typecheck-defect-fixes-R3`
 - SPEC Revision: 3
-- Status: READY_FOR_APPROVAL
+- Status: APPROVED
 - Last Updated: 2026-08-03
 
 ## Context / User / Goal
@@ -129,7 +129,7 @@
 - Mode: STANDARD_BUNDLE_IN_PLAN
 - Standard ledger: `docs/features/electron-typecheck-defect-fixes/PLAN.md#approval-bundle`
 - High decision: N/A
-- User message: Revision 2 approval expired for S2 when the actual fresh-login cycle disproved the cookie-only predicate. On 2026-08-03 the user said “승인이야. 다음 단계로 가자,” authorizing preparation of revision 3; it does not self-approve the substantive revision-3 BUILD design before presentation.
+- User message: Revision 2 approval expired for S2 when the actual fresh-login cycle disproved the cookie-only predicate. On 2026-08-03 the user reviewed the presented revision-3 packet and instructed “빌드 시작해줘,” explicitly authorizing revision-3 BUILD.
 
 ## Revision History
 

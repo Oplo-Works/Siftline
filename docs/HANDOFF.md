@@ -2,11 +2,11 @@
 
 ## Identity
 
-- Status: READY_FOR_APPROVAL
+- Status: IN_PROGRESS
 - Task ID: `electron-typecheck-defect-fixes`
-- Stage: WF:SPEC_PLAN
+- Stage: WF:BUILD
 - Risk: Standard
-- Updated At: 2026-08-03T18:10:18Z
+- Updated At: 2026-08-03T18:12:55Z
 
 ## Context Summary
 
@@ -20,16 +20,17 @@ Typecheck 0, focused 36 assertions, isolated Saved Sessions, build 50/9/1/1과 n
 않아 Accounts가 계속 false였다. AC-4/AC-5와 S2는 FAIL이며, 술어 변경 전 SPEC/PLAN 재승인이 필요하다.
 SPEC/PLAN revision 3은 legacy exact cookie 또는 exact-origin boolean-only renderer storage의
 3-key 완전 신호를 제안한다. 값은 renderer 밖으로 내보내지 않고, 기존 standalone login과
-다른 6개 provider는 변경하지 않는다. revision 3은 아직 승인 대기이며 product code 변경은 없다.
+다른 6개 provider는 변경하지 않는다. 사용자가 revision 3 제시 후 “빌드 시작해줘”라고
+지시해 SPEC/PLAN revision 3이 승인됐으며, 승인된 S2 잔여 Slice BUILD를 시작한다.
 
 ## Ownership
 
 - Outgoing Role / Runtime: Implementation Owner / Codex (`codex-sol-deep` requested;
   repository Runtime PIN remains CANDIDATE)
-- Next Role: Human Approver
-- Next Runtime ID: N/A
-- Next Action: approve or reject `electron-typecheck-defect-fixes` SPEC revision 3 and PLAN revision 3 as one Standard bundle; implementation must not resume before that explicit approval
-- Reason: the approved exact-cookie predicate failed the actual user-operated fresh-login acceptance cycle
+- Next Role: Implementation Owner / Codex
+- Next Runtime ID: `codex-sol-deep` requested; repository PIN remains CANDIDATE
+- Next Action: implement revision-3 Slice 2 only, run targeted checks, then integrated validation
+- Reason: SPEC revision 3 and PLAN revision 3 are explicitly approved for BUILD
 
 ## Git and Worktree
 
@@ -57,7 +58,7 @@ SPEC/PLAN revision 3은 legacy exact cookie 또는 exact-origin boolean-only ren
 ## Scope, Validation, and Decisions
 
 - Approved Inputs: SPEC/PLAN revision 2 (S2 predicate invalidated by actual evidence)
-- Pending Input: SPEC/PLAN revision 3, bundle `electron-typecheck-defect-fixes-R3`
+- Approved Input: SPEC/PLAN revision 3, bundle `electron-typecheck-defect-fixes-R3`
 - Evidence: `docs/features/electron-typecheck-defect-fixes/TEST_EVIDENCE.md`
 - Review Request: `docs/features/electron-typecheck-defect-fixes/OPUS5_REVIEW_REQUEST.md`
 - Automated: tsc 0; focused 36/36; Saved Session isolated integration PASS; build PASS
@@ -78,8 +79,7 @@ SPEC/PLAN revision 3은 legacy exact cookie 또는 exact-origin boolean-only ren
   - npm audit 25 remains outside scope
 - Do NOT:
   - reclassify AC-4/AC-5 as PASS from fixtures or the pre-existing legacy `kimi-auth` state
-  - change the authentication predicate or cross-process auth boundary before revised SPEC/PLAN approval
-  - treat the user's approval to prepare the next step as approval of unseen revision-3 BUILD content
+  - broaden the approved boolean-only authentication predicate or cross-process boundary
   - edit during CHAT_ONLY review
   - push, PR, tag, release, deploy, change credentials/providers/selectors/dependencies/EOL policy
   - stage, commit, move, or delete the two user-owned handoff paths; do not touch `_to_delete/`

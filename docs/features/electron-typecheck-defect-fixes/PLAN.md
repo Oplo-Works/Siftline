@@ -4,8 +4,8 @@
 - Risk: Standard
 - Bundle ID: `electron-typecheck-defect-fixes-R3`
 - PLAN Revision: 3
-- SPEC: `docs/features/electron-typecheck-defect-fixes/SPEC.md`, revision 3, READY_FOR_APPROVAL
-- Status: READY_FOR_APPROVAL
+- SPEC: `docs/features/electron-typecheck-defect-fixes/SPEC.md`, revision 3, APPROVED
+- Status: APPROVED
 - Base Branch/Commit: `codex/council-chat-phase1-defect-fixes` / `eb6eac2112cc390794833c73656d6a8da78a9b76`; planning branch `codex/electron-typecheck-defect-fixes`
 
 ## Baseline
@@ -140,10 +140,10 @@
 
 - Mode: STANDARD_BUNDLE
 - Bundle ID: `electron-typecheck-defect-fixes-R3`
-- SPEC Revision approved: PENDING
-- PLAN Revision approved: PENDING
-- Decision: PENDING
-- User message: 2026-08-03, “승인이야. 다음 단계로 가자” — interpreted as authorization to prepare and present revision 3, not approval of unseen substantive content or BUILD.
+- SPEC Revision approved: 3
+- PLAN Revision approved: 3
+- Decision: APPROVED
+- User message: 2026-08-03, “빌드 시작해줘” after the revision-3 SPEC/PLAN packet was presented — explicit BUILD approval.
 - Constraints / expiry: Requested approval is limited to the boolean-only Kimi status correction in `electron/main.ts`, focused verification/evidence, and the repeated actual cycle. Existing Phase 2 implementation stays intact. Any returned/copied auth value, authorization/routing use, edit to `kimi-login.mjs`, dependency/provider/selector/EOL-policy/build-topology change, Phase 3/4 work, push, PR, tag, release, or deploy invalidates this bundle.
 
 ## High PLAN Approval

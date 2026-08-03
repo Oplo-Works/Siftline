@@ -198,6 +198,28 @@ check(/syncCouncilRoomContext\(\{\s*participants,\s*primaryAi,\s*\}\)/.test(kimi
 check(/if \(aiName === 'kimi'\) \{[\s\S]*?return false\s*\}[\s\S]*?STANDALONE_LOGIN_SCRIPTS\[aiName\]/.test(mainSource), 'main must guard Kimi before standalone script lookup')
 check(!/^\s*kimi:\s*'kimi-login\.mjs'/m.test(mainSource), 'Kimi standalone helper must not be in the product login map')
 
+const { getComposerLineSignature, composerLineSignaturesMatch } = loadFunctions<{
+  getComposerLineSignature: (text: string) => string[]
+  composerLineSignaturesMatch: (expected: string[], observed: string[]) => boolean
+}>(mainSource, [
+  'normalizeComposerText',
+  'getComposerLineSignature',
+  'composerLineSignaturesMatch',
+])
+const expectedLineSignature = getComposerLineSignature('A\n\nB')
+const flattenedLineSignature = getComposerLineSignature('A B')
+const foldedBlankLineSignature = getComposerLineSignature('A\nB')
+assert.deepEqual(expectedLineSignature, ['A', 'B'])
+assert.equal(composerLineSignaturesMatch(expectedLineSignature, flattenedLineSignature), false)
+assert.equal(composerLineSignaturesMatch(expectedLineSignature, foldedBlankLineSignature), true)
+assert.deepEqual(getComposerLineSignature('  A  \r\n\u200b\r\n B  \n'), ['A', 'B'])
+assertions += 4
+check(/ok: comparable === comparableExpected && identityMatches/.test(mainSource), 'observation build must keep the existing composer pass gate')
+check(/structureEnforced: false/.test(mainSource), 'structure metrics must remain observation-only before the seven-provider matrix')
+check(/\[clipboard-lock\] begin #[^`]+waitMs=\$\{waitMs\}/.test(mainSource), 'clipboard begin log must include queue wait time')
+check(/\[clipboard-lock\] end #[^`]+waitMs=\$\{waitMs\} holdMs=\$\{holdMs\}/.test(mainSource), 'clipboard end log must include wait and hold time')
+check(!/\[clipboard-lock\][^\n]*(?:promptText|clipboard\.read|imgPath)/.test(mainSource), 'clipboard timing logs must not include content or paths')
+
 const displayNames: Record<AiName, string> = {
   chatgpt: 'ChatGPT',
   claude: 'Claude',

@@ -12,6 +12,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { createRequire } from 'module'
 import fs from 'fs'
+import { createHash } from 'crypto'
 import { spawn } from 'child_process'
 import {
   COUNCIL_MENTION_ALIASES as _COUNCIL_MENTION_ALIASES,
@@ -593,14 +594,18 @@ async function withClipboardLock<T>(label: string, operation: () => Promise<T>):
   let release!: () => void
   clipboardOperationChain = new Promise<void>((resolve) => { release = resolve })
   const operationId = ++clipboardOperationSequence
+  const queuedAt = Date.now()
 
   await previous.catch(() => undefined)
+  const acquiredAt = Date.now()
+  const waitMs = acquiredAt - queuedAt
   try {
-    sendLog('info', `[clipboard-lock] begin #${operationId} ${label}`)
+    sendLog('info', `[clipboard-lock] begin #${operationId} ${label} waitMs=${waitMs}`)
     return await operation()
   } finally {
+    const holdMs = Date.now() - acquiredAt
     release()
-    try { sendLog('info', `[clipboard-lock] end #${operationId} ${label}`) } catch { /* logging must not hold the lock */ }
+    try { sendLog('info', `[clipboard-lock] end #${operationId} ${label} waitMs=${waitMs} holdMs=${holdMs}`) } catch { /* logging must not hold the lock */ }
   }
 }
 
@@ -1956,6 +1961,12 @@ interface ComposerVerification {
   observedComparableChars: number
   expectedIdentity: string | null
   observedIdentity: string | null
+  expectedStructureLines: number
+  observedStructureLines: number
+  expectedStructureDigest: string
+  observedStructureDigest: string
+  structureMatches: boolean
+  structureEnforced: boolean
 }
 
 function normalizeComposerText(text: string): string {
@@ -1969,6 +1980,26 @@ function normalizeComposerComparableText(text: string): string {
   return normalizeComposerText(text)
     .replace(/[\u200b-\u200d\ufeff]/g, '')
     .replace(/\s+/g, '')
+}
+
+function getComposerLineSignature(text: string): string[] {
+  return normalizeComposerText(text)
+    .replace(/[\u200b-\u200d\ufeff]/g, '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+}
+
+function composerLineSignaturesMatch(expected: string[], observed: string[]): boolean {
+  return expected.length === observed.length
+    && expected.every((line, index) => line === observed[index])
+}
+
+function digestComposerLineSignature(signature: string[]): string {
+  return createHash('sha256')
+    .update(JSON.stringify(signature))
+    .digest('hex')
+    .slice(0, 16)
 }
 
 function extractCouncilPromptIdentity(text: string): string | null {
@@ -2005,6 +2036,7 @@ async function verifyComposerText(
   const readback = await readComposerText(view, jsonSelector)
   const normalizedExpected = normalizeComposerText(expected)
   const comparableExpected = normalizeComposerComparableText(expected)
+  const expectedStructure = getComposerLineSignature(expected)
   const expectedIdentity = extractCouncilPromptIdentity(normalizedExpected)
   const candidates = [
     { source: 'value' as const, text: readback?.valueText },
@@ -2017,17 +2049,22 @@ async function verifyComposerText(
   const evaluated = candidates.map((candidate) => {
     const normalized = normalizeComposerText(candidate.text)
     const comparable = normalizeComposerComparableText(candidate.text)
+    const structure = getComposerLineSignature(candidate.text)
     const identity = extractCouncilPromptIdentity(normalized)
     const identityMatches = expectedIdentity === null || identity === expectedIdentity
     return {
       ...candidate,
       normalized,
       comparable,
+      structure,
       identity,
+      structureMatches: composerLineSignaturesMatch(expectedStructure, structure),
       ok: comparable === comparableExpected && identityMatches,
     }
   })
-  const selected = evaluated.find((candidate) => candidate.ok) ?? evaluated[0]
+  const selected = evaluated.find((candidate) => candidate.ok && candidate.structureMatches)
+    ?? evaluated.find((candidate) => candidate.ok)
+    ?? evaluated[0]
   const normalizedActual = selected?.normalized ?? ''
   const comparableActual = selected?.comparable ?? ''
 
@@ -2042,6 +2079,12 @@ async function verifyComposerText(
     observedComparableChars: comparableActual.length,
     expectedIdentity,
     observedIdentity: selected?.identity ?? null,
+    expectedStructureLines: expectedStructure.length,
+    observedStructureLines: selected?.structure.length ?? 0,
+    expectedStructureDigest: digestComposerLineSignature(expectedStructure),
+    observedStructureDigest: digestComposerLineSignature(selected?.structure ?? []),
+    structureMatches: selected?.structureMatches ?? false,
+    structureEnforced: false,
   }
 }
 
@@ -2061,7 +2104,12 @@ function logComposerVerification(
       `expectedChars=${expectedChars} observedChars=${verification.observedChars} ` +
       `expectedComparableChars=${verification.expectedComparableChars} ` +
       `observedComparableChars=${verification.observedComparableChars} ` +
-      `expectedIdentity=${expectedIdentity} observedIdentity=${observedIdentity}`
+      `expectedIdentity=${expectedIdentity} observedIdentity=${observedIdentity} ` +
+      `structureMode=${verification.structureEnforced ? 'enforce' : 'observe'} ` +
+      `expectedLines=${verification.expectedStructureLines} observedLines=${verification.observedStructureLines} ` +
+      `expectedLineDigest=${verification.expectedStructureDigest} ` +
+      `observedLineDigest=${verification.observedStructureDigest} ` +
+      `structureMatches=${verification.structureMatches}`
   )
 }
 

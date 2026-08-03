@@ -312,3 +312,17 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
 - Publish Intent/Target: NOT_REQUIRED / none — the approved bundle prohibits push, PR, tag, and release; none attempted.
 - Decisions / Risks / Follow-ups: Accounts' standalone Kimi Login transfers cookies only and cannot carry current renderer-storage authentication. It is not a Phase 2 regression but is mandatory Phase 3 scope. Kimi page-load availability and cookie-domain matcher consistency remain Phase 3 planning candidates.
 - Next: DONE for Phase 2; Main Driver → Phase 3 WF:SPEC_PLAN.
+
+## 2026-08-03T18:51:54Z — council-chat-phase3-defect-fixes / SPEC_PLAN
+
+- Stage: WF:SPEC_PLAN
+- Role/Runtime: Main Driver / Codex (`codex-sol-deep` requested; repository PIN: CANDIDATE)
+- Risk: Standard — Kimi scope is constrained to embedded-panel UI navigation; no authentication/session value transfer.
+- Implementation: N/A — planning artifacts only, based at Phase 2 close `394cee2`.
+- Review: N/A — independent review follows an approved BUILD/TEST packet.
+- Human Decision: PENDING for bundle `council-chat-phase3-defect-fixes-R1`.
+- Summary: SPEC revision 1 and PLAN revision 1 cover canonical roles/dead-code removal, exact runtime-only retry with attachments, recent-first summary selection, embedded Kimi-panel login navigation, and structure-aware Gemini insertion/readback. The shared clipboard mutex remains for fallbacks.
+- Validation: current source call-site/EOL/build-evidence audit; planning diff check actionable 0. No product code changed and no baseline test result was reclassified.
+- Publish Intent/Target: NOT_REQUIRED / none — no push, PR, tag, or release.
+- Decisions / Risks / Follow-ups: automatic clipboard restoration and Kimi renderer-storage transfer are rejected for revision 1; mention-free default routing remains Phase 4. Kimi load-failure status and cookie-domain helper consistency are recorded as deferred candidates only.
+- Next: READY_FOR_APPROVAL — Human approves or revises SPEC revision 1 + PLAN revision 1 together; no BUILD before approval.

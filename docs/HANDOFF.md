@@ -2,11 +2,11 @@
 
 ## Identity
 
-- Status: READY_FOR_REVIEW
+- Status: NEEDS_APPROVAL
 - Task ID: `electron-typecheck-defect-fixes`
-- Stage: WF:REVIEW
+- Stage: WF:SPEC_PLAN
 - Risk: Standard
-- Updated At: 2026-08-03T16:50:22Z
+- Updated At: 2026-08-03T17:58:12Z
 
 ## Context Summary
 
@@ -15,17 +15,18 @@ canonical `AiName`/ordered provider/default 목록, exhaustive login status, exa
 legacy snapshot persistence input, cookie-domain/window/attachment strict fixes를 반영했다.
 Typecheck 0, focused 36 assertions, isolated Saved Sessions, build 50/9/1/1과 non-main
 5개 산출물 byte identity, actual Chat smoke, EOL/scope/secret 검증이 PASS했다.
-단, 사용자 조작이 필요한 Kimi logout false → login true 전환은 수행되지 않아 AC-4와
-S2/번들 완료 상태는 BLOCKED다. 이 상태를 유지한 채 구현 범위의 Opus 5 독립 리뷰를 요청한다.
+이후 사용자 조작 Kimi 전환을 실제 수행했다. Logout은 `true → false`와 `kimi-auth` 제거로
+정상 동작했지만, fresh Login은 renderer storage 기반 인증을 만들고 `kimi-auth`를 재생성하지
+않아 Accounts가 계속 false였다. AC-4/AC-5와 S2는 FAIL이며, 술어 변경 전 SPEC/PLAN 재승인이 필요하다.
 
 ## Ownership
 
 - Outgoing Role / Runtime: Implementation Owner / Codex (`codex-sol-deep` requested;
   repository Runtime PIN remains CANDIDATE)
-- Next Role: Independent Reviewer — Opus 5, `CHAT_ONLY_READ_ONLY`
-- Next Runtime ID: user-selected Opus 5 review session
-- Next Action: `4a95621..9c5bf90`와 review request/evidence를 읽고 verdict/findings 반환
-- Reason: implementation packet is reviewable; AC-4 remains a separate manual completion blocker
+- Next Role: Human Approver
+- Next Runtime ID: N/A
+- Next Action: approve or reject a revised S2 design for current Kimi renderer-storage authentication; implementation must not resume before approval
+- Reason: the approved exact-cookie predicate failed the actual user-operated fresh-login acceptance cycle
 
 ## Git and Worktree
 
@@ -56,21 +57,23 @@ S2/번들 완료 상태는 BLOCKED다. 이 상태를 유지한 채 구현 범위
 - Review Request: `docs/features/electron-typecheck-defect-fixes/OPUS5_REVIEW_REQUEST.md`
 - Automated: tsc 0; focused 36/36; Saved Session isolated integration PASS; build PASS
 - Build contract: outputs 6, transforms 50/9/1/1, renderer/CSS/HTML/preload/spoof hashes unchanged
-- Actual app: seven boolean login statuses including Kimi true; exact `kimi-auth` name/domain;
+- Actual app: initial seven boolean statuses including Kimi true; Logout produced Kimi false and removed
+  `kimi-auth`; user-completed fresh Login had token/user-id storage-key presence but remained false;
   Chat smoke user-confirmed and final room idle/pending 0/error 0
 - Diff: raw CR findings 116, CR-only 116, actionable 0; seven implementation paths; secrets 0
-- AC State: AC-1–3 and AC-5–13 PASS; AC-4 BLOCKED
-- Review: pending Opus 5
+- AC State: AC-1–3 and AC-6–13 PASS; AC-4/AC-5 FAIL
+- Review: superseded by the actual S2 integration failure; resume after revised approval/fix
 
 ## Risks and Blockers
 
-- Blocker: user-operated Kimi true → logout false → login true not observed. Do not mark S2 or bundle complete.
+- Blocker: user-operated Kimi cycle was observed and failed at fresh Login → Accounts true. Do not mark S2 or bundle complete.
 - Known risks:
-  - standalone Kimi login script's existing DOM completion still needs the blocked transition proof
+  - current Kimi fresh authentication uses renderer storage signals without recreating the approved `kimi-auth` cookie
   - provider DOMs remain external; selectors intentionally unchanged
   - npm audit 25 remains outside scope
 - Do NOT:
-  - reclassify AC-4 as PASS from fixture/positive status alone
+  - reclassify AC-4/AC-5 as PASS from fixtures or the pre-existing legacy `kimi-auth` state
+  - change the authentication predicate or cross-process auth boundary before revised SPEC/PLAN approval
   - edit during CHAT_ONLY review
   - push, PR, tag, release, deploy, change credentials/providers/selectors/dependencies/EOL policy
   - stage, commit, move, or delete the two user-owned handoff paths; do not touch `_to_delete/`

@@ -4,7 +4,7 @@
 - Risk: Standard
 - Bundle ID: `electron-typecheck-defect-fixes-R2`
 - SPEC Revision: 2
-- Status: APPROVED
+- Status: NEEDS_APPROVAL — actual fresh Kimi login invalidated the approved cookie-only S2 predicate
 - Last Updated: 2026-08-03
 
 ## Context / User / Goal
@@ -102,8 +102,8 @@
 | AC-1 | Root `tsconfig.json` includes `src` and `electron`; unmodified `npx tsc --noEmit` checks that graph and exits 0. | Inspect config and actual command output. | PASS |
 | AC-2 | `AiName` has one type source in `src/types.ts`; `main.ts`, `preload.ts`, and `councilPrompt.ts` import/re-export it without a local union. Main also uses canonical runtime `AI_NAMES`. | `rg` plus tsc/build and emitted-JS inspection. | PASS |
 | AC-3 | `getLoginStatus()` derives all provider entries by iterating `AI_NAMES`; every value is boolean and Kimi is never `undefined`. | Focused fixture/instrumentation and actual Accounts response inspection. | PASS |
-| AC-4 | In the running app, an authenticated Kimi session reports Logged in, logout changes it to Not logged in, and user-completed login changes it back to Logged in. Only boolean status and cookie names/domains are recorded. A blocked transition prevents S2/bundle completion. | `build-and-run.bat`, Accounts UI, and non-secret Electron/CDP evidence. | BLOCKED |
-| AC-5 | Kimi persisted status accepts the observed `kimi-auth` cookie only on a Kimi domain and rejects the isolated anonymous cookie set. Existing six-provider status results retain their semantics. | Positive/negative cookie-name fixtures plus actual status cycle. | PASS |
+| AC-4 | In the running app, an authenticated Kimi session reports Logged in, logout changes it to Not logged in, and user-completed login changes it back to Logged in. Only boolean status and cookie names/domains are recorded. A blocked transition prevents S2/bundle completion. | `build-and-run.bat`, Accounts UI, and non-secret Electron/CDP evidence. | FAIL — Logout reached `false`; fresh authenticated Login remained `false` without `kimi-auth`. |
+| AC-5 | Kimi persisted status accepts the observed `kimi-auth` cookie only on a Kimi domain and rejects the isolated anonymous cookie set. Existing six-provider status results retain their semantics. | Positive/negative cookie-name fixtures plus actual status cycle. | FAIL — fixtures pass, but the cookie-only rule rejects current fresh authentication. |
 | AC-6 | Legacy Saved Session input without the five new fields sanitizes to `null`, `null`, `savedAt`, `false`, and `in-progress` respectively without an eager real-store rewrite. | Focused isolated-profile fixture and store before/after metadata inspection. | PASS |
 | AC-7 | The sanitized legacy session remains visible, sorts correctly by opened time, loads, and can be labeled, completed/reopened, archived/restored, and saved back in the current shape. | Actual app against an isolated synthetic profile; inspect summaries and persisted field names only. | PASS |
 | AC-8 | Missing-domain cookies neither throw nor authenticate/copy; `mainWindow` narrowing and attachment-name typing remove their diagnostics without silent optional-chain fallbacks. | Focused fixtures/code review plus the final diagnostic list. | PASS |

@@ -29,10 +29,10 @@
 - Does build evidence support the required 50/9/1/1 and five byte-identical non-main outputs?
 - Are there any scope, EOL, secret, data-mutation, or test-harness issues in `4a95621..9c5bf90`?
 
-## Known Blocker — Do Not Reclassify as PASS
+## Known Failure — Do Not Reclassify as PASS
 
-- AC-4 is BLOCKED. Actual positive Kimi status and exact `kimi-auth` were observed, but the user-operated true → logout false → login true cycle was not performed.
-- S2 and the bundle are not complete until that transition is observed. Review the implementation and evidence now, but keep this manual blocker explicit even if the code review passes.
+- AC-4 was performed after this packet was first written. Initial Kimi status was `true`; user Logout produced `false` and removed `kimi-auth`; user-completed fresh Login established non-secret renderer storage signals but did not recreate `kimi-auth`, so Accounts remained `false` even after app restart.
+- AC-4 and the cookie-only portion of AC-5 are FAIL, not merely unperformed. S2 and the bundle are incomplete. Review the implementation range as written, and identify the predicate mismatch explicitly; do not infer that the newly observed storage keys authorize a fix without a revised SPEC/PLAN.
 
 ## Reproduction Commands
 
@@ -59,5 +59,5 @@ Return:
 
 - Verdict: PASS or FAIL for the reviewed implementation range.
 - Findings ordered by severity with file/line evidence.
-- Whether AC-4 remains the only completion blocker.
+- Whether the actual AC-4 failure and resulting AC-5 predicate mismatch are accurately classified.
 - Any discrepancy between source, SPEC/PLAN revision 2, and `TEST_EVIDENCE.md`.

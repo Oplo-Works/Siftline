@@ -231,3 +231,18 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
 - Review: pending Opus 5 CHAT_ONLY_READ_ONLY; `OPUS5_REVIEW_REQUEST.md`
 - Publish Intent/Target: NOT_REQUIRED / none — push/PR prohibited
 - Next: READY_FOR_REVIEW + Opus 5; afterward obtain Kimi manual transition before CLOSE
+
+## 2026-08-03T17:58:12Z — electron-typecheck-defect-fixes / actual Kimi transition failure
+
+- Stage: WF:REVIEW → WF:SPEC_PLAN  - Role/Runtime: Implementation Owner / Codex
+  (`codex-sol-deep` requested; repository PIN: CANDIDATE)  - Risk: Standard pending revised auth design
+- User Action: Kimi Logout and fresh Login completed in the running app.
+- Actual Result: initial `kimi:true` with exact `kimi-auth`; Logout produced `kimi:false` and removed the
+  cookie. Fresh Login produced non-empty `access_token`, `refresh_token`, and user-id storage-key presence
+  with no login control, but did not recreate `kimi-auth`; Accounts IPC remained `kimi:false` after restart.
+  No cookie/token values were read into evidence or recorded.
+- Decision: AC-4 and AC-5 integration state FAIL; S2 and the bundle remain incomplete. The approved
+  cookie-only predicate is not changed speculatively. Return to SPEC/PLAN approval for a safe renderer/main
+  authentication-state contract and logout behavior.
+- Publish Intent/Target: NOT_REQUIRED / none — push/PR prohibited
+- Next: NEEDS_APPROVAL + Human Approver; independent review resumes after revised S2 approval/fix

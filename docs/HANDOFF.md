@@ -47,6 +47,8 @@ necessary. `@all` remains available as a one-click quick mention when a full cou
 
 - Push Intent: AUTO_AT_CLOSE — user explicitly requested commit and push on 2026-08-03
 - Approved Target: `origin/codex/council-chat-phase3-defect-fixes` (current non-protected task branch)
+- Canonical Remote URL: `https://github.com/Oplo-Works/AI-Council-Chat.git` (GitHub redirected the legacy
+  `MinkyuTheBuilder` URL here during the first successful branch push)
 - Expected Remote Head: SELF — resolve this portability metadata commit
 - Push Result: PENDING until the exact local head is pushed and verified
 

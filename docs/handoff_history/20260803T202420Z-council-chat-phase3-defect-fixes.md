@@ -16,7 +16,7 @@
 For a machine without a local branch:
 
 ```powershell
-git clone https://github.com/MinkyuTheBuilder/AI-Council-Chat.git
+git clone https://github.com/Oplo-Works/AI-Council-Chat.git
 cd AI-Council-Chat
 git fetch origin
 git switch --track origin/codex/council-chat-phase3-defect-fixes

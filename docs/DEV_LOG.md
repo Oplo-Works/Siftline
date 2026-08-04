@@ -406,3 +406,22 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
 - Decisions / Risks / Follow-ups: no Phase 4 SPEC. Optional truthfulness copy, pending display, duplication,
   Kimi availability, auth-domain hardening, EOL policy, and npm audit work stay deferred and separately scoped.
 - Next: DONE after verified push; future Main Driver starts only from a new explicit request.
+
+## 2026-08-04T20:20:05Z — node-npm-ci-hardening / CLOSE
+
+- Stage: WF:BUILD → WF:TEST → WF:CLOSE
+- Role/Runtime: Main Driver / Codex (repository PIN remains CANDIDATE)
+- Risk: Standard — CI toolchain, lockfile, production dependency security, and Actions runtime maintenance.
+- Implementation: `bbcdd3adbcfd6a50f552e86694acb32a687d54a6..0242d42f0acecde2abf24ae5323282f2093b8051`;
+  close metadata commit SELF.
+- Review: N/A — user directly inspected the disclosed results and authorized commit plus protected-main push.
+- Human Decision: APPROVED_WITH_RISK on 2026-08-04. The user accepted proceeding after disclosure that
+  lint/test scripts are unavailable and the full dev-inclusive audit still has 21 findings.
+- Summary: pinned Node `22.22.3` and npm `10.9.8`; regenerated lockfile with exact npm; removed all four
+  production audit findings; upgraded JavaScript Actions to current Node 24 runtimes pinned by full SHA.
+- Validation: `docs/features/node-npm-ci-hardening/TEST_EVIDENCE.md` — PASS. Exact-toolchain clean installs,
+  typecheck, build, dependency-tree health, and production audit passed on Windows and WSL/Linux.
+- Publish Intent/Target: AUTO_AT_CLOSE / `origin/main`; exact normal fast-forward push explicitly approved.
+- Decisions / Risks / Follow-ups: lint/test SKIPPED_WITH_REASON because scripts do not exist. Twenty-one
+  dev-inclusive audit findings and existing deprecation warnings remain for a separately approved major-upgrade bundle.
+- Next: DONE after verifying `origin/main` equals the close metadata commit; no PR, tag, release, or deploy.

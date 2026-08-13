@@ -1,9 +1,9 @@
 # Test Evidence: council-broadcast-send-hardening
 
-- Overall Result: NOT_RUN (static checks PASS; actual-app broadcast partially verified — Perplexity retest pending after 73be9b7)
+- Overall Result: PASS for AC-1..AC-4, AC-6, AC-7 (owner actual-app `@all` run 2026-08-13, full log captured); AC-5 single-mention/Workflow regression still pending
 - Implementation Base: `391b294` (`codex/council-chat-phase3-defect-fixes` head)
-- Implementation Head: `73be9b7`
-- Verified Target: `73be9b7`
+- Implementation Head: `611d879` (includes MICRO log-drawer fix `611d879`; broadcast bundle code is `84c59dd` + `73be9b7`)
+- Verified Target: `611d879`
 - Environment: Windows 10.0.26200, Node v24.12.0 (`C:\Program Files\nodejs`), npm bundled with that install
 
 > Toolchain deviation: the repository pins Node `22.22.3` (`.nvmrc`) but that
@@ -17,42 +17,52 @@
 | 2026-08-13T19:13Z | 84c59dd (worktree) | `npm run build` | repo root | 0 | ~3s | PASS | AC-6 | vite renderer + main/preload bundles built |
 | 2026-08-13T19:16Z | 84c59dd | `git diff --check` | repo root | 2 | <1s | PASS* | AC-7 | *flags CR-at-EOL on every added line under repo `core.autocrlf=true`; clean with standard `core.whitespace=cr-at-eol` rule; committed blob verified LF (`od -c` spot checks); no real trailing whitespace or conflict markers |
 | 2026-08-13T19:16Z | 84c59dd | staged diff manual secret/PII review | repo root | — | — | PASS | — | diff is automation logic only; no keys, tokens, PII, or user data |
+| 2026-08-13T19:44Z | 73be9b7 (worktree) | `npx tsc --noEmit` + `npm run build` | repo root | 0 | ~5s | PASS | AC-6 | after Perplexity CDP-injection fix |
+| 2026-08-13T19:44Z | 73be9b7 (worktree) | `npm run package:installer` | repo root | 0 | ~90s | PASS | — | `release\AI-Council-Setup.exe` (123.5 MB) built; owner's uncommitted siftline.ico rebrand included as-is; productName/version unchanged (AI-Council-Setup / 1.0.9) |
+| 2026-08-13T07:57Z | 611d879 (installed build) | owner `@all` broadcast, full Logs capture | app UI | — | ~40s | PASS | AC-1, AC-2, AC-3, AC-4 | all 7 AIs injected, sent, and answered; log excerpts below |
+
+### 2026-08-13 `@all` run — log excerpts (owner-captured via the new Copy button)
+
+- AC-1 Gemini: direct one-shot paths still truncate at 44 chars (`verified=false expectedLines=23 observedLines=1`),
+  per-line verified insertion detected the drop at line 2 and aborted as designed, then
+  `method=clipboard-primary verified=true expectedChars=2195 observedChars=2225
+  expectedLineDigest=dd8eabb981f78bb8 observedLineDigest=dd8eabb981f78bb8 structureMatches=true`
+  inside `[native-input-lock] #5 paste:gemini` + `[clipboard-lock] #1`. Truncation is now
+  detected and repaired before Send instead of being sent truncated.
+- AC-2 Perplexity: `method=cdp-insertText verified=true ... observedComparableChars=1833/1833
+  expectedLineDigest=74b5919e48cb4ecb observedLineDigest=74b5919e48cb4ecb`, then
+  `[native-input-lock] #2 clickSend:perplexity holdMs=547` with no fallback warnings, then
+  answer streaming (`text changed 0→2327c … resolving 2679 chars`). No text left in composer.
+- AC-3: `[council] <ai>: waiting for composer to become send-ready` logged for every text-only
+  turn (perplexity, claude, gemini, grok, chatgpt, kimi, deepseek).
+- AC-4: `[native-input-lock] begin/end #1..#8` strictly non-overlapping across
+  clickSend/paste sections of all 7 panels; `waitMs` recorded per section.
+- Other providers: Kimi CDP Enter succeeded; DeepSeek heuristic click succeeded; ChatGPT,
+  Claude, Grok selector clicks succeeded; all answers captured (122–2679 chars; two
+  false-positive-guard acceptances are pre-existing response-capture behavior, unchanged).
+- Log drawer select & copy (MICRO fix `611d879`): owner-confirmed working — this very log was
+  captured with the new Copy button.
 
 ## Manual Checks
 
-- Result: IN PROGRESS — first owner run done on `84c59dd`; Perplexity retest pending on `73be9b7`.
-- 2026-08-13 owner run (app launched via `AI Council.vbs` after `npm run build`):
-  - AC-1 Gemini: PASS (owner-confirmed) — full multi-line prompt injected and sent in `@all` broadcast.
+- Result: PASS for the `@all` broadcast path (see excerpts above). Single `@mention`
+  per AI and Workflow `▶ Start` spot checks remain pending with the owner.
+- 2026-08-13 first owner run on `84c59dd` (superseded):
+  - AC-1 Gemini: PASS (owner-confirmed).
   - AC-2 Perplexity: FAIL on `84c59dd` — prompt filled the composer but Send
     stayed disabled; owner found that deleting and retyping the text manually
     re-enabled Send. Root cause: `execCommand('insertText')` updated the DOM
     while Perplexity's framework state stayed empty; DOM-only readback
-    verification could not see the desync.
-  - Fix iteration `73be9b7`: Perplexity injection switched to trusted CDP
-    `Input.insertText` (primary) → native setter/event chain → serialized
-    clipboard; execCommand removed from the Perplexity chain. Retest pending.
-- Remaining steps (owner, on the running build of `73be9b7`):
-  1. `@all` broadcast → expect all 7 AIs reply; Perplexity must submit with no
-     text left in the composer; Gemini must remain whole (regression).
-  2. Logs drawer evidence to collect:
-     - `[native-input-lock] begin/end` sections must not overlap across views (AC-4)
-     - `[pasteText] gemini: method=... verified=true` with matching
-       `expectedLineDigest`/`observedLineDigest` (AC-1)
-     - `[pasteText] perplexity: method=cdp-insertText verified=true`, then
-       `[clickSend] perplexity: CDP mouse-click ... succeeded` or
-       `CDP Enter-key submission succeeded` (AC-2); any failure must be an
-       explicit error, not silence
-     - `[council] <ai>: waiting for composer to become send-ready` for
-       text-only turns (AC-3)
-  3. Regression: single `@mention` to each AI; Workflow `▶ Start` (AC-5).
+    verification could not see the desync. Fixed in `73be9b7`, PASS in the
+    2026-08-13T07:57Z rerun above.
 - Missing tool/environment: pinned Node 22.22.3 runtime on this machine.
 
 ## Skipped / Flaky / Blocked
 
 - Lint/test scripts: SKIPPED_WITH_REASON — neither exist (PROJECT_SCOPE §4).
-- AC-3..AC-5 actual-app runs: NOT_RUN — interactive session required; owner to
-  execute the manual steps above. Agent cannot drive the app's 7 logged-in
-  web sessions from this environment.
+- AC-5 single `@mention` per AI and Workflow `▶ Start` spot checks: NOT_RUN —
+  pending owner run; the shared injection/send path was exercised 7× in the
+  passing `@all` broadcast above.
 
 ## Residual Risk
 

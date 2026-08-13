@@ -2,70 +2,85 @@
 
 ## Identity
 
-- Status: DONE
-- Task ID: `node-npm-ci-hardening`
-- Stage: WF:CLOSE
-- Risk: Standard — CI toolchain, lockfile, production dependency security, and Actions runtime maintenance
-- Updated At: 2026-08-04T20:20:05Z
+- Status: READY_FOR_REVIEW
+- Task ID: `council-broadcast-send-hardening`
+- Stage: WF:TEST — review packet ready; actual-app broadcast verification pending owner run
+- Risk: Standard — Council Chat injection/send automation internals; no auth, schema, dependency, or external side effect
+- Updated At: 2026-08-13T19:20:00Z
 
 ## Context Summary
 
-Node.js and npm are now an exact cross-platform contract: Node `22.22.3` and npm `10.9.8`.
-The lockfile installs cleanly on Windows and WSL/Linux, production audit is zero, and all GitHub Actions
-references use current Node 24 runtimes pinned to full commit SHAs. Four production dependency findings
-were removed with minimum safe versions, including SheetJS `0.20.3` from its official CDN.
+`@all` broadcast failed on two providers: Gemini kept only the first prompt line
+(44-char identity line — the measured truncation residual from phases 1/3) and
+Perplexity received the prompt but never submitted. Bundle
+`council-broadcast-send-hardening-R1` (SPEC rev 1 + PLAN rev 1, approved
+2026-08-13) is implemented at `84c59dd`:
+
+1. Module-wide native-input lock serializes focus/sendInputEvent/CDP/clipboard
+   sections across AI panels (outer lock; clipboard lock stays inner).
+2. Every council send now waits for a send-ready composer (text-only included).
+3. Perplexity submits via trusted CDP (probed send-button click → clean CDP
+   Enter) with composer-clear/stop-indicator verification; failures log
+   explicitly.
+4. Gemini gains per-line verified insertion (200-line/15s bound) after the
+   bounded one-shot retries, and its clipboard fallback is focus-instrumented
+   with 3 bounded paste attempts.
 
 ## Ownership
 
-- Outgoing Role / Runtime: Main Driver / Codex (repository Runtime PIN remains CANDIDATE)
-- Next Role: Future Main Driver
+- Outgoing Role / Runtime: Main Driver / this session (repository Runtime PIN: CANDIDATE — no APPROVED runtime recorded)
+- Next Role: Independent Reviewer (read-only or artifact-limited per PIN routing)
 - Next Runtime ID: read `docs/MODEL_RUNTIME_PIN.md`; no repository runtime is currently APPROVED
-- Next Action: no active implementation task; wait for a new explicit request
+- Next Action: owner executes the actual-app manual checks in
+  `docs/features/council-broadcast-send-hardening/TEST_EVIDENCE.md`, then
+  independent REVIEW of `391b294..84c59dd`
 
 ## Git and Worktree
 
-- Working branch: `codex/council-chat-phase3-defect-fixes`
-- Main integration base: `b753232768f466f9130834c6e5a25b4d50c0cd1b`
-- Task implementation base: `bbcdd3adbcfd6a50f552e86694acb32a687d54a6`
-- Implementation head: `0242d42f0acecde2abf24ae5323282f2093b8051`
-- Close metadata head: SELF — resolve this close metadata commit
-- Expected worktree after close: USER_DIRTY_ONLY
-- Preserved unrelated untracked paths:
-  - `docs/handoff_history/COWORK_SESSION_HANDOFF_council_chat_review.md`
-  - `docs/handoff_history/HANDOFF_PROMPT_council_chat_fixes.md`
-  - `docs/handoff_history/HANDOFF_siftline_council_phases_1to3.md`
+- Working branch: `kimi/council-broadcast-send-hardening`
+- Main integration base: `391b2947686eb1e1efca3ce30ac9f2f149d215b7` (short `391b294`)
+- Task implementation base: `391b294`
+- Implementation head: `84c59dd23cfd67b3e93ae8ebda582791369476a2`
+- Review Range: `391b294..84c59dd`
+- Review Packet Metadata State: SELF — resolve this packet commit
+- Expected worktree after packet commit: USER_DIRTY_ONLY
+- Preserved unrelated user-owned changes (untouched, unstaged by this task):
+  - `package.json`, `package-lock.json` (modified)
+  - `docs/handoff_history/` three untracked handoff files
+  - `siftline-v2-preview.png`, `siftline-v2.ico`, `siftline.ico` (untracked)
 
 ## Publish
 
-- Human approval: explicit commit and direct `git push origin main` instruction on 2026-08-04
-- Push Intent: AUTO_AT_CLOSE
-- Approved Target: `origin/main`
-- Protected branch exception: explicitly approved for this exact normal fast-forward push
-- Expected Remote Head: SELF — resolve this close metadata commit
-- Push Result: PENDING until the remote SHA is verified
-- Prohibited without new approval: force-push, merge, rebase, tag, release, deploy, or PR creation
+- Push Intent: AUTO_AT_CLOSE at WF:CLOSE only
+- Approved Target: `origin/kimi/council-broadcast-send-hardening` (task branch upstream per PROJECT_SCOPE §5)
+- Protected branch rule: direct push to `main` is NEVER; no tag/release/deploy
+- Expected Remote Head: N/A until first push at WF:CLOSE
+- Push Result: NOT_ATTEMPTED
 
 ## Validation
 
-- Evidence: `docs/features/node-npm-ci-hardening/TEST_EVIDENCE.md`
-- Windows exact Node/npm `npm ci`: PASS
-- WSL/Linux clean checkout exact Node/npm `npm ci`: PASS
-- Windows and Linux typecheck/build: PASS
-- Production audit: PASS, 0 vulnerabilities
-- Full audit: 21 dev-inclusive findings remain (2 low, 3 moderate, 14 high, 2 critical)
-- Dependency tree: PASS, no Missing/Invalid entries
-- Workflow YAML and full-SHA action references: PASS
-- Task-scoped diff/whitespace and secret/PII scan: PASS
-- Lint/test: SKIPPED_WITH_REASON; neither script exists and PROJECT_SCOPE marks both unavailable
+- Evidence: `docs/features/council-broadcast-send-hardening/TEST_EVIDENCE.md`
+- `npx tsc --noEmit`: PASS (exit 0)
+- `npm run build`: PASS (exit 0)
+- `git diff --check`: PASS with note — CR-at-EOL flags under repo
+  `core.autocrlf=true`; clean under `core.whitespace=cr-at-eol`; committed
+  blob verified LF (same phenomenon recorded in phase-3 DEV_LOG 2026-08-03)
+- Staged-diff secret/PII scan: PASS — automation logic only
+- Lint/test scripts: SKIPPED_WITH_REASON — neither exists (PROJECT_SCOPE §4)
+- Actual-app AC-1..AC-5: NOT_RUN — pending owner interactive run with 7
+  logged-in sessions; steps and log signatures listed in TEST_EVIDENCE
 
 ## Key Decisions and Residual Risk
 
-- Toolchain contract: `.nvmrc=22.22.3`, `packageManager=npm@10.9.8`, engines limited to Node 22/npm 10.
-- CI invokes the exact npm version because `actions/setup-node` pins Node but does not independently pin npm.
-- SheetJS uses the official `0.20.3` CDN tarball because the public npm registry package is stale.
-- Exact overrides hold `@xmldom/xmldom=0.8.13` and `fast-uri=3.1.5` within existing parent ranges.
-- Dev-only security debt remains. Fixing it requires separately approved major upgrades, notably
-  electron-builder 24 to 26 and Vite 5 to 8, with packaging and application compatibility review.
-- Existing packaging dependency deprecation warnings and Vite's CJS Node API warning remain.
-- The release workflow was validated statically and through local cross-platform commands. It was not
-  dispatched because that external action is outside this close and main pushes do not match the `v*` trigger.
+- Lock ordering is fixed: `withNativeInputLock` outer, `withClipboardLock`
+  inner; never reversed. DOM-level injection stays parallel.
+- The Perplexity CDP probe is composer-relative and selector-independent, so
+  hashed-class/aria-label churn no longer blocks send; live DOM selector
+  touch-ups were deferred — no default selector changed without evidence.
+- Gemini per-line insertion is bounded (200 lines / 15 s); longer prompts fall
+  back to the serialized clipboard path by design.
+- Toolchain deviation: checks ran under system Node v24.12.0; the pinned
+  Node 22.22.3 contract runtime was not found on this machine — re-verify
+  under the pinned toolchain before any release packaging.
+- User-owned dirty/untracked paths listed above must survive the next
+  session's START untouched.

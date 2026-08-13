@@ -425,3 +425,22 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
 - Decisions / Risks / Follow-ups: lint/test SKIPPED_WITH_REASON because scripts do not exist. Twenty-one
   dev-inclusive audit findings and existing deprecation warnings remain for a separately approved major-upgrade bundle.
 - Next: DONE after verifying `origin/main` equals the close metadata commit; no PR, tag, release, or deploy.
+
+## 2026-08-13T19:20:00Z — council-broadcast-send-hardening / review packet
+
+- Stage: WF:SPEC_PLAN → WF:BUILD → WF:TEST → READY_FOR_REVIEW
+- Role/Runtime: Main Driver / this session (repository PIN: CANDIDATE — no APPROVED runtime)
+- Risk: Standard — Council Chat injection/send internals; no auth/schema/dependency/external boundary.
+- Human Decision: APPROVED — bundle `council-broadcast-send-hardening-R1`, SPEC rev 1 + PLAN rev 1 (2026-08-13).
+- Implementation: `391b294`..`84c59dd` — native-input lock (outer) around clipboard lock (inner);
+  unconditional send-ready wait in council turns; Perplexity trusted CDP submit with verification;
+  Gemini per-line verified insertion plus focus-instrumented bounded clipboard retry.
+- Validation: `docs/features/council-broadcast-send-hardening/TEST_EVIDENCE.md` — typecheck PASS,
+  build PASS, diff/whitespace PASS with the known autocrlf CR-at-EOL note, secret/PII scan PASS.
+  Actual-app AC-1..AC-5 NOT_RUN — owner interactive run with 7 logged-in sessions pending.
+- Publish Intent/Target: AUTO_AT_CLOSE / `origin/kimi/council-broadcast-send-hardening` at WF:CLOSE only; no push attempted.
+- Decisions / Risks / Follow-ups: lock ordering fixed (native-input outer, clipboard inner); Perplexity CDP probe
+  is selector-independent; Gemini per-line path bounded at 200 lines/15s with clipboard fallback; checks ran under
+  system Node v24.12.0 — pinned 22.22.3 not present on this machine; user-owned `package.json`/`package-lock.json`
+  modifications and untracked icon/handoff files preserved untouched and unstaged.
+- Next: owner actual-app run (steps in TEST_EVIDENCE), then independent REVIEW of `391b294..84c59dd`.

@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { InteractionMode } from '../types'
+import { version as appVersion } from '../../package.json'
 
 interface TitleBarProps {
   mode: InteractionMode
@@ -39,6 +40,7 @@ export default function TitleBar({
       <div className="titlebar-logo">
         <span className="titlebar-icon">AI</span>
         <span className="titlebar-name">Siftline</span>
+        <span className="titlebar-version" title={`Siftline v${appVersion}`}>v{appVersion}</span>
         <span className="titlebar-tagline">Multi-LLM Cross-Verification</span>
       </div>
 

@@ -471,3 +471,13 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
 - Decisions / Risks / Follow-ups: single @mention and Workflow modes remain must-preserve but unused;
   re-verify them if revived. Installer built locally at owner request; no tag/release/publish.
 - Next: DONE after verifying remote head equals the close metadata commit.
+
+## 2026-08-13T20:18:00Z — titlebar-version-display / MICRO
+
+- Stage: WF:MICRO → inline CLOSE
+- Risk: Low — titlebar label only; no data/contract/dependency change.
+- Change: `src/components/TitleBar.tsx` renders `v{version}` (from package.json via Vite JSON
+  named import, `resolveJsonModule` already enabled) next to the Siftline wordmark;
+  `src/index.css` adds `.titlebar-version` pill styling.
+- Validation: `npx tsc --noEmit` exit 0; `npm run build` exit 0.
+- Publish: AUTO_AT_CLOSE to `origin/kimi/council-broadcast-send-hardening` (current task branch).

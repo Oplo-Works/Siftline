@@ -1,9 +1,9 @@
 # Test Evidence: council-broadcast-send-hardening
 
-- Overall Result: NOT_RUN (static checks PASS; actual-app broadcast checks pending user run)
+- Overall Result: NOT_RUN (static checks PASS; actual-app broadcast partially verified — Perplexity retest pending after 73be9b7)
 - Implementation Base: `391b294` (`codex/council-chat-phase3-defect-fixes` head)
-- Implementation Head: `84c59dd23cfd67b3e93ae8ebda582791369476a2`
-- Verified Target: `84c59dd23cfd67b3e93ae8ebda582791369476a2`
+- Implementation Head: `73be9b7`
+- Verified Target: `73be9b7`
 - Environment: Windows 10.0.26200, Node v24.12.0 (`C:\Program Files\nodejs`), npm bundled with that install
 
 > Toolchain deviation: the repository pins Node `22.22.3` (`.nvmrc`) but that
@@ -20,16 +20,26 @@
 
 ## Manual Checks
 
-- Result: NOT_RUN — requires the actual app with all 7 AI sessions logged in.
-- Pending steps (owner runs `build-and-run.bat` or `npx electron .`):
-  1. `@all` broadcast → expect all 7 AIs reply; Gemini composer must show the
-     full multi-line prompt; Perplexity must actually submit (no text left in
-     the composer).
+- Result: IN PROGRESS — first owner run done on `84c59dd`; Perplexity retest pending on `73be9b7`.
+- 2026-08-13 owner run (app launched via `AI Council.vbs` after `npm run build`):
+  - AC-1 Gemini: PASS (owner-confirmed) — full multi-line prompt injected and sent in `@all` broadcast.
+  - AC-2 Perplexity: FAIL on `84c59dd` — prompt filled the composer but Send
+    stayed disabled; owner found that deleting and retyping the text manually
+    re-enabled Send. Root cause: `execCommand('insertText')` updated the DOM
+    while Perplexity's framework state stayed empty; DOM-only readback
+    verification could not see the desync.
+  - Fix iteration `73be9b7`: Perplexity injection switched to trusted CDP
+    `Input.insertText` (primary) → native setter/event chain → serialized
+    clipboard; execCommand removed from the Perplexity chain. Retest pending.
+- Remaining steps (owner, on the running build of `73be9b7`):
+  1. `@all` broadcast → expect all 7 AIs reply; Perplexity must submit with no
+     text left in the composer; Gemini must remain whole (regression).
   2. Logs drawer evidence to collect:
      - `[native-input-lock] begin/end` sections must not overlap across views (AC-4)
      - `[pasteText] gemini: method=... verified=true` with matching
        `expectedLineDigest`/`observedLineDigest` (AC-1)
-     - `[clickSend] perplexity: CDP mouse-click ... succeeded` or
+     - `[pasteText] perplexity: method=cdp-insertText verified=true`, then
+       `[clickSend] perplexity: CDP mouse-click ... succeeded` or
        `CDP Enter-key submission succeeded` (AC-2); any failure must be an
        explicit error, not silence
      - `[council] <ai>: waiting for composer to become send-ready` for
@@ -39,8 +49,8 @@
 
 ## Skipped / Flaky / Blocked
 
-- Lint/test scripts: SKIPPED_WITH_REASON — neither exists (PROJECT_SCOPE §4).
-- AC-1..AC-5 actual-app runs: NOT_RUN — interactive session required; owner to
+- Lint/test scripts: SKIPPED_WITH_REASON — neither exist (PROJECT_SCOPE §4).
+- AC-3..AC-5 actual-app runs: NOT_RUN — interactive session required; owner to
   execute the manual steps above. Agent cannot drive the app's 7 logged-in
   web sessions from this environment.
 

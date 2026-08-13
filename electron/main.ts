@@ -2340,12 +2340,67 @@ async function insertComposerTextWithNativeSetter(
   `).catch(() => false) as Promise<boolean>
 }
 
+/**
+ * Trusted CDP text insertion (Input.insertText).  Goes through Chromium's
+ * real input pipeline like actual typing/IME, so framework-controlled
+ * composers update their internal state — unlike execCommand('insertText'),
+ * which can leave React state empty while the DOM shows the text (observed
+ * 2026-08-13: Perplexity composer filled but Send stayed disabled until the
+ * user retyped manually).
+ *
+ * The existing selection is replaced: the caller's preparation selects the
+ * full current content first, so insertion overwrites instead of appending.
+ */
+async function insertComposerTextViaCDP(
+  view: BrowserView,
+  jsonSelector: string,
+  text: string,
+): Promise<boolean> {
+  const prepared = await view.webContents.executeJavaScript(`
+    (() => {
+      const target = document.querySelector(${jsonSelector});
+      if (!target) return false;
+      target.focus();
+      if (target.isContentEditable) {
+        document.execCommand('selectAll', false, null);
+      } else if (typeof target.select === 'function') {
+        target.select();
+      } else if ('selectionStart' in target) {
+        const len = String(target.value || '').length;
+        target.selectionStart = 0;
+        target.selectionEnd = len;
+      }
+      return true;
+    })()
+  `).catch(() => false) as boolean
+  if (!prepared) return false
+
+  const dbg = view.webContents.debugger
+  let attached = false
+  if (!dbg.isAttached()) {
+    try { dbg.attach('1.3'); attached = true } catch { return false }
+  }
+  if (!dbg.isAttached()) return false
+  try {
+    await dbg.sendCommand('Input.insertText', { text })
+    return true
+  } catch {
+    return false
+  } finally {
+    if (attached) {
+      try { dbg.detach() } catch { /* ignore */ }
+    }
+  }
+}
+
 /** Instant paste — inserts the full text at once via clipboard-style execCommand.
  *  Works for both contenteditable (Gemini, Claude, ChatGPT) and
- *  native textarea elements (Perplexity).
+ *  native textarea elements — EXCEPT Perplexity, whose composer keeps
+ *  framework state empty after execCommand insertion (Send stays disabled),
+ *  so Perplexity uses trusted CDP `Input.insertText` as its primary path.
  *
- *  For React-controlled textareas (e.g. Perplexity) the native value setter
- *  must be used AND a full synthetic event chain dispatched so React's
+ *  For React-controlled textareas (e.g. Perplexity fallback) the native value
+ *  setter must be used AND a full synthetic event chain dispatched so React's
  *  internal fiber state is updated and the submit button is enabled. */
 async function pasteText(view: BrowserView, text: string, selector: string, aiName?: AiName) {
   const jsonSelector = JSON.stringify(selector)
@@ -2409,6 +2464,24 @@ async function pasteText(view: BrowserView, text: string, selector: string, aiNa
     } else {
       sendLog('warn', '[pasteText] gemini: per-line verified insertion incomplete — falling back to clipboard')
     }
+  } else if (aiName === 'perplexity') {
+    // Perplexity's composer is framework-controlled: execCommand('insertText')
+    // updated the DOM but left internal state empty — the text stayed visible
+    // while Send remained disabled, and only a manual retype re-enabled it
+    // (observed 2026-08-13).  Trusted CDP insertion is therefore the primary
+    // path; execCommand is deliberately NOT used for Perplexity.  Both DOM
+    // paths fall through to the serialized clipboard below on mismatch.
+    const cdpInserted = await insertComposerTextViaCDP(view, jsonSelector, text)
+    if (cdpInserted) await sleep(150)
+    const cdpVerification = await verifyComposerText(view, jsonSelector, text, aiName)
+    logComposerVerification(aiName, 'cdp-insertText', text.length, cdpVerification)
+    if (cdpVerification.ok) return
+
+    const setterInserted = await insertComposerTextWithNativeSetter(view, jsonSelector, text)
+    if (setterInserted) await sleep(150)
+    const setterVerification = await verifyComposerText(view, jsonSelector, text, aiName)
+    logComposerVerification(aiName, 'native-setter', text.length, setterVerification)
+    if (setterVerification.ok) return
   } else {
     const inserted = await insertComposerTextWithExecCommand(view, jsonSelector, text)
     if (inserted) await sleep(150)

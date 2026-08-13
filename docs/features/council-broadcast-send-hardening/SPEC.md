@@ -126,7 +126,7 @@
 | AC-2 | In an `@all` broadcast and a single `@perplexity` turn, Perplexity submission is verified (composer cleared or stop/streaming indicator observed); an unsubmitted turn always produces an explicit error log, never a silent timeout with text left in the box. | Actual app run, Logs drawer evidence | Pending |
 | AC-3 | Every council send path (text-only and attachment) invokes the send-ready wait before clicking; logs show `[composer-ready]` entries for text-only turns. | Logs drawer evidence | Pending |
 | AC-4 | Focus-dependent sections (clipboard, native Enter/mouse, CDP input) execute serialized across views during `@all`; logs show non-overlapping lock sections. | Logs drawer evidence + code review | Pending |
-| AC-5 | Regression: single `@mention` to each logged-in AI and Workflow `▶ Start` still inject and send successfully. | Actual app run checklist | Pending |
+| AC-5 | Regression: single `@mention` to each logged-in AI and Workflow `▶ Start` still inject and send successfully. | Actual app run checklist | Waived |
 | AC-6 | `npx tsc --noEmit` PASS and `npm run build` PASS on Windows repo root. | Validation commands (PROJECT_SCOPE §4) | Pending |
 | AC-7 | Prompt content, council prompt builders, and the userData `selectors.json` override mechanism are unchanged. | Diff review | Pending |
 

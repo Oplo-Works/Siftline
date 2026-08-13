@@ -1,6 +1,6 @@
 # Test Evidence: council-broadcast-send-hardening
 
-- Overall Result: PASS for AC-1..AC-4, AC-6, AC-7 (owner actual-app `@all` run 2026-08-13, full log captured); AC-5 single-mention/Workflow regression still pending
+- Overall Result: PASS (AC-1..AC-4, AC-6, AC-7 PASS on the owner-verified 2026-08-13 `@all` run; AC-5 WAIVED_BY_APPROVAL — owner does not use single `@mention`/Workflow, features retained for future revival)
 - Implementation Base: `391b294` (`codex/council-chat-phase3-defect-fixes` head)
 - Implementation Head: `611d879` (includes MICRO log-drawer fix `611d879`; broadcast bundle code is `84c59dd` + `73be9b7`)
 - Verified Target: `611d879`
@@ -60,9 +60,15 @@
 ## Skipped / Flaky / Blocked
 
 - Lint/test scripts: SKIPPED_WITH_REASON — neither exist (PROJECT_SCOPE §4).
-- AC-5 single `@mention` per AI and Workflow `▶ Start` spot checks: NOT_RUN —
-  pending owner run; the shared injection/send path was exercised 7× in the
-  passing `@all` broadcast above.
+- AC-5 single `@mention` per AI and Workflow `▶ Start` spot checks:
+  WAIVED_BY_APPROVAL — 2026-08-13, owner message gist: "단일 @mention /
+  Workflow 회귀 체크는 사용하지 않기로 한 기능이라 이번에 검증하지 않는다.
+  단, 기능과 코드는 제거하지 않고 그대로 유지하며, 나중에 다시 사용하기로
+  하면 그때 살린다." Scope: waives only the manual regression spot-check;
+  the features themselves remain in the product and in PROJECT_SCOPE's
+  must-preserve list. Re-review trigger: when the owner decides to use single
+  `@mention` or Workflow mode again. The shared injection/send path was still
+  exercised 7× in the passing `@all` broadcast above.
 
 ## Residual Risk
 

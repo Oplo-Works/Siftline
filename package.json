@@ -69,7 +69,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Siftline",
-      "artifactName": "AI-Council-Setup.exe"
+      "artifactName": "AI-Council-Setup-${version}.${ext}"
     },
     "mac": {
       "icon": "ai-council.icns",

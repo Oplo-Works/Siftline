@@ -481,3 +481,13 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
   `src/index.css` adds `.titlebar-version` pill styling.
 - Validation: `npx tsc --noEmit` exit 0; `npm run build` exit 0.
 - Publish: AUTO_AT_CLOSE to `origin/kimi/council-broadcast-send-hardening` (current task branch).
+
+## 2026-08-13T20:25:00Z — installer-versioned-filename / MICRO
+
+- Stage: WF:MICRO → inline CLOSE
+- Risk: Low — packaging filename template only.
+- Change: `package.json` nsis `artifactName` → `AI-Council-Setup-${version}.${ext}`
+  (only this hunk committed; the owner's uncommitted siftline.ico rebrand hunks remain unstaged
+  in the worktree). Rebuilt installer: `release/AI-Council-Setup-1.0.9.exe`.
+- Validation: `npm run package:installer` exit 0; artifact verified in `release/`.
+- Publish: AUTO_AT_CLOSE to `origin/kimi/council-broadcast-send-hardening`.

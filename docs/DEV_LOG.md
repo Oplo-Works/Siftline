@@ -444,3 +444,12 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
   system Node v24.12.0 — pinned 22.22.3 not present on this machine; user-owned `package.json`/`package-lock.json`
   modifications and untracked icon/handoff files preserved untouched and unstaged.
 - Next: owner actual-app run (steps in TEST_EVIDENCE), then independent REVIEW of `391b294..84c59dd`.
+
+## 2026-08-13T19:40:00Z — log-drawer-copy-fix / MICRO
+
+- Stage: WF:MICRO → inline CLOSE
+- Risk: Low — Log drawer UI only; no data/contract/dependency change.
+- Change: `src/index.css` `.log-list { user-select: text }` (root `#root` sets `user-select: none` globally, which blocked select & copy); `src/components/LogDrawer.tsx` adds a Copy button (navigator.clipboard with execCommand fallback).
+- Validation: `npx tsc --noEmit` exit 0; `npm run build` exit 0.
+- Note: committed on the in-flight `kimi/council-broadcast-send-hardening` branch; outside that bundle's fixed review range `391b294..84c59dd`.
+- Publish: deferred — rides the same branch; push only at the broadcast task WF:CLOSE.

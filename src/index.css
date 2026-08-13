@@ -2053,6 +2053,11 @@ body,
   display: flex;
   flex-direction: column;
   gap: 2px;
+  /* Re-enable text selection inside the log drawer — #root sets
+     user-select: none globally, which made log lines impossible to
+     select & copy. */
+  user-select: text;
+  cursor: text;
 }
 
 .log-entry {

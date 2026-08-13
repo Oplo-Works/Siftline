@@ -27,6 +27,32 @@ export default function LogDrawer({ logs, onClose, onClear }: LogDrawerProps) {
         <div className="drawer-header">
           <span className="drawer-title">📊 Execution Logs</span>
           <div className="drawer-actions">
+            <button
+              id="btn-copy-logs"
+              className="drawer-action-btn"
+              onClick={() => {
+                const text = logs
+                  .map((log) => `[${formatTime(log.timestamp)}] [${log.level}] ${log.msg}`)
+                  .join('\n')
+                const fallback = () => {
+                  const ta = document.createElement('textarea')
+                  ta.value = text
+                  ta.style.position = 'fixed'
+                  ta.style.opacity = '0'
+                  document.body.appendChild(ta)
+                  ta.select()
+                  try { document.execCommand('copy') } catch { /* ignore */ }
+                  ta.remove()
+                }
+                if (navigator.clipboard?.writeText) {
+                  navigator.clipboard.writeText(text).catch(fallback)
+                } else {
+                  fallback()
+                }
+              }}
+            >
+              Copy
+            </button>
             <button id="btn-clear-logs" className="drawer-action-btn" onClick={onClear}>
               Clear
             </button>

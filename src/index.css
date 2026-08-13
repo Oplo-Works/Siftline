@@ -157,6 +157,17 @@ body,
   color: var(--text-primary);
 }
 
+.titlebar-version {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
 .titlebar-tagline {
   font-size: 10px;
   color: var(--text-muted);
@@ -2053,6 +2064,11 @@ body,
   display: flex;
   flex-direction: column;
   gap: 2px;
+  /* Re-enable text selection inside the log drawer — #root sets
+     user-select: none globally, which made log lines impossible to
+     select & copy. */
+  user-select: text;
+  cursor: text;
 }
 
 .log-entry {

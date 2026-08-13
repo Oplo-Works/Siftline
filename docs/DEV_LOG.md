@@ -425,3 +425,69 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
 - Decisions / Risks / Follow-ups: lint/test SKIPPED_WITH_REASON because scripts do not exist. Twenty-one
   dev-inclusive audit findings and existing deprecation warnings remain for a separately approved major-upgrade bundle.
 - Next: DONE after verifying `origin/main` equals the close metadata commit; no PR, tag, release, or deploy.
+
+## 2026-08-13T19:20:00Z — council-broadcast-send-hardening / review packet
+
+- Stage: WF:SPEC_PLAN → WF:BUILD → WF:TEST → READY_FOR_REVIEW
+- Role/Runtime: Main Driver / this session (repository PIN: CANDIDATE — no APPROVED runtime)
+- Risk: Standard — Council Chat injection/send internals; no auth/schema/dependency/external boundary.
+- Human Decision: APPROVED — bundle `council-broadcast-send-hardening-R1`, SPEC rev 1 + PLAN rev 1 (2026-08-13).
+- Implementation: `391b294`..`84c59dd` — native-input lock (outer) around clipboard lock (inner);
+  unconditional send-ready wait in council turns; Perplexity trusted CDP submit with verification;
+  Gemini per-line verified insertion plus focus-instrumented bounded clipboard retry.
+- Validation: `docs/features/council-broadcast-send-hardening/TEST_EVIDENCE.md` — typecheck PASS,
+  build PASS, diff/whitespace PASS with the known autocrlf CR-at-EOL note, secret/PII scan PASS.
+  Actual-app AC-1..AC-5 NOT_RUN — owner interactive run with 7 logged-in sessions pending.
+- Publish Intent/Target: AUTO_AT_CLOSE / `origin/kimi/council-broadcast-send-hardening` at WF:CLOSE only; no push attempted.
+- Decisions / Risks / Follow-ups: lock ordering fixed (native-input outer, clipboard inner); Perplexity CDP probe
+  is selector-independent; Gemini per-line path bounded at 200 lines/15s with clipboard fallback; checks ran under
+  system Node v24.12.0 — pinned 22.22.3 not present on this machine; user-owned `package.json`/`package-lock.json`
+  modifications and untracked icon/handoff files preserved untouched and unstaged.
+- Next: owner actual-app run (steps in TEST_EVIDENCE), then independent REVIEW of `391b294..84c59dd`.
+
+## 2026-08-13T19:40:00Z — log-drawer-copy-fix / MICRO
+
+- Stage: WF:MICRO → inline CLOSE
+- Risk: Low — Log drawer UI only; no data/contract/dependency change.
+- Change: `src/index.css` `.log-list { user-select: text }` (root `#root` sets `user-select: none` globally, which blocked select & copy); `src/components/LogDrawer.tsx` adds a Copy button (navigator.clipboard with execCommand fallback).
+- Validation: `npx tsc --noEmit` exit 0; `npm run build` exit 0.
+- Note: committed on the in-flight `kimi/council-broadcast-send-hardening` branch; outside that bundle's fixed review range `391b294..84c59dd`.
+- Publish: deferred — rides the same branch; push only at the broadcast task WF:CLOSE.
+
+## 2026-08-13T20:05:00Z — council-broadcast-send-hardening / CLOSE
+
+- Stage: WF:CLOSE
+- Role/Runtime: Implementation Owner / this session (repository PIN: CANDIDATE)
+- Risk: Standard — Council Chat injection/send internals.
+- Implementation: `391b294..060cceb` (+ log-drawer MICRO `611d879`).
+- Review: N/A — independent review skipped by explicit owner instruction; no P0 findings open.
+- Human Decision: APPROVED — "commit & push 해줘" (2026-08-13), resolving the CLOSE entry gate.
+- Summary: @all broadcast hardened — native-input lock serialization, unconditional send-ready wait,
+  Perplexity trusted CDP inject+submit, Gemini per-line verified insertion with clipboard repair;
+  Log drawer select/copy fixed. Owner-verified @all run: all 7 providers PASS.
+- Validation: `docs/features/council-broadcast-send-hardening/TEST_EVIDENCE.md` — AC-1..4,6,7 PASS;
+  AC-5 WAIVED_BY_APPROVAL; typecheck/build PASS (Node v24.12.0, pinned 22.22.3 absent).
+- Publish Intent/Target: AUTO_AT_CLOSE / `origin/kimi/council-broadcast-send-hardening`.
+- Decisions / Risks / Follow-ups: single @mention and Workflow modes remain must-preserve but unused;
+  re-verify them if revived. Installer built locally at owner request; no tag/release/publish.
+- Next: DONE after verifying remote head equals the close metadata commit.
+
+## 2026-08-13T20:18:00Z — titlebar-version-display / MICRO
+
+- Stage: WF:MICRO → inline CLOSE
+- Risk: Low — titlebar label only; no data/contract/dependency change.
+- Change: `src/components/TitleBar.tsx` renders `v{version}` (from package.json via Vite JSON
+  named import, `resolveJsonModule` already enabled) next to the Siftline wordmark;
+  `src/index.css` adds `.titlebar-version` pill styling.
+- Validation: `npx tsc --noEmit` exit 0; `npm run build` exit 0.
+- Publish: AUTO_AT_CLOSE to `origin/kimi/council-broadcast-send-hardening` (current task branch).
+
+## 2026-08-13T20:25:00Z — installer-versioned-filename / MICRO
+
+- Stage: WF:MICRO → inline CLOSE
+- Risk: Low — packaging filename template only.
+- Change: `package.json` nsis `artifactName` → `AI-Council-Setup-${version}.${ext}`
+  (only this hunk committed; the owner's uncommitted siftline.ico rebrand hunks remain unstaged
+  in the worktree). Rebuilt installer: `release/AI-Council-Setup-1.0.9.exe`.
+- Validation: `npm run package:installer` exit 0; artifact verified in `release/`.
+- Publish: AUTO_AT_CLOSE to `origin/kimi/council-broadcast-send-hardening`.

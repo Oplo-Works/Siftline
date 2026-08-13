@@ -453,3 +453,21 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
 - Validation: `npx tsc --noEmit` exit 0; `npm run build` exit 0.
 - Note: committed on the in-flight `kimi/council-broadcast-send-hardening` branch; outside that bundle's fixed review range `391b294..84c59dd`.
 - Publish: deferred — rides the same branch; push only at the broadcast task WF:CLOSE.
+
+## 2026-08-13T20:05:00Z — council-broadcast-send-hardening / CLOSE
+
+- Stage: WF:CLOSE
+- Role/Runtime: Implementation Owner / this session (repository PIN: CANDIDATE)
+- Risk: Standard — Council Chat injection/send internals.
+- Implementation: `391b294..060cceb` (+ log-drawer MICRO `611d879`).
+- Review: N/A — independent review skipped by explicit owner instruction; no P0 findings open.
+- Human Decision: APPROVED — "commit & push 해줘" (2026-08-13), resolving the CLOSE entry gate.
+- Summary: @all broadcast hardened — native-input lock serialization, unconditional send-ready wait,
+  Perplexity trusted CDP inject+submit, Gemini per-line verified insertion with clipboard repair;
+  Log drawer select/copy fixed. Owner-verified @all run: all 7 providers PASS.
+- Validation: `docs/features/council-broadcast-send-hardening/TEST_EVIDENCE.md` — AC-1..4,6,7 PASS;
+  AC-5 WAIVED_BY_APPROVAL; typecheck/build PASS (Node v24.12.0, pinned 22.22.3 absent).
+- Publish Intent/Target: AUTO_AT_CLOSE / `origin/kimi/council-broadcast-send-hardening`.
+- Decisions / Risks / Follow-ups: single @mention and Workflow modes remain must-preserve but unused;
+  re-verify them if revived. Installer built locally at owner request; no tag/release/publish.
+- Next: DONE after verifying remote head equals the close metadata commit.

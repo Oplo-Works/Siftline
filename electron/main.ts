@@ -580,6 +580,8 @@ let councilFailedReplay: CouncilRetryEnvelope | null = null
 let councilTurnChain: Promise<void> = Promise.resolve()
 let clipboardOperationChain: Promise<void> = Promise.resolve()
 let clipboardOperationSequence = 0
+let nativeInputOperationChain: Promise<void> = Promise.resolve()
+let nativeInputOperationSequence = 0
 let currentInteractionMode: InteractionMode = 'chat'
 const viewThreadOwners: Partial<Record<AiName, InteractionMode | null>> = {}
 let councilWorkflowBridgeSignature: string | null = null
@@ -606,6 +608,37 @@ async function withClipboardLock<T>(label: string, operation: () => Promise<T>):
     const holdMs = Date.now() - acquiredAt
     release()
     try { sendLog('info', `[clipboard-lock] end #${operationId} ${label} waitMs=${waitMs} holdMs=${holdMs}`) } catch { /* logging must not hold the lock */ }
+  }
+}
+
+/**
+ * Serialize every focus-dependent native-input critical section across AI
+ * BrowserViews: OS focus changes, `sendInputEvent` key/mouse dispatch, CDP
+ * input dispatch, and clipboard write/paste.  OS focus and the clipboard are
+ * process-global resources, so during a parallel `@all` broadcast these
+ * sections must never overlap across views.  DOM-level operations
+ * (querySelector, execCommand insertion, element.click()) stay parallel.
+ *
+ * Lock ordering: `withNativeInputLock` is the OUTER lock; `withClipboardLock`
+ * may be acquired inside it, never the reverse.
+ */
+async function withNativeInputLock<T>(label: string, operation: () => Promise<T>): Promise<T> {
+  const previous = nativeInputOperationChain
+  let release!: () => void
+  nativeInputOperationChain = new Promise<void>((resolve) => { release = resolve })
+  const operationId = ++nativeInputOperationSequence
+  const queuedAt = Date.now()
+
+  await previous.catch(() => undefined)
+  const acquiredAt = Date.now()
+  const waitMs = acquiredAt - queuedAt
+  try {
+    sendLog('info', `[native-input-lock] begin #${operationId} ${label} waitMs=${waitMs}`)
+    return await operation()
+  } finally {
+    const holdMs = Date.now() - acquiredAt
+    release()
+    try { sendLog('info', `[native-input-lock] end #${operationId} ${label} waitMs=${waitMs} holdMs=${holdMs}`) } catch { /* logging must not hold the lock */ }
   }
 }
 
@@ -1675,10 +1708,13 @@ async function processCouncilTurn(
 
     sendLog('info', `[council] ${aiName}: injecting ${councilPrompt.length} chars`)
     await pasteText(view, councilPrompt, inputRes.selector, aiName)
-    if (filePaths.length > 0) {
-      sendLog('info', `[council] ${aiName}: waiting for composer to become send-ready after attachment`)
-      await waitForComposerReadyToSend(view, aiName, config.sendButtonSelectors)
-    }
+    // Always wait for a send-ready composer — not only for attachments.
+    // Text-only turns previously raced React's state update that enables the
+    // Send button, which left verified prompts sitting unsubmitted.
+    sendLog('info', filePaths.length > 0
+      ? `[council] ${aiName}: waiting for composer to become send-ready after attachment`
+      : `[council] ${aiName}: waiting for composer to become send-ready`)
+    await waitForComposerReadyToSend(view, aiName, config.sendButtonSelectors)
     await sleep(CLICK_SEND_DELAY_MS)
 
     const sent = await clickSend(view, config.sendButtonSelectors, aiName)
@@ -2169,6 +2205,115 @@ async function insertComposerTextWithLineCommands(
   `).catch(() => false) as Promise<boolean>
 }
 
+/**
+ * Gemini fallback: per-line verified insertion.  The one-shot line-commands
+ * pass can transiently drop lines (Gemini's composer re-renders mid-edit),
+ * which used to surface only at the final whole-text verification.  Here each
+ * line is inserted individually and the composer's non-empty-line signature is
+ * read back in the same round trip; a dropped line is re-inserted once before
+ * moving on.  Returns false when the prompt is too long for per-line round
+ * trips, the deadline is exceeded, or a line cannot be placed — the caller
+ * then uses the serialized clipboard path.
+ */
+async function insertComposerTextLineByLineVerified(
+  view: BrowserView,
+  jsonSelector: string,
+  text: string,
+  aiName?: AiName,
+): Promise<boolean> {
+  const MAX_LINES = 200
+  const MAX_DURATION_MS = 15_000
+  const normalized = normalizeComposerText(text)
+  const lines = normalized.split('\n')
+  if (lines.length > MAX_LINES) {
+    sendLog('warn', `[pasteText] ${aiName ?? 'unknown'}: ${lines.length} lines exceed per-line insertion cap ${MAX_LINES}`)
+    return false
+  }
+  const expectedSignature = getComposerLineSignature(text)
+  const startedAt = Date.now()
+
+  // Clear the composer once, up front.
+  const cleared = await view.webContents.executeJavaScript(`
+    (() => {
+      const target = document.querySelector(${jsonSelector});
+      if (!target || !target.isContentEditable) return false;
+      target.focus();
+      document.execCommand('selectAll', false, null);
+      document.execCommand('delete', false, null);
+      return true;
+    })()
+  `).catch(() => false) as boolean
+  if (!cleared) return false
+
+  let nonEmptyInserted = 0
+  for (let index = 0; index < lines.length; index++) {
+    if (Date.now() - startedAt > MAX_DURATION_MS) {
+      sendLog('warn', `[pasteText] ${aiName ?? 'unknown'}: per-line insertion deadline exceeded at line ${index + 1}/${lines.length}`)
+      return false
+    }
+    const line = lines[index]
+    const needsBoundary = index > 0
+    const isNonEmpty = line.trim().length > 0
+    if (isNonEmpty) nonEmptyInserted++
+
+    let linePlaced = false
+    for (let lineAttempt = 1; lineAttempt <= 2; lineAttempt++) {
+      const result = await view.webContents.executeJavaScript(`
+        (() => {
+          const target = document.querySelector(${jsonSelector});
+          if (!target || !target.isContentEditable) return null;
+          target.focus();
+          try {
+            const range = document.createRange();
+            range.selectNodeContents(target);
+            range.collapse(false);
+            const sel = window.getSelection();
+            if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+          } catch (e) { /* best-effort caret placement */ }
+          if (${needsBoundary}) {
+            document.execCommand('insertParagraph', false, null)
+              || document.execCommand('insertLineBreak', false, null);
+          }
+          if (${JSON.stringify(line)}.length > 0) {
+            document.execCommand('insertText', false, ${JSON.stringify(line)});
+          }
+          const text = String(target.innerText || target.textContent || '');
+          const signature = text
+            .replace(/\\r\\n?/g, '\\n')
+            .replace(/\\u00a0/g, ' ')
+            .replace(/[\\u200b-\\u200d\\ufeff]/g, '')
+            .split('\\n')
+            .map((l) => l.trim())
+            .filter((l) => l.length > 0);
+          return { signature };
+        })()
+      `).catch(() => null) as { signature: string[] } | null
+
+      if (!result) return false
+      if (!isNonEmpty) {
+        // Blank lines carry no signature entry; nothing to verify.
+        linePlaced = true
+        break
+      }
+      const observed = result.signature
+      const expectedLine = expectedSignature[nonEmptyInserted - 1]
+      if (observed.length >= nonEmptyInserted && observed[nonEmptyInserted - 1] === expectedLine) {
+        linePlaced = true
+        break
+      }
+      if (lineAttempt === 1) {
+        sendLog('warn', `[pasteText] ${aiName ?? 'unknown'}: line ${index + 1} not confirmed — re-inserting once`)
+        await sleep(120)
+      }
+    }
+    if (!linePlaced) {
+      sendLog('warn', `[pasteText] ${aiName ?? 'unknown'}: line ${index + 1} failed verification twice — aborting per-line path`)
+      return false
+    }
+  }
+  return true
+}
+
 async function insertComposerTextWithNativeSetter(
   view: BrowserView,
   jsonSelector: string,
@@ -2251,6 +2396,19 @@ async function pasteText(view: BrowserView, text: string, selector: string, aiNa
       if (directVerification.ok) return
       if (attempt === 1) await sleep(800)
     }
+
+    // Structure still mismatched after the bounded one-shot retries — switch
+    // to per-line verified insertion, which detects and re-inserts a dropped
+    // line immediately instead of discovering it only at the final readback.
+    const lineByLineOk = await insertComposerTextLineByLineVerified(view, jsonSelector, text, aiName)
+    if (lineByLineOk) {
+      await sleep(150)
+      const lineVerification = await verifyComposerText(view, jsonSelector, text, aiName)
+      logComposerVerification(aiName, 'execCommand-linewise-verified', text.length, lineVerification)
+      if (lineVerification.ok) return
+    } else {
+      sendLog('warn', '[pasteText] gemini: per-line verified insertion incomplete — falling back to clipboard')
+    }
   } else {
     const inserted = await insertComposerTextWithExecCommand(view, jsonSelector, text)
     if (inserted) await sleep(150)
@@ -2269,26 +2427,51 @@ async function pasteText(view: BrowserView, text: string, selector: string, aiNa
   // Gemini primary path and compatibility fallback: the complete clipboard
   // write/paste/readback is serialized with image attachment fallback through
   // one module-wide lock, preserving every prompt line and block boundary.
+  // The whole section additionally runs inside the native-input lock (outer)
+  // so OS focus changes and Ctrl+V can never overlap with another panel's
+  // send/paste during a parallel broadcast.  Bounded retry: a failed
+  // readback re-focuses and re-pastes instead of giving up immediately.
   const { clipboard } = require('electron')
-  const clipboardVerification = await withClipboardLock(
-    `prompt:${aiName ?? 'unknown'}`,
-    async () => {
-      try { view.webContents.focus() } catch { /* view may be detached */ }
-      if (inputRect) {
-        view.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(inputRect.x), y: Math.round(inputRect.y), button: 'left', clickCount: 1 })
-        view.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(inputRect.x), y: Math.round(inputRect.y), button: 'left', clickCount: 1 })
-        await sleep(50)
-      }
+  const clipboardVerification = await withNativeInputLock(
+    `paste:${aiName ?? 'unknown'}`,
+    () => withClipboardLock(
+      `prompt:${aiName ?? 'unknown'}`,
+      async () => {
+        let lastVerification: ComposerVerification | null = null
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try { view.webContents.focus() } catch { /* view may be detached */ }
+          if (inputRect) {
+            view.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(inputRect.x), y: Math.round(inputRect.y), button: 'left', clickCount: 1 })
+            view.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(inputRect.x), y: Math.round(inputRect.y), button: 'left', clickCount: 1 })
+            await sleep(50)
+          }
 
-      clipboard.writeText(text)
-      view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'A', modifiers: ['ctrl'] })
-      view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'A', modifiers: ['ctrl'] })
-      await sleep(50)
-      view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'V', modifiers: ['ctrl'] })
-      view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'V', modifiers: ['ctrl'] })
-      await sleep(150)
-      return verifyComposerText(view, jsonSelector, text, aiName)
-    }
+          // Focus instrumentation: Ctrl+V is far more likely to land when this
+          // view's document actually holds focus.  Log the state but still
+          // attempt the paste — sendInputEvent targets this webContents
+          // directly, so an unfocused view may still accept it.
+          const hasFocus = await view.webContents
+            .executeJavaScript('document.hasFocus()')
+            .catch(() => null)
+          if (hasFocus !== true) {
+            sendLog('warn', `[pasteText] ${aiName ?? 'unknown'}: document.hasFocus()=${hasFocus} before clipboard paste (attempt ${attempt})`)
+          }
+
+          clipboard.writeText(text)
+          view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'A', modifiers: ['ctrl'] })
+          view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'A', modifiers: ['ctrl'] })
+          await sleep(50)
+          view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'V', modifiers: ['ctrl'] })
+          view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'V', modifiers: ['ctrl'] })
+          await sleep(150)
+          lastVerification = await verifyComposerText(view, jsonSelector, text, aiName)
+          if (lastVerification.ok) return lastVerification
+          sendLog('warn', `[pasteText] ${aiName ?? 'unknown'}: clipboard paste unverified (attempt ${attempt}/3) — retrying`)
+          await sleep(300)
+        }
+        return lastVerification ?? verifyComposerText(view, jsonSelector, text, aiName)
+      }
+    )
   )
   logComposerVerification(
     aiName,
@@ -2759,8 +2942,15 @@ async function waitForStableResponse(
   })
 }
 
-/** Click the send button using fallback selectors */
+/** Click the send button using fallback selectors.
+ *  The whole send phase is serialized across AI views through the
+ *  native-input lock: focus changes, CDP input, and native Enter must never
+ *  overlap between panels during a parallel broadcast. */
 async function clickSend(view: BrowserView, selectors: string[], aiName?: AiName): Promise<boolean> {
+  return withNativeInputLock(`clickSend:${aiName ?? 'unknown'}`, () => clickSendLocked(view, selectors, aiName))
+}
+
+async function clickSendLocked(view: BrowserView, selectors: string[], aiName?: AiName): Promise<boolean> {
   // Ensure the BrowserView has OS-level focus before any input dispatch.
   // Without this, when multiple AI panels are visible the synthetic click
   // can succeed at the DOM level but the page never registers the action
@@ -2967,6 +3157,204 @@ async function clickSend(view: BrowserView, selectors: string[], aiName?: AiName
       }
     } catch (err) {
       sendLog('warn', '[clickSend] kimi CDP submit error: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      if (attached) {
+        try { view.webContents.debugger.detach() } catch { /* ignore */ }
+      }
+    }
+  }
+
+  // ── Perplexity: trusted CDP submit ─────────────────────────────────────────
+  // Perplexity's composer uses hashed CSS-module classes and frequently
+  // changes aria-labels, so the selector list and the generic heuristic are
+  // fragile.  Same strategy as Kimi:
+  //   1. CDP mouse click on the probed send button (isTrusted=true events)
+  //   2. Clean CDP Enter (no `text` payload)
+  // Submission is verified by polling: the typed-text fingerprint disappears
+  // from the composer, or a stop/streaming indicator appears.
+  if (aiName === 'perplexity') {
+    let attached = false
+    try {
+      const probe = await view.webContents.executeJavaScript(`
+        (() => {
+          const isVisible = (el) => {
+            if (!(el instanceof HTMLElement)) return false;
+            const r = el.getBoundingClientRect();
+            if (r.width <= 0 || r.height <= 0) return false;
+            const s = window.getComputedStyle(el);
+            return s.visibility !== 'hidden' && s.display !== 'none';
+          };
+          // Prefer the visible textarea that actually holds our text; fall back
+          // to any visible textarea, then a contenteditable composer.
+          const textareas = Array.from(document.querySelectorAll('textarea')).filter(isVisible);
+          let editor = textareas.find((t) => String(t.value || '').trim().length > 0)
+                    || textareas[0]
+                    || Array.from(document.querySelectorAll('div[contenteditable="true"]')).find(isVisible)
+                    || null;
+          if (!editor) return { ok: false, reason: 'no-editor' };
+          editor.focus();
+          const text = 'value' in editor
+            ? String(editor.value || '')
+            : String(editor.innerText || editor.textContent || '');
+          // Place caret at end so the Enter fallback submits instead of
+          // splitting a line mid-prompt.
+          try {
+            if ('selectionStart' in editor && typeof editor.selectionStart === 'number') {
+              editor.selectionStart = editor.selectionEnd = text.length;
+            } else if (editor.isContentEditable) {
+              const range = document.createRange();
+              range.selectNodeContents(editor);
+              range.collapse(false);
+              const sel = window.getSelection();
+              if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+            }
+          } catch (e) { /* best-effort */ }
+          const trimmed = text.trim();
+          const fingerprint = trimmed.length >= 8
+            ? trimmed.slice(0, Math.min(48, trimmed.length))
+            : trimmed;
+
+          // Locate the send button: walk up from the composer to a container
+          // with multiple controls, then pick the rightmost enabled icon-only
+          // button (excluding attach/upload triggers) — Perplexity's submit
+          // arrow is the rightmost icon in the composer footer.
+          let sendBtn = null;
+          let container = editor.parentElement;
+          for (let i = 0; i < 10 && container && !sendBtn; i++) {
+            const candidates = container.querySelectorAll('button, div[role="button"]');
+            if (candidates.length >= 2) {
+              const attachLabels = /attach|upload|file|clip|image|photo|emoji|mic|dictat|voice/i;
+              const iconOnly = [];
+              for (const c of candidates) {
+                if (!isVisible(c)) continue;
+                if (c.disabled) continue;
+                if (c.getAttribute('aria-disabled') === 'true') continue;
+                const aria = (c.getAttribute('aria-label') || '') + ' ' + (c.getAttribute('title') || '');
+                if (attachLabels.test(aria)) continue;
+                if ((c.innerText || '').trim().length > 2) continue;
+                if (!c.querySelector('svg, img')) continue;
+                iconOnly.push({ el: c, x: c.getBoundingClientRect().right });
+              }
+              if (iconOnly.length > 0) {
+                iconOnly.sort((a, b) => b.x - a.x);
+                sendBtn = iconOnly[0].el;
+              }
+            }
+            container = container.parentElement;
+          }
+
+          let btnRect = null;
+          if (sendBtn) {
+            const r = sendBtn.getBoundingClientRect();
+            if (r.width > 0 && r.height > 0) {
+              btnRect = { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+            }
+          }
+          return { ok: true, hadText: trimmed.length > 0, btnRect, fingerprint };
+        })()
+      `).catch(() => ({ ok: false }))
+
+      if (probe?.ok && probe?.hadText) {
+        try { view.webContents.focus() } catch { /* ignore */ }
+
+        const dbg = view.webContents.debugger
+        if (!dbg.isAttached()) {
+          try { dbg.attach('1.3'); attached = true } catch (e) {
+            sendLog('warn', '[clickSend] perplexity: debugger attach failed: ' + (e instanceof Error ? e.message : String(e)))
+          }
+        }
+
+        const verifySubmitted = async (): Promise<boolean> => {
+          const fp = (probe?.fingerprint ?? '') as string
+          const fpJson = JSON.stringify(fp)
+          const deadline = Date.now() + 2000
+          while (Date.now() < deadline) {
+            await sleep(150)
+            const state = await view.webContents.executeJavaScript(`
+              (() => {
+                const isVisible = (el) => {
+                  if (!(el instanceof HTMLElement)) return false;
+                  const r = el.getBoundingClientRect();
+                  if (r.width <= 0 || r.height <= 0) return false;
+                  const s = window.getComputedStyle(el);
+                  return s.visibility !== 'hidden' && s.display !== 'none';
+                };
+                const textareas = Array.from(document.querySelectorAll('textarea')).filter(isVisible);
+                const editor = textareas[0]
+                            || Array.from(document.querySelectorAll('div[contenteditable="true"]')).find(isVisible)
+                            || null;
+                const text = editor
+                  ? ('value' in editor ? String(editor.value || '') : String(editor.innerText || editor.textContent || ''))
+                  : '';
+                const fp = ${fpJson};
+                const fingerprintGone = fp.length > 0 ? !text.includes(fp) : text.trim().length === 0;
+                // Perplexity swaps the submit arrow for a stop/cancel control
+                // while the answer streams.
+                const stopBtn = document.querySelector(
+                  '[data-testid*="stop" i], [aria-label*="stop" i], [aria-label*="cancel" i]'
+                );
+                return { fingerprintGone, hasStop: !!stopBtn };
+              })()
+            `).catch(() => null)
+            if (state?.fingerprintGone || state?.hasStop) return true
+          }
+          return false
+        }
+
+        if (dbg.isAttached()) {
+          // Strategy 1: trusted CDP mouse click on the send button
+          if (probe.btnRect) {
+            try {
+              const { x, y } = probe.btnRect
+              await dbg.sendCommand('Input.dispatchMouseEvent', {
+                type: 'mouseMoved', x, y, button: 'none', clickCount: 0,
+              })
+              await dbg.sendCommand('Input.dispatchMouseEvent', {
+                type: 'mousePressed', x, y, button: 'left', clickCount: 1,
+              })
+              await dbg.sendCommand('Input.dispatchMouseEvent', {
+                type: 'mouseReleased', x, y, button: 'left', clickCount: 1,
+              })
+              if (await verifySubmitted()) {
+                sendLog('info', '[clickSend] perplexity: CDP mouse-click on send button succeeded')
+                if (attached) { try { dbg.detach() } catch { /* ignore */ } }
+                return true
+              }
+              sendLog('warn', '[clickSend] perplexity: CDP mouse-click did not clear composer — trying Enter')
+            } catch (e) {
+              sendLog('warn', '[clickSend] perplexity: CDP mouse-click failed: ' + (e instanceof Error ? e.message : String(e)))
+            }
+          } else {
+            sendLog('info', '[clickSend] perplexity: send button not located — falling back to Enter')
+          }
+
+          // Strategy 2: clean CDP Enter (no text payload)
+          await dbg.sendCommand('Input.dispatchKeyEvent', {
+            type: 'keyDown',
+            key: 'Enter',
+            code: 'Enter',
+            windowsVirtualKeyCode: 13,
+            nativeVirtualKeyCode: 13,
+          }).catch((e) => sendLog('warn', '[clickSend] perplexity: CDP keyDown failed: ' + e.message))
+
+          await dbg.sendCommand('Input.dispatchKeyEvent', {
+            type: 'keyUp',
+            key: 'Enter',
+            code: 'Enter',
+            windowsVirtualKeyCode: 13,
+            nativeVirtualKeyCode: 13,
+          }).catch((e) => sendLog('warn', '[clickSend] perplexity: CDP keyUp failed: ' + e.message))
+
+          if (await verifySubmitted()) {
+            sendLog('info', '[clickSend] perplexity: CDP Enter-key submission succeeded')
+            if (attached) { try { dbg.detach() } catch { /* ignore */ } }
+            return true
+          }
+          sendLog('warn', '[clickSend] perplexity: CDP Enter left composer non-empty — falling through to heuristic')
+        }
+      }
+    } catch (err) {
+      sendLog('warn', '[clickSend] perplexity CDP submit error: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
       if (attached) {
         try { view.webContents.debugger.detach() } catch { /* ignore */ }

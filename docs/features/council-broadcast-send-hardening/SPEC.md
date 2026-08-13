@@ -4,7 +4,7 @@
 - Risk: Standard
 - Bundle ID: council-broadcast-send-hardening-R1
 - SPEC Revision: 1
-- Status: READY_FOR_APPROVAL
+- Status: APPROVED
 - Last Updated: 2026-08-13
 
 ## Context / User / Goal
@@ -135,4 +135,4 @@
 - Mode: STANDARD_BUNDLE_IN_PLAN
 - Standard ledger: PLAN.md#approval-bundle
 - High decision: N/A
-- User message: N/A
+- User message: 2026-08-13 — SPEC rev 1 + PLAN rev 1 bundle approved

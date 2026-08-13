@@ -4,8 +4,8 @@
 - Risk: Standard
 - Bundle ID: council-broadcast-send-hardening-R1
 - PLAN Revision: 1
-- SPEC: docs/features/council-broadcast-send-hardening/SPEC.md — SPEC revision 1 — READY_FOR_APPROVAL
-- Status: READY_FOR_APPROVAL
+- SPEC: docs/features/council-broadcast-send-hardening/SPEC.md — SPEC revision 1 — APPROVED
+- Status: APPROVED
 - Base Branch/Commit: `codex/council-chat-phase3-defect-fixes` @ `391b294`
   (task branch: `kimi/council-broadcast-send-hardening`)
 
@@ -72,10 +72,10 @@ coherent implementation pass but remain individually revertible.
 
 - Mode: STANDARD_BUNDLE
 - Bundle ID: council-broadcast-send-hardening-R1
-- SPEC Revision approved: PENDING
-- PLAN Revision approved: PENDING
-- Decision: PENDING
-- User message: N/A
+- SPEC Revision approved: 1
+- PLAN Revision approved: 1
+- Decision: APPROVED
+- User message: 2026-08-13 — "council-broadcast-send-hardening의 SPEC rev 1과 PLAN rev 1을 승인"
 - Constraints / expiry: implementation limited to the paths listed in Slices;
   no dependency/schema/permission changes; push only at WF:CLOSE to the
   task branch upstream per PROJECT_SCOPE §5.

@@ -43,12 +43,12 @@
     ],
     "extraResources": [
       {
-        "from": "ai-council.ico",
-        "to": "ai-council.ico"
+        "from": "siftline.ico",
+        "to": "siftline.ico"
       }
     ],
     "win": {
-      "icon": "ai-council.ico",
+      "icon": "siftline.ico",
       "target": [
         {
           "target": "portable",
@@ -64,8 +64,8 @@
     "nsis": {
       "oneClick": true,
       "perMachine": false,
-      "installerIcon": "ai-council.ico",
-      "uninstallerIcon": "ai-council.ico",
+      "installerIcon": "siftline.ico",
+      "uninstallerIcon": "siftline.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Siftline",

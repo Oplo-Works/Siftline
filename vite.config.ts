@@ -5,6 +5,9 @@ import renderer from 'vite-plugin-electron-renderer'
 import path from 'path'
 
 export default defineConfig({
+  define: {
+    __BUILD_DATE__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     electron([

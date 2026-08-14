@@ -1,13 +1,13 @@
 """
-Convert ai-council.ico to ai-council.icns for macOS builds.
+Convert siftline.ico to siftline-src.png for macOS builds.
 Called by GitHub Actions build-mac job.
 Requires: pip install Pillow
 """
 from PIL import Image
 import os, sys
 
-ico_path = "ai-council.ico"
-out_path = "ai-council-src.png"
+ico_path = "siftline.ico"
+out_path = "siftline-src.png"
 
 if not os.path.exists(ico_path):
     print(f"ERROR: {ico_path} not found", file=sys.stderr)

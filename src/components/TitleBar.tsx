@@ -1,6 +1,11 @@
 import type { CSSProperties } from 'react'
 import type { InteractionMode } from '../types'
 import { version as appVersion } from '../../package.json'
+import siftlineIcon from '../assets/siftline-icon.png'
+
+// Build timestamp injected at build/dev time so the version tooltip can show
+// whether the running app is the latest build.
+const buildDate = new Date(__BUILD_DATE__).toLocaleDateString()
 
 interface TitleBarProps {
   mode: InteractionMode
@@ -38,10 +43,15 @@ export default function TitleBar({
   return (
     <div className="titlebar" style={{ WebkitAppRegion: 'drag' } as CSSProperties}>
       <div className="titlebar-logo">
-        <span className="titlebar-icon">AI</span>
+        <img className="titlebar-icon-img" src={siftlineIcon} alt="Siftline logo" />
         <span className="titlebar-name">Siftline</span>
-        <span className="titlebar-version" title={`Siftline v${appVersion}`}>v{appVersion}</span>
-        <span className="titlebar-tagline">Multi-LLM Cross-Verification</span>
+        <span
+          className="titlebar-pill titlebar-version"
+          title={`Siftline v${appVersion} · built ${buildDate}`}
+        >
+          v{appVersion}
+        </span>
+        <span className="titlebar-pill titlebar-tagline">Multi-LLM Cross-Verification</span>
       </div>
 
       <div className="titlebar-center" style={{ WebkitAppRegion: 'drag' } as CSSProperties}>

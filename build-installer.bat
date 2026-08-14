@@ -50,7 +50,7 @@ if errorlevel 1 (
 echo.
 echo ============================================
 echo   SUCCESS!
-echo   Installer: release\AI-Council-Setup.exe
+echo   Installer: release\Siftline-Setup-<version>.exe
 echo ============================================
 echo.
 pause

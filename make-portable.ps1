@@ -13,8 +13,8 @@ if (-not $root -or $root -eq '') {
 }
 
 $release = Join-Path $root 'release'
-$out     = Join-Path $release 'AI-Council-Portable'
-$zip     = Join-Path $release 'AI-Council-Portable.zip'
+$out     = Join-Path $release 'Siftline-Portable'
+$zip     = Join-Path $release 'Siftline-Portable.zip'
 
 Write-Host ""
 Write-Host "=== Siftline Portable Build ===" -ForegroundColor Cyan
@@ -42,11 +42,11 @@ New-Item -ItemType Directory -Path $out -Force | Out-Null
 
 Copy-Item "$electronDist\*" -Destination $out -Recurse -Force
 
-# electron.exe → AI Council.exe
+# electron.exe → Siftline.exe
 $electronExe = "$out\electron.exe"
 if (Test-Path $electronExe) {
-    Rename-Item $electronExe 'AI Council.exe'
-    Write-Host "  electron.exe -> AI Council.exe" -ForegroundColor DarkGreen
+    Rename-Item $electronExe 'Siftline.exe'
+    Write-Host "  electron.exe -> Siftline.exe" -ForegroundColor DarkGreen
 } else {
     Write-Host "  Warning: electron.exe not found. Check runtime path." -ForegroundColor Red
     Get-ChildItem $out | Format-Table Name
@@ -89,9 +89,9 @@ foreach ($dep in $deps) {
 }
 
 # Icon
-$icoSrc = [System.IO.Path]::Combine($root, 'ai-council.ico')
+$icoSrc = [System.IO.Path]::Combine($root, 'siftline.ico')
 if ($icoSrc -and (Test-Path $icoSrc)) {
-    Copy-Item $icoSrc "$out\resources\ai-council.ico" -Force
+    Copy-Item $icoSrc "$out\resources\siftline.ico" -Force
 }
 
 # ── 5. ZIP compression ───────────────────────────────────────────────────────────
@@ -109,4 +109,4 @@ Write-Host "Folder: $out"
 Write-Host "ZIP   : $zip  (${sizeMB} MB)" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "Distribution:" -ForegroundColor White
-Write-Host "  Copy ZIP file to another PC, extract -> Run by double-clicking 'AI Council.exe'" -ForegroundColor Green
+Write-Host "  Copy ZIP file to another PC, extract -> Run by double-clicking 'Siftline.exe'" -ForegroundColor Green

@@ -45,16 +45,16 @@ jobs:
           pip3 install Pillow --quiet --break-system-packages 2>/dev/null || pip3 install Pillow --quiet
           python3 scripts/ico_to_png.py
 
-          ICONSET="ai-council.iconset"
+          ICONSET="siftline.iconset"
           mkdir -p "$ICONSET"
           for SIZE in 16 32 64 128 256 512; do
-            sips -z $SIZE $SIZE ai-council-src.png --out "$ICONSET/icon_${SIZE}x${SIZE}.png" &>/dev/null
+            sips -z $SIZE $SIZE siftline-src.png --out "$ICONSET/icon_${SIZE}x${SIZE}.png" &>/dev/null
             DOUBLE=$((SIZE * 2))
-            sips -z $DOUBLE $DOUBLE ai-council-src.png --out "$ICONSET/icon_${SIZE}x${SIZE}@2x.png" &>/dev/null
+            sips -z $DOUBLE $DOUBLE siftline-src.png --out "$ICONSET/icon_${SIZE}x${SIZE}@2x.png" &>/dev/null
           done
 
-          iconutil -c icns "$ICONSET" -o ai-council.icns
-          rm -rf "$ICONSET" ai-council-src.png
+          iconutil -c icns "$ICONSET" -o siftline.icns
+          rm -rf "$ICONSET" siftline-src.png
 
       - name: Build app
         run: npm run build
@@ -162,11 +162,11 @@ jobs:
 
             | Platform | File |
             |----------|------|
-            | macOS (Apple Silicon) | `AI-Council-*-arm64.dmg` |
-            | macOS (Intel) | `AI-Council-*-x64.dmg` |
-            | Windows | `AI-Council-Setup.exe` |
+            | macOS (Apple Silicon) | `Siftline-*-arm64.dmg` |
+            | macOS (Intel) | `Siftline-*-x64.dmg` |
+            | Windows | `Siftline-Setup-*.exe` |
 
-            > macOS Gatekeeper: System Settings -> Privacy & Security -> Open Anyway, or run `xattr -cr "/Applications/AI Council.app"` in Terminal.
+            > macOS Gatekeeper: System Settings -> Privacy & Security -> Open Anyway, or run `xattr -cr "/Applications/Siftline.app"` in Terminal.
             > Windows SmartScreen: Click "More info" -> "Run anyway".
 
   upload-installers-to-release:

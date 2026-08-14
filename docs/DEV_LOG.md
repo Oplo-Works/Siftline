@@ -491,3 +491,24 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
   in the worktree). Rebuilt installer: `release/AI-Council-Setup-1.0.9.exe`.
 - Validation: `npm run package:installer` exit 0; artifact verified in `release/`.
 - Publish: AUTO_AT_CLOSE to `origin/kimi/council-broadcast-send-hardening`.
+
+## 2026-08-14T13:20:00Z — ui-titlebar-branding-polish / MICRO
+
+- Stage: WF:MICRO -> inline CLOSE
+- Risk: Low — presentation/branding only; no behavior, schema, or data change.
+- Change: titlebar logo text "AI" -> siftline icon image (`src/assets/siftline-icon.png`,
+  `.titlebar-icon-img`); version pill tooltip now shows build date via Vite `__BUILD_DATE__`
+  define (`vite.config.ts`, `src/vite-env.d.ts`); shared `.titlebar-pill` chrome for
+  version/tagline pills (padding/height unified); LogDrawer Copy button shows
+  "? Copied" feedback for 1.5s (`src/components/LogDrawer.tsx`); branding cleanup —
+  artifact names -> `Siftline-*` (`package.json`, `build-installer.bat`,
+  `make-portable.ps1`, `build-installer.sh`), mac icon -> `siftline.icns`
+  (generated from siftline-icon.png), CI icon pipeline -> siftline names
+  (`.github/workflows/build.yml`, `scripts/ico_to_png.py`, `.gitignore`).
+  package.json `name`/`appId` intentionally unchanged (userData path + Windows app
+  identity stability).
+- Validation: `npx tsc --noEmit` exit 0; `npm run build` exit 0 (Node v24.12.0 —
+  pinned 22.22.3 not installed; same recorded deviation as previous session).
+  `git diff --check` reports CR-at-EOL on edited lines (autocrlf=true, pre-existing
+  repo condition, recorded previously).
+- Publish: AUTO_AT_CLOSE to `origin/kimi/ui-titlebar-branding-polish`.

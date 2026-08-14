@@ -131,9 +131,10 @@ body,
   gap: 8px;
 }
 
-.titlebar-icon {
-  font-size: 16px;
-  color: var(--accent);
+.titlebar-icon-img {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
   filter: drop-shadow(0 0 6px var(--accent-glow));
   animation: pulse-icon 3s ease-in-out infinite;
 }
@@ -157,25 +158,24 @@ body,
   color: var(--text-primary);
 }
 
-.titlebar-version {
+/* Shared pill chrome for titlebar badges (version, tagline) */
+.titlebar-pill {
   font-size: 10px;
   color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.03em;
-  padding: 1px 6px;
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.titlebar-tagline {
-  font-size: 10px;
-  color: var(--text-muted);
-  letter-spacing: 0.05em;
   padding: 2px 8px;
   border: 1px solid var(--border);
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.03);
+  line-height: 1.4;
+}
+
+.titlebar-version {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+}
+
+.titlebar-tagline {
+  letter-spacing: 0.05em;
 }
 
 .titlebar-actions {

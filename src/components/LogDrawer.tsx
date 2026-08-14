@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { LogEntry } from '../types'
 
 interface LogDrawerProps {
@@ -21,6 +22,21 @@ function formatTime(ts?: number): string {
 }
 
 export default function LogDrawer({ logs, onClose, onClear }: LogDrawerProps) {
+  const [copied, setCopied] = useState(false)
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current)
+    }
+  }, [])
+
+  const showCopied = () => {
+    setCopied(true)
+    if (copiedTimer.current !== null) clearTimeout(copiedTimer.current)
+    copiedTimer.current = setTimeout(() => setCopied(false), 1500)
+  }
+
   return (
     <div className="drawer-overlay" onClick={onClose}>
       <div className="drawer log-drawer" onClick={(e) => e.stopPropagation()}>
@@ -30,6 +46,7 @@ export default function LogDrawer({ logs, onClose, onClear }: LogDrawerProps) {
             <button
               id="btn-copy-logs"
               className="drawer-action-btn"
+              disabled={copied}
               onClick={() => {
                 const text = logs
                   .map((log) => `[${formatTime(log.timestamp)}] [${log.level}] ${log.msg}`)
@@ -43,15 +60,16 @@ export default function LogDrawer({ logs, onClose, onClear }: LogDrawerProps) {
                   ta.select()
                   try { document.execCommand('copy') } catch { /* ignore */ }
                   ta.remove()
+                  showCopied()
                 }
                 if (navigator.clipboard?.writeText) {
-                  navigator.clipboard.writeText(text).catch(fallback)
+                  navigator.clipboard.writeText(text).then(showCopied).catch(fallback)
                 } else {
                   fallback()
                 }
               }}
             >
-              Copy
+              {copied ? '✓ Copied' : 'Copy'}
             </button>
             <button id="btn-clear-logs" className="drawer-action-btn" onClick={onClear}>
               Clear

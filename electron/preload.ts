@@ -191,6 +191,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   skipCouncilTurn: (): Promise<CouncilRoomState> => ipcRenderer.invoke('skip-council-turn'),
   setCouncilChatVisible: (visible: boolean) =>
     ipcRenderer.invoke('set-council-chat-visible', visible),
+  getFocusSplitRatio: (): Promise<number> => ipcRenderer.invoke('get-focus-split-ratio'),
+  setFocusSplitRatio: (ratio: number): Promise<number> =>
+    ipcRenderer.invoke('set-focus-split-ratio', ratio),
   switchInteractionMode: (payload: { mode: 'workflow' | 'chat'; participants: AiName[]; primaryAi: AiName }): Promise<CouncilRoomState> =>
     ipcRenderer.invoke('switch-interaction-mode', payload),
 

@@ -359,6 +359,8 @@ declare global {
       retryCouncilTurn: () => Promise<CouncilRoomState>
       skipCouncilTurn: () => Promise<CouncilRoomState>
       setCouncilChatVisible: (visible: boolean) => Promise<void>
+      getFocusSplitRatio: () => Promise<number>
+      setFocusSplitRatio: (ratio: number) => Promise<number>
       switchInteractionMode: (payload: {
         mode: InteractionMode
         participants: AiName[]

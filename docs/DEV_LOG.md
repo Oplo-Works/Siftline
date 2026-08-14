@@ -512,3 +512,22 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
   `git diff --check` reports CR-at-EOL on edited lines (autocrlf=true, pre-existing
   repo condition, recorded previously).
 - Publish: AUTO_AT_CLOSE to `origin/kimi/ui-titlebar-branding-polish`.
+
+## 2026-08-14T14:25:00Z — focus-split-draggable / MICRO+
+
+- Stage: owner-directed UI improvement (proposal A only; tile-collapse rejected —
+  owner noted inactive AIs already collapse tiles automatically).
+- Risk: Low-Standard — layout bounds calculation now reads a persisted ratio;
+  no schema/auth/external side effect. Broadcast/injection paths untouched.
+- Change: Focus pane width is drag-adjustable (20%-65%) via a divider between the
+  Focus pane and Compare grid; ratio persisted in electron-store `focusSplitRatio`
+  (default 0.32 = previous fixed value). `computeHybridViewBounds` reads the store.
+  IPC: `get-focus-split-ratio` / `set-focus-split-ratio` (main.ts, preload.ts,
+  types.ts). During drag the BrowserViews are hidden via existing
+  `set-views-visible` and restored on release (views render above the renderer and
+  would swallow pointer events; `webContents.setIgnoreMouseEvents` is not available
+  for BrowserView webContents in this Electron version).
+- Validation: `npx tsc --noEmit` exit 0; `npm run build` exit 0 (Node v24.12.0 —
+  pinned 22.22.3 not installed; same recorded deviation). Manual drag feel NOT_RUN
+  (requires owner run via build-and-run.bat).
+- Publish: AUTO_AT_CLOSE to `origin/kimi/ui-titlebar-branding-polish`.

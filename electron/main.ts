@@ -95,6 +95,8 @@ interface StoreSchema {
     allowedChatIds?: string
     lastUpdateId: number
   }
+  /** Focus pane width ratio of the hybrid content area (0–1). Drag-adjustable. */
+  focusSplitRatio: number
 }
 
 // ─── Inline Selectors Config ──────────────────────────────────────────────────
@@ -364,6 +366,7 @@ const store = new Store<StoreSchema>({
       chatId: '',
       lastUpdateId: 0,
     },
+    focusSplitRatio: 0.32,
   },
 })
 
@@ -3603,7 +3606,8 @@ function computeHybridViewBounds(aiName: AiName, winWidth: number, winHeight: nu
     : orderedEnabledNames[0]
 
   const minCompareW = 260
-  const desiredFocusW = Math.floor(contentW * 0.32)
+  const focusRatio = Math.min(0.65, Math.max(0.2, store.get('focusSplitRatio') ?? 0.32))
+  const desiredFocusW = Math.floor(contentW * focusRatio)
   const maxFocusW = Math.max(contentW - HYBRID_LAYOUT_GAP - minCompareW, 260)
   const focusW = Math.max(300, Math.min(desiredFocusW, maxFocusW))
   const compareX = contentX + focusW + HYBRID_LAYOUT_GAP
@@ -4734,6 +4738,17 @@ ipcMain.handle('set-final-panel-expanded', (_e, expanded: boolean) => {
 ipcMain.handle('set-council-chat-visible', (_e, visible: boolean) => {
   councilChatVisible = !!visible
   updateViewBounds()
+})
+
+// Focus pane split ratio — drag-adjustable from the renderer, persisted in the store.
+ipcMain.handle('get-focus-split-ratio', () => store.get('focusSplitRatio') ?? 0.32)
+
+ipcMain.handle('set-focus-split-ratio', (_e, ratio: number) => {
+  if (typeof ratio !== 'number' || Number.isNaN(ratio)) return store.get('focusSplitRatio') ?? 0.32
+  const clamped = Math.min(0.65, Math.max(0.2, ratio))
+  store.set('focusSplitRatio', clamped)
+  updateViewBounds()
+  return clamped
 })
 
 ipcMain.handle('switch-interaction-mode', (_e, payload: { mode: InteractionMode; participants: AiName[]; primaryAi: AiName }) => {

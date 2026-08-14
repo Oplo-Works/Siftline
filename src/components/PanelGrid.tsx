@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import {
   AiName,
@@ -18,6 +19,10 @@ interface PanelGridProps {
   draftAnswer: string
 }
 
+const DEFAULT_FOCUS_RATIO = 0.32
+const MIN_FOCUS_RATIO = 0.2
+const MAX_FOCUS_RATIO = 0.65
+
 export default function PanelGrid({
   panels,
   primaryAi,
@@ -27,6 +32,57 @@ export default function PanelGrid({
   onDevTools,
   draftAnswer,
 }: PanelGridProps) {
+  const [focusRatio, setFocusRatio] = useState(DEFAULT_FOCUS_RATIO)
+  const gridRef = useRef<HTMLDivElement | null>(null)
+  const dragState = useRef<{ startX: number; startRatio: number } | null>(null)
+
+  // Load persisted split ratio
+  useEffect(() => {
+    if (layoutMode !== 'chat') return
+    window.electronAPI.getFocusSplitRatio().then((ratio) => {
+      if (typeof ratio === 'number' && !Number.isNaN(ratio)) setFocusRatio(ratio)
+    }).catch(() => { /* keep default */ })
+  }, [layoutMode])
+
+  const startSplitDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    dragState.current = { startX: e.clientX, startRatio: focusRatio }
+    e.currentTarget.setPointerCapture(e.pointerId)
+    // BrowserViews render above the renderer and swallow pointer events, so the
+    // drag would stall as soon as the cursor crosses a panel. Hide the views for
+    // the duration of the drag (page state is preserved; same mechanism the
+    // drawers use) and restore them on release.
+    window.electronAPI.setViewsVisible(false).catch(() => { /* ignore */ })
+  }
+
+  const onSplitDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragState.current
+    const grid = gridRef.current
+    if (!drag || !grid) return
+    const trackW = grid.clientWidth - 12 // grid padding 6px * 2
+    if (trackW <= 0) return
+    const next = Math.min(
+      MAX_FOCUS_RATIO,
+      Math.max(MIN_FOCUS_RATIO, drag.startRatio + (e.clientX - drag.startX) / trackW),
+    )
+    setFocusRatio(next)
+  }
+
+  const endSplitDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    const wasDragging = dragState.current !== null
+    dragState.current = null
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    }
+    if (!wasDragging) return
+    // Persist the final ratio (recomputes BrowserView bounds) and bring the views back.
+    window.electronAPI.setFocusSplitRatio(focusRatio)
+      .catch(() => { /* ignore */ })
+      .finally(() => {
+        window.electronAPI.setViewsVisible(true).catch(() => { /* ignore */ })
+      })
+  }
+
   if (layoutMode !== 'chat') {
     return (
       <div className="panel-grid">
@@ -52,8 +108,20 @@ export default function PanelGrid({
     : panels
   const compareCount = Math.min(comparePanels.length, 6)
 
+  const focusPct = (focusRatio * 100).toFixed(2)
+  // Divider sits on the gap between the two grid columns:
+  // left padding (6px) + focus track (ratio of the content box) + half gap (3px)
+  // minus half the divider width (5px). Matches computeHybridViewBounds in main.ts.
+  const dividerLeft = `calc(6px + (100% - 12px) * ${focusRatio} + 3px - 5px)`
+
   return (
-    <div className={`panel-grid hybrid-panel-grid compare-count-${compareCount}`}>
+    <div
+      ref={gridRef}
+      className={`panel-grid hybrid-panel-grid compare-count-${compareCount}`}
+      style={{
+        gridTemplateColumns: `minmax(300px, ${focusPct}%) minmax(260px, 1fr)`,
+      }}
+    >
       {focusPanel && (
         <section className="focus-panel-shell">
           <PanelHeader
@@ -68,6 +136,19 @@ export default function PanelGrid({
           <div className="panel-view-fill" aria-hidden="true" />
         </section>
       )}
+
+      <div
+        className="focus-split-divider"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize Focus pane"
+        title="Drag to resize the Focus pane"
+        style={{ left: dividerLeft }}
+        onPointerDown={startSplitDrag}
+        onPointerMove={onSplitDrag}
+        onPointerUp={endSplitDrag}
+        onPointerCancel={endSplitDrag}
+      />
 
       <section className="compare-panel-shell" aria-label="Compare active AIs">
         {comparePanels.length > 0 ? (

@@ -2519,11 +2519,42 @@ body,
   min-height: 0;
   height: auto;
   display: grid;
-  grid-template-columns: minmax(320px, 32%) minmax(360px, 1fr);
+  /* Columns are set inline from the persisted focus split ratio (PanelGrid) */
+  grid-template-columns: minmax(300px, 32%) minmax(260px, 1fr);
   gap: 6px;
   padding: 6px;
   background: #080a10;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+}
+
+/* Draggable divider between the Focus pane and the Compare grid */
+.focus-split-divider {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  width: 10px;
+  cursor: col-resize;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+
+.focus-split-divider::before {
+  content: '';
+  width: 4px;
+  height: 44px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.14);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.focus-split-divider:hover::before,
+.focus-split-divider:active::before {
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
 }
 
 .focus-panel-shell,

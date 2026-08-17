@@ -8,7 +8,7 @@ interface HistoryDrawerProps {
   onSelect: (item: HistoryItem) => void
 }
 
-const AI_ORDER: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity', 'kimi']
+const AI_ORDER: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity', 'zai']
 
 export default function HistoryDrawer({
   history,

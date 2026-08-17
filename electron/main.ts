@@ -292,43 +292,41 @@ const DEFAULT_SELECTORS: Record<AiName, AiConfig> = {
     ],
     loadedIndicatorSelectors: ['#chat-input', 'textarea', '[contenteditable]'],
   },
-  kimi: {
-    url: 'https://kimi.com',
-    newChatUrl: 'https://kimi.com',
+  zai: {
+    url: 'https://chat.z.ai/',
+    newChatUrl: 'https://chat.z.ai/',
     inputSelectors: [
-      // Kimi's main composer (2025 UI — bilingual EN/中文)
-      'div[contenteditable="true"][data-testid="msh-chatinput-editor"]',
-      'div[contenteditable="true"][role="textbox"]',
-      'div.chat-input-editor[contenteditable="true"]',
-      'textarea[placeholder*="Kimi" i]',
+      // Z.ai composer (Open WebUI — textarea#chat-input)
+      'textarea#chat-input',
+      'textarea[dir="auto"]',
+      'textarea[placeholder*="Send" i]',
       'textarea[placeholder*="Ask" i]',
       'textarea[placeholder*="Message" i]',
-      'textarea[placeholder*="问"]',
-      'textarea[placeholder*="发送"]',
-      'div[contenteditable="true"][data-placeholder]',
+      'div[contenteditable="true"][role="textbox"]',
       'div[contenteditable="true"]',
       'textarea',
     ],
     sendButtonSelectors: [
-      'div[data-testid="msh-chatinput-send-button"]',
-      'button[data-testid="msh-chatinput-send-button"]',
+      // Open WebUI send button carries a stable sendMessageButton id/class
+      '[id*="sendMessageButton"]',
+      'button[class*="sendMessageButton"]',
+      '[class*="sendMessageButton"]',
       'button[aria-label*="Send" i]',
       'button[aria-label*="Submit" i]',
-      'button[aria-label*="发送"]',
       'div[role="button"][aria-label*="Send" i]',
-      'div[role="button"][aria-label*="发送"]',
       'button[type="submit"]',
     ],
     responseContainerSelectors: [
-      // Kimi response container — markdown-rendered assistant turn
-      '.markdown',
-      '[class*="markdown-body"]',
-      '[class*="segment-assistant"] .markdown',
-      '[data-role="assistant"] .markdown',
+      // Z.ai response container — markdown-rendered assistant turn (Open WebUI)
+      '.markdown-prose',
+      '[class*="response-content"]',
+      '[class*="markdown-prose"]',
+      '[class*="markdown"]',
       '.prose',
+      '[class*="prose"]',
       'article',
     ],
-    loadedIndicatorSelectors: ['div[contenteditable="true"]', 'textarea', '[contenteditable]'],
+    loadedIndicatorSelectors: ['#chat-input', 'textarea', '[contenteditable]'],
   },
 }
 
@@ -352,7 +350,7 @@ const store = new Store<StoreSchema>({
     chatHistory: [],
     windowBounds: { x: 0, y: 0, width: 1280, height: 720 },
     apiKeys: {},
-    apiKeyOrder: ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'kimi', 'perplexity'],
+    apiKeyOrder: ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'zai', 'perplexity'],
     councilRoomSnapshot: null,
     councilUiState: {
       pinnedCandidateIds: [],
@@ -379,7 +377,7 @@ export const AI_DISPLAY_NAMES: Record<AiName, string> = {
   grok: 'Grok',
   deepseek: 'DeepSeek',
   perplexity: 'Perplexity',
-  kimi: 'Kimi',
+  zai: 'Z.ai',
 }
 // Which AIs are currently visible — user can toggle panels on/off
 let enabledAiNames: AiName[] = [...DEFAULT_ENABLED_AIS]
@@ -702,22 +700,22 @@ const STREAMING_GUARD_OVERRIDE_MS = 8_000  // force-accept after 8 s of stable t
 // streaming the actual final answer. During that pause the DOM is stable and
 // waitForStableResponse would otherwise resolve with the partial early text —
 // which is exactly what surfaced in the Council Chat for DeepSeek (DeepThink
-// search step) and Kimi. Bump stableMs for these AIs so we ride out internal
+// search step) and Z.ai. Bump stableMs for these AIs so we ride out internal
 // pauses and only accept text once it has truly stopped growing.
 const STABLE_RESPONSE_MS_OVERRIDE: Partial<Record<AiName, number>> = {
   deepseek: 8_000,  // DeepThink: thinking trace → search step → final answer
-  kimi: 6_000,      // initial summary → tables / deeper sections
+  zai: 6_000,       // initial summary → deeper sections (GLM reasoning pause)
 }
 
 // Per-AI override for the streaming-guard force-accept escape hatch. Defaults
-// to STREAMING_GUARD_OVERRIDE_MS. We extend it for DeepSeek/Kimi because their
+// to STREAMING_GUARD_OVERRIDE_MS. We extend it for DeepSeek/Z.ai because their
 // internal search steps can keep text stable for much longer than 8 s while
 // the streaming guard is correctly still armed — without this, the override
 // would force-accept the partial early text and we'd be back to the bug this
 // override was meant to fix.
 const STREAMING_GUARD_OVERRIDE_MS_OVERRIDE: Partial<Record<AiName, number>> = {
   deepseek: 25_000,
-  kimi: 20_000,
+  zai: 20_000,
 }
 
 function createEmptyCouncilRuntimeState(): CouncilRuntimeState {
@@ -1011,14 +1009,14 @@ const STREAMING_INDICATOR_SELECTORS: Partial<Record<AiName, string[]>> = {
     '[class*="searching"]',
     '[class*="generating"]',
   ],
-  kimi: [
+  zai: [
     'button[aria-label*="Stop" i]',
     'button[aria-label*="停止"]',
     'button[aria-label*="中止"]',
     'div[role="button"][aria-label*="Stop" i]',
     'div[role="button"][aria-label*="停止"]',
     '[data-testid*="stop" i]',
-    // Mid-response pauses (web search / table rendering) — same defense as
+    // Mid-response pauses (web search / reasoning) — same defense as
     // DeepSeek so the early summary isn't accepted as the final answer.
     '[class*="thinking"]',
     '[class*="searching"]',
@@ -2439,11 +2437,10 @@ async function pasteText(view: BrowserView, text: string, selector: string, aiNa
 
   // Direct DOM insertion is the default for every AI. Unlike OS
   // clipboard paste, this path has no process-global resource and remains
-  // parallel-safe. It also preserves Kimi's long-prompt protection because no
-  // paste event is emitted for the site's ~4000-byte TXT-conversion guard.
-  // Gemini's one-shot insertText truncates after line one, so it uses explicit
-  // paragraph boundaries. Structure enforcement decides whether that direct
-  // result is safe; a mismatch falls through to the serialized clipboard.
+  // parallel-safe. Gemini's one-shot insertText truncates after line one, so
+  // it uses explicit paragraph boundaries. Structure enforcement decides
+  // whether that direct result is safe; a mismatch falls through to the
+  // serialized clipboard.
   if (aiName === 'gemini') {
     for (let attempt = 1; attempt <= 2; attempt++) {
       const inserted = await insertComposerTextWithLineCommands(view, jsonSelector, text)
@@ -2491,13 +2488,6 @@ async function pasteText(view: BrowserView, text: string, selector: string, aiNa
     const directVerification = await verifyComposerText(view, jsonSelector, text, aiName)
     logComposerVerification(aiName, 'execCommand', text.length, directVerification)
     if (directVerification.ok) return
-
-    const isLongKimiPrompt = aiName === 'kimi' && Buffer.byteLength(text, 'utf8') > 4000
-    if (isLongKimiPrompt) {
-      const message = '[pasteText] kimi: direct insertion verification failed; refusing clipboard fallback for prompt over 4000 bytes'
-      sendLog('error', message)
-      throw new Error('Prompt injection verification failed for kimi')
-    }
   }
 
   // Gemini primary path and compatibility fallback: the complete clipboard
@@ -3048,202 +3038,10 @@ async function clickSendLocked(view: BrowserView, selectors: string[], aiName?: 
   `)
   if (res.success) return true
 
-  // ── Kimi: skip the DOM heuristic and submit via CDP ───────────────────────
-  // Kimi's composer footer has multiple icon buttons (model selector, emoji,
-  // "+", send arrow) and the generic heuristic can pick the wrong one.
-  // We try two trusted strategies in order:
-  //   1. CDP mouse click on the visible send button (most reliable — directly
-  //      fires Kimi's React onClick handler with isTrusted=true)
-  //   2. CDP Enter key (clean keydown — NO `text` payload, otherwise Kimi's
-  //      contenteditable inserts a literal \r and Send never enables)
-  if (aiName === 'kimi') {
-    let attached = false
-    try {
-      // Locate composer + send button geometry in one round-trip
-      const probe = await view.webContents.executeJavaScript(`
-        (() => {
-          const editor = document.querySelector('div[contenteditable="true"][data-testid="msh-chatinput-editor"]')
-                      || document.querySelector('div.chat-input-editor[contenteditable="true"]')
-                      || document.querySelector('div[contenteditable="true"][role="textbox"]')
-                      || document.querySelector('div[contenteditable="true"]');
-          if (!editor) return { ok: false, reason: 'no-editor' };
-          editor.focus();
-          // Place caret at end so Enter (fallback) triggers send, not split
-          try {
-            const range = document.createRange();
-            range.selectNodeContents(editor);
-            range.collapse(false);
-            const sel = window.getSelection();
-            if (sel) { sel.removeAllRanges(); sel.addRange(range); }
-          } catch (e) { /* best-effort */ }
-          const text = String(editor.innerText || editor.textContent || '');
-          const hadText = text.trim().length > 0;
-          // Fingerprint a chunk of the typed text so we can verify submission
-          // by its disappearance — innerText alone can be misleading because
-          // Kimi may render a placeholder span when the composer is empty.
-          const trimmed = text.trim();
-          const fingerprint = trimmed.length >= 8
-            ? trimmed.slice(0, Math.min(48, trimmed.length))
-            : trimmed;
-
-          // Find the send button — try testid first, then heuristic.
-          // Heuristic: rightmost icon-only enabled button in the composer
-          // footer that is NOT an attach button.
-          let sendBtn = document.querySelector('[data-testid="msh-chatinput-send-button"]');
-          if (!sendBtn || sendBtn.getAttribute('aria-disabled') === 'true' || sendBtn.disabled) {
-            // Walk up to composer container
-            let composer = editor.parentElement;
-            for (let i = 0; i < 10 && composer; i++) {
-              const candidates = composer.querySelectorAll('button, div[role="button"]');
-              if (candidates.length >= 2) {
-                const attachLabels = /attach|upload|file|clip|image|photo|emoji/i;
-                const iconOnly = [];
-                for (const c of candidates) {
-                  if (c.disabled) continue;
-                  if (c.getAttribute('aria-disabled') === 'true') continue;
-                  const aria = (c.getAttribute('aria-label') || '') + ' ' + (c.getAttribute('title') || '');
-                  if (attachLabels.test(aria)) continue;
-                  if ((c.innerText || '').trim().length > 2) continue;
-                  if (!c.querySelector('svg, img')) continue;
-                  const r = c.getBoundingClientRect();
-                  if (r.width === 0 || r.height === 0) continue;
-                  iconOnly.push({ el: c, x: r.right });
-                }
-                if (iconOnly.length > 0) {
-                  iconOnly.sort((a, b) => b.x - a.x);
-                  sendBtn = iconOnly[0].el;
-                  break;
-                }
-              }
-              composer = composer.parentElement;
-            }
-          }
-
-          let btnRect = null;
-          if (sendBtn) {
-            const r = sendBtn.getBoundingClientRect();
-            if (r.width > 0 && r.height > 0
-                && !sendBtn.disabled
-                && sendBtn.getAttribute('aria-disabled') !== 'true') {
-              btnRect = { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-            }
-          }
-          return { ok: true, hadText, btnRect, fingerprint };
-        })()
-      `).catch(() => ({ ok: false }))
-
-      if (probe?.ok && probe?.hadText) {
-        try { view.webContents.focus() } catch { /* ignore */ }
-
-        const dbg = view.webContents.debugger
-        if (!dbg.isAttached()) {
-          try { dbg.attach('1.3'); attached = true } catch (e) {
-            sendLog('warn', '[clickSend] kimi: debugger attach failed: ' + (e instanceof Error ? e.message : String(e)))
-          }
-        }
-
-        // Verify submission by polling for either:
-        //   (a) the typed text fingerprint is no longer in the composer, OR
-        //   (b) a stop/abort button has appeared (Kimi swaps Send → Stop while
-        //       streaming — a strong positive signal even if the composer
-        //       briefly retains a placeholder span).
-        // Polling avoids racing Kimi's clear animation, which can take >400ms.
-        const verifySubmitted = async (): Promise<boolean> => {
-          const fp = (probe?.fingerprint ?? '') as string
-          const fpJson = JSON.stringify(fp)
-          const deadline = Date.now() + 2000
-          while (Date.now() < deadline) {
-            await sleep(150)
-            const state = await view.webContents.executeJavaScript(`
-              (() => {
-                const el = document.querySelector('div[contenteditable="true"][data-testid="msh-chatinput-editor"]')
-                        || document.querySelector('div.chat-input-editor[contenteditable="true"]')
-                        || document.querySelector('div[contenteditable="true"][role="textbox"]')
-                        || document.querySelector('div[contenteditable="true"]');
-                const text = el ? String(el.innerText || el.textContent || '') : '';
-                const fp = ${fpJson};
-                const fingerprintGone = fp.length > 0 ? !text.includes(fp) : text.trim().length === 0;
-                // Stop/abort button: Kimi shows a square stop icon while streaming.
-                // Match by aria-label, testid, or any button labelled stop/abort/cancel.
-                const stopBtn = document.querySelector(
-                  '[data-testid*="stop" i], [data-testid*="abort" i],' +
-                  ' [aria-label*="stop" i], [aria-label*="abort" i], [aria-label*="cancel" i],' +
-                  ' [aria-label*="停止"], [aria-label*="取消"]'
-                );
-                return { fingerprintGone, hasStop: !!stopBtn };
-              })()
-            `).catch(() => null)
-            if (state?.fingerprintGone || state?.hasStop) return true
-          }
-          return false
-        }
-
-        if (dbg.isAttached()) {
-          // Strategy 1: trusted CDP mouse click on the send button
-          if (probe.btnRect) {
-            try {
-              const { x, y } = probe.btnRect
-              await dbg.sendCommand('Input.dispatchMouseEvent', {
-                type: 'mouseMoved', x, y, button: 'none', clickCount: 0,
-              })
-              await dbg.sendCommand('Input.dispatchMouseEvent', {
-                type: 'mousePressed', x, y, button: 'left', clickCount: 1,
-              })
-              await dbg.sendCommand('Input.dispatchMouseEvent', {
-                type: 'mouseReleased', x, y, button: 'left', clickCount: 1,
-              })
-              if (await verifySubmitted()) {
-                sendLog('info', '[clickSend] kimi: CDP mouse-click on send button succeeded')
-                if (attached) { try { dbg.detach() } catch { /* ignore */ } }
-                return true
-              }
-              sendLog('warn', '[clickSend] kimi: CDP mouse-click did not clear composer — trying Enter')
-            } catch (e) {
-              sendLog('warn', '[clickSend] kimi: CDP mouse-click failed: ' + (e instanceof Error ? e.message : String(e)))
-            }
-          } else {
-            sendLog('info', '[clickSend] kimi: send button not located — falling back to Enter')
-          }
-
-          // Strategy 2: clean CDP Enter — NO text payload, otherwise Kimi
-          // inserts a literal \r into the composer instead of submitting.
-          await dbg.sendCommand('Input.dispatchKeyEvent', {
-            type: 'keyDown',
-            key: 'Enter',
-            code: 'Enter',
-            windowsVirtualKeyCode: 13,
-            nativeVirtualKeyCode: 13,
-          }).catch((e) => sendLog('warn', '[clickSend] kimi: CDP keyDown failed: ' + e.message))
-
-          await dbg.sendCommand('Input.dispatchKeyEvent', {
-            type: 'keyUp',
-            key: 'Enter',
-            code: 'Enter',
-            windowsVirtualKeyCode: 13,
-            nativeVirtualKeyCode: 13,
-          }).catch((e) => sendLog('warn', '[clickSend] kimi: CDP keyUp failed: ' + e.message))
-
-          if (await verifySubmitted()) {
-            sendLog('info', '[clickSend] kimi: CDP Enter-key submission succeeded')
-            if (attached) { try { dbg.detach() } catch { /* ignore */ } }
-            return true
-          }
-          sendLog('warn', '[clickSend] kimi: CDP Enter left composer non-empty — falling through to heuristic')
-        }
-      }
-    } catch (err) {
-      sendLog('warn', '[clickSend] kimi CDP submit error: ' + (err instanceof Error ? err.message : String(err)))
-    } finally {
-      if (attached) {
-        try { view.webContents.debugger.detach() } catch { /* ignore */ }
-      }
-    }
-  }
-
   // ── Perplexity: trusted CDP submit ─────────────────────────────────────────
   // Perplexity's composer uses hashed CSS-module classes and frequently
   // changes aria-labels, so the selector list and the generic heuristic are
-  // fragile.  Same strategy as Kimi:
+  // fragile.  Strategy:
   //   1. CDP mouse click on the probed send button (isTrusted=true events)
   //   2. Clean CDP Enter (no `text` payload)
   // Submission is verified by polling: the typed-text fingerprint disappears
@@ -3880,13 +3678,13 @@ async function createWindow() {
 
     views.set(name, view)
 
-    if (name === 'kimi') {
+    if (name === 'zai') {
       view.webContents.on('did-finish-load', () => {
         mainWindow?.webContents.send('login-status-changed')
       })
     }
 
-    // ── ChatGPT / Perplexity: intercept Google OAuth navigations ─────────────
+    // ── ChatGPT / Perplexity / DeepSeek / Z.ai: intercept Google OAuth ───────
     // When the user clicks "Continue with Google" inside the BrowserView,
     // Chromium navigates the view itself to accounts.google.com.  An embedded
     // BrowserView is treated as a webview by Google's anti-bot checks even with
@@ -3894,7 +3692,7 @@ async function createWindow() {
     // Fix: cancel the in-view navigation and re-open the URL in a proper
     // BrowserWindow (with full Chrome spoof preload) so Google sees it as a
     // normal browser window — identical to how chatgpt-login.mjs works.
-    if (name === 'chatgpt' || name === 'perplexity' || name === 'deepseek') {
+    if (name === 'chatgpt' || name === 'perplexity' || name === 'deepseek' || name === 'zai') {
       const GOOGLE_OAUTH_RE = /^https?:\/\/(accounts\.google\.com|oauth2\.googleapis\.com|accounts\.youtube\.com|login\.microsoftonline\.com|login\.live\.com|appleid\.apple\.com)/
 
       view.webContents.on('will-navigate', (event, url) => {
@@ -4209,7 +4007,7 @@ const LOGIN_COPY_DOMAINS: Record<AiName, string[]> = {
   grok: ['.grok.com', 'grok.com', '.x.com', 'x.com', '.twitter.com', 'twitter.com'],
   deepseek: ['.deepseek.com', 'deepseek.com', 'chat.deepseek.com'],
   perplexity: ['.perplexity.ai'],
-  kimi: ['.kimi.com', 'kimi.com', '.moonshot.cn', 'moonshot.cn'],
+  zai: ['.z.ai', 'z.ai'],
 }
 
 const LOGIN_START_URLS: Record<AiName, string> = {
@@ -4219,7 +4017,7 @@ const LOGIN_START_URLS: Record<AiName, string> = {
   grok: 'https://grok.com',
   deepseek: 'https://chat.deepseek.com',
   perplexity: 'https://www.perplexity.ai',
-  kimi: 'https://kimi.com',
+  zai: 'https://chat.z.ai/',
 }
 
 const LOGIN_TITLES = {
@@ -4230,73 +4028,54 @@ const LOGIN_TITLES = {
   grok: 'Grok Login — Siftline',
 } as Record<AiName, string>
 LOGIN_TITLES.deepseek = 'DeepSeek Login - Siftline'
-LOGIN_TITLES.kimi = 'Kimi Login - Siftline'
+LOGIN_TITLES.zai = 'Z.ai Login - Siftline'
 
 function cookieDomainIncludes(cookie: Pick<Electron.Cookie, 'domain'>, expectedDomain: string): boolean {
   return typeof cookie.domain === 'string' && cookie.domain.includes(expectedDomain)
 }
 
-function isKimiAuthenticatedCookie(cookie: Pick<Electron.Cookie, 'name' | 'domain'>): boolean {
-  if (cookie.name !== 'kimi-auth' || typeof cookie.domain !== 'string') return false
+function isZaiAuthenticatedCookie(cookie: Pick<Electron.Cookie, 'name' | 'domain'>): boolean {
+  if (typeof cookie.domain !== 'string') return false
   const domain = cookie.domain.replace(/^\./, '').toLowerCase()
-  return domain === 'kimi.com' || domain.endsWith('.kimi.com')
+  if (domain !== 'z.ai' && !domain.endsWith('.z.ai')) return false
+  const name = cookie.name.toLowerCase()
+  return name === 'token' || name.includes('session') || name.includes('auth')
 }
 
-interface KimiRendererAuthSignal {
-  accessTokenPresent: boolean
-  refreshTokenPresent: boolean
-  userIdPresent: boolean
-}
-
-function isKimiPageUrl(url: string): boolean {
+function isZaiPageUrl(url: string): boolean {
   try {
     const parsed = new URL(url)
     const hostname = parsed.hostname.toLowerCase()
-    return parsed.protocol === 'https:' && (hostname === 'kimi.com' || hostname.endsWith('.kimi.com'))
+    return parsed.protocol === 'https:' && (hostname === 'z.ai' || hostname.endsWith('.z.ai'))
   } catch {
     return false
   }
 }
 
-function sanitizeKimiRendererAuthSignal(value: unknown): KimiRendererAuthSignal | null {
-  if (!value || typeof value !== 'object') return null
-  const candidate = value as Record<string, unknown>
-  if (
-    typeof candidate.accessTokenPresent !== 'boolean' ||
-    typeof candidate.refreshTokenPresent !== 'boolean' ||
-    typeof candidate.userIdPresent !== 'boolean'
-  ) return null
-  return {
-    accessTokenPresent: candidate.accessTokenPresent,
-    refreshTokenPresent: candidate.refreshTokenPresent,
-    userIdPresent: candidate.userIdPresent,
-  }
-}
-
-function hasCompleteKimiRendererAuthSignal(signal: KimiRendererAuthSignal): boolean {
-  return signal.accessTokenPresent && signal.refreshTokenPresent && signal.userIdPresent
-}
-
-async function getKimiRendererLoginStatus(
+async function getZaiRendererLoginStatus(
   webContents: Pick<WebContents, 'isDestroyed' | 'getURL' | 'executeJavaScript'> | null | undefined =
-    views.get('kimi')?.webContents,
+    views.get('zai')?.webContents,
   timeoutMs = 2_000,
 ): Promise<boolean> {
   if (!webContents || webContents.isDestroyed()) return false
   try {
-    if (!isKimiPageUrl(webContents.getURL())) return false
+    const url = webContents.getURL()
+    if (!isZaiPageUrl(url) || url.includes('/auth')) return false
+    // chat.z.ai is an Open WebUI instance: a logged-in session keeps its JWT
+    // in localStorage under the 'token' key, and the composer textarea
+    // (#chat-input) only renders on the authenticated chat page.
     const rawSignal = await Promise.race<unknown>([
       webContents.executeJavaScript(`
         (() => ({
-          accessTokenPresent: Boolean(localStorage.getItem('access_token')),
-          refreshTokenPresent: Boolean(localStorage.getItem('refresh_token')),
-          userIdPresent: Boolean(localStorage.getItem('msh_user_id')),
+          tokenPresent: Boolean(localStorage.getItem('token')),
+          composerPresent: Boolean(document.querySelector('textarea#chat-input')),
         }))()
       `),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
     ])
-    const signal = sanitizeKimiRendererAuthSignal(rawSignal)
-    return signal !== null && hasCompleteKimiRendererAuthSignal(signal)
+    if (!rawSignal || typeof rawSignal !== 'object') return false
+    const signal = rawSignal as { tokenPresent?: unknown; composerPresent?: unknown }
+    return signal.tokenPresent === true || signal.composerPresent === true
   } catch {
     return false
   }
@@ -4345,8 +4124,8 @@ async function isLoginComplete(aiName: AiName, loginSes: Electron.Session, url: 
       c.name.toLowerCase().includes('session') || c.name.toLowerCase().includes('token') || c.name.toLowerCase().includes('user')
     )
   }
-  if (aiName === 'kimi') {
-    return all.some(isKimiAuthenticatedCookie)
+  if (aiName === 'zai') {
+    return all.some(isZaiAuthenticatedCookie)
   }
   return false
 }
@@ -4526,8 +4305,8 @@ async function getLoginStatus(): Promise<Record<AiName, boolean>> {
   const entries = await Promise.all(AI_NAMES.map(async (aiName) => {
     const cookies = await session.fromPartition(`persist:${aiName}`).cookies.get({})
     const persistedStatus = await getPersistedLoginStatus(aiName, cookies)
-    const status = aiName === 'kimi' && !persistedStatus
-      ? await getKimiRendererLoginStatus()
+    const status = aiName === 'zai' && !persistedStatus
+      ? await getZaiRendererLoginStatus()
       : persistedStatus
     return [aiName, status] as const
   }))
@@ -4552,8 +4331,8 @@ async function getPersistedLoginStatus(aiName: AiName, cookies: Electron.Cookie[
   if (aiName === 'perplexity') {
     return cookies.some((c) => cookieDomainIncludes(c, 'perplexity.ai') && c.name === '__Secure-next-auth.session-token')
   }
-  if (aiName === 'kimi') {
-    return cookies.some(isKimiAuthenticatedCookie)
+  if (aiName === 'zai') {
+    return cookies.some(isZaiAuthenticatedCookie)
   }
 
   // ChatGPT cookie names are not a reliable distinction from anonymous state.
@@ -4622,8 +4401,8 @@ const STANDALONE_LOGIN_SCRIPTS: Partial<Record<AiName, string>> = {
 
 ipcMain.handle('open-login-window', (_e, aiName: AiName) => {
   if (!AI_NAMES.includes(aiName)) return false
-  if (aiName === 'kimi') {
-    sendLog('warn', '[login] Kimi uses the embedded persist:kimi panel; standalone product login is disabled.')
+  if (aiName === 'zai') {
+    sendLog('warn', '[login] Z.ai uses the embedded persist:zai panel; standalone product login is disabled.')
     return false
   }
 
@@ -5954,7 +5733,7 @@ function primaryAiDisplayName(ai: AiName): string {
     grok: 'Grok',
     deepseek: 'DeepSeek',
     perplexity: 'Perplexity',
-    kimi: 'Kimi',
+    zai: 'Z.ai',
   }
   return map[ai] ?? ai
 }
@@ -6018,8 +5797,8 @@ const ROUTING_PROFILE_DETAILS: Record<AiName, AiRecommendationResult> = {
       { ai: 'claude', reason: 'Nuanced tradeoff and correctness analysis' },
     ],
   },
-  kimi: {
-    recommended: 'kimi',
+  zai: {
+    recommended: 'zai',
     reason: 'Recommended for tasks that require a concrete agentic execution plan — multi-step automation, tool-use sequences, long-horizon coding, and failure-mode analysis across complex workflows.',
     roundSuggestions: [
       { ai: 'deepseek', reason: 'First-principles correctness check on the execution logic' },
@@ -6047,10 +5826,10 @@ function ruleBasedRecommendation(query: string): AiRecommendationResult {
     grok: 0,
     deepseek: 0,
     perplexity: 0,
-    kimi: 0,
+    zai: 0,
   }
 
-  scores.kimi += countRoutingMatches(q, [
+  scores.zai += countRoutingMatches(q, [
     /\b(agent|agentic|autonomous|execution[-\s]?plan|workflow|automation|pipeline|tool[-\s]?use|tool[-\s]?call|orchestrat|step[-\s]?by[-\s]?step|failure[-\s]?mode|recovery|dependency|multi[-\s]?step|long[-\s]?horizon|repo|repository|codebase|monorepo|multi[-\s]?file)\b/i,
     /에이전트|자동화|파이프라인|툴\s*사용|단계별|실패\s*모드|복구|의존성|다단계|장기간|레포|레포지토리|코드베이스|다중\s*파일/i,
   ]) * 2
@@ -6094,7 +5873,7 @@ function ruleBasedRecommendation(query: string): AiRecommendationResult {
   if (/문서|자료|종합|시스템|document|synthesis|system|context/i.test(q)) scores.gemini += 1
   if (/실행|사용자|글쓰기|communication|actionable|ux|writing/i.test(q)) scores.chatgpt += 1
 
-  const priority: AiName[] = ['perplexity', 'deepseek', 'kimi', 'gemini', 'claude', 'grok', 'chatgpt']
+  const priority: AiName[] = ['perplexity', 'deepseek', 'zai', 'gemini', 'claude', 'grok', 'chatgpt']
   const recommended = priority.reduce((best, ai) => {
     if (scores[ai] > scores[best]) return ai
     return best
@@ -6111,12 +5890,12 @@ function ruleBasedRecommendation(query: string): AiRecommendationResult {
  */
 async function analyzeQueryForPrimaryAi(query: string): Promise<AiRecommendationResult> {
   const apiKeys = store.get('apiKeys') as StoreSchema['apiKeys']
-  const defaultOrder = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity', 'kimi']
+  const defaultOrder = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity', 'zai']
   const apiKeyOrder: string[] = (store.get('apiKeyOrder') as string[] | undefined) ?? defaultOrder
 
   // Shared routing prompt — compact enough for fast/cheap models
   const ROUTING_PROMPT = `You are an AI routing expert. A user submitted this query to a multi-AI review system.
-Analyze the query and recommend the BEST Primary AI from: chatgpt, claude, gemini, grok, deepseek, perplexity, kimi.
+Analyze the query and recommend the BEST Primary AI from: chatgpt, claude, gemini, grok, deepseek, perplexity, zai.
 
 AI strengths:
 - chatgpt: Practical UX and communication; clear, actionable, human-facing guidance
@@ -6125,7 +5904,7 @@ AI strengths:
 - grok: Adversarial reality critique; assumptions, objections, incentives, and failure modes
 - deepseek: First-principles reasoning for logic, math, code, systems, and optimization
 - perplexity: Source-grounded fact verification, current information, citations, and freshness checks
-- kimi: Agentic execution planning — decomposing complex tasks into ordered steps with tool calls, dependencies, failure modes, and recovery paths
+- zai: Agentic execution planning (GLM) — decomposing complex tasks into ordered steps with tool calls, dependencies, failure modes, and recovery paths
 
 Routing rules:
 - Choose deepseek for code, algorithms, math, logic, debugging, implementation, optimization, or first-principles problem solving.
@@ -6134,7 +5913,7 @@ Routing rules:
 - Choose grok for adversarial critique, contrarian review, hidden assumptions, objections, debates, incentives, or real-world failure modes.
 - Choose perplexity for latest/current information, factual verification, source-grounding, citations, or freshness-sensitive claims.
 - Choose chatgpt for practical UX, writing, communication, tone, user-facing explanation, action plans, or making the answer easy to use.
-- Choose kimi for agentic execution planning: multi-step automation, tool-use sequences, failure-mode analysis of complex workflows, or long-horizon coding tasks that require decomposing dependencies and recovery paths.
+- Choose zai for agentic execution planning: multi-step automation, tool-use sequences, failure-mode analysis of complex workflows, or long-horizon coding tasks that require decomposing dependencies and recovery paths.
 - If a query matches multiple roles, pick the AI whose unique strength is most central to producing the first draft. Put complementary reviewers in roundSuggestions.
 
 User Query: "${query.slice(0, 500)}"
@@ -6142,7 +5921,7 @@ User Query: "${query.slice(0, 500)}"
 Respond ONLY with valid JSON (no markdown, no explanation):
 {"recommended":"<ai_name>","reason":"<one sentence>","roundSuggestions":[{"ai":"<ai_name>","reason":"<brief>"},{"ai":"<ai_name>","reason":"<brief>"}]}`
 
-  const validAis: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity', 'kimi']
+  const validAis: AiName[] = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity', 'zai']
 
   /** Parse LLM text -> AiRecommendationResult or null */
   const parseResult = (text: string): AiRecommendationResult | null => {
@@ -6250,6 +6029,25 @@ Respond ONLY with valid JSON (no markdown, no explanation):
           responseText = data?.choices?.[0]?.message?.content ?? ''
         }
 
+      } else if (provider === 'zai') {
+        const res = await fetch('https://api.z.ai/api/paas/v4/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${key}`,
+          },
+          body: JSON.stringify({
+            model: 'glm-4.5-flash',
+            max_tokens: 300,
+            temperature: 0.1,
+            messages: [{ role: 'user', content: ROUTING_PROMPT }],
+          }),
+        })
+        if (res.ok) {
+          const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> }
+          responseText = data?.choices?.[0]?.message?.content ?? ''
+        }
+
       } else {
         // perplexity / grok (xAI) — no routing completion endpoint configured; skip
         continue
@@ -6328,8 +6126,8 @@ const FILE_UPLOAD_BUTTON_SELECTORS: Partial<Record<AiName, string[]>> = {
     'button[aria-label*="media" i]',
   ],
   perplexity: [],   // no reliable file upload in free tier
-  kimi: [
-    // Kimi composer attachment button (paperclip / "+")
+  zai: [
+    // Z.ai (Open WebUI) composer attachment button (paperclip / "+")
     'button[aria-label*="attach" i]',
     'button[aria-label*="upload" i]',
     'button[aria-label*="file" i]',
@@ -7397,7 +7195,7 @@ async function classifySessionRelationWithAi(
   if (!currentSession || !query.trim()) return null
 
   const apiKeys = store.get('apiKeys') as StoreSchema['apiKeys']
-  const defaultOrder = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity', 'kimi']
+  const defaultOrder = ['chatgpt', 'claude', 'gemini', 'grok', 'deepseek', 'perplexity', 'zai']
   const apiKeyOrder: string[] = (store.get('apiKeyOrder') as string[] | undefined) ?? defaultOrder
 
   const RELATION_PROMPT = `You are classifying whether a user's new message should continue the current AI conversation or start a brand-new session.
@@ -7513,6 +7311,24 @@ ${query.slice(0, 500)}`
           },
           body: JSON.stringify({
             model: 'llama3-8b-8192',
+            max_tokens: 200,
+            temperature: 0.1,
+            messages: [{ role: 'user', content: RELATION_PROMPT }],
+          }),
+        })
+        if (res.ok) {
+          const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> }
+          responseText = data?.choices?.[0]?.message?.content ?? ''
+        }
+      } else if (provider === 'zai') {
+        const res = await fetch('https://api.z.ai/api/paas/v4/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${key}`,
+          },
+          body: JSON.stringify({
+            model: 'glm-4.5-flash',
             max_tokens: 200,
             temperature: 0.1,
             messages: [{ role: 'user', content: RELATION_PROMPT }],
@@ -7818,6 +7634,7 @@ const OAUTH_ALLOWED_DOMAINS = [
   'perplexity.ai',             // Perplexity OAuth return
   'grok.com',                  // Grok OAuth return
   'chat.deepseek.com',          // DeepSeek chat / login
+  'z.ai',                       // Z.ai (GLM) chat / OAuth return
   'x.com',                     // X (Twitter) SSO for Grok login
   'api.x.com',
   'abs.twimg.com',             // X/Twitter static assets (login UI)

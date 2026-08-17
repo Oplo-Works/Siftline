@@ -40,7 +40,7 @@ export const COUNCIL_MENTION_ALIASES: Array<{ ai: AiName; aliases: string[] }> =
   { ai: 'deepseek', aliases: ['deepseek'] },
   { ai: 'gemini', aliases: ['gemini'] },
   { ai: 'grok', aliases: ['grok'] },
-  { ai: 'kimi', aliases: ['kimi'] },
+  { ai: 'zai', aliases: ['zai', 'z.ai', 'glm'] },
   { ai: 'perplexity', aliases: ['perplexity'] },
 ]
 

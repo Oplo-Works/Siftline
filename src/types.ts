@@ -1,4 +1,4 @@
-export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'deepseek' | 'perplexity' | 'kimi'
+export type AiName = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'deepseek' | 'perplexity' | 'zai'
 
 export interface TelegramConfig {
   enabled: boolean
@@ -179,7 +179,7 @@ export interface CouncilSnapshotPayload {
   insight?: Partial<CouncilSnapshotInsight>
 }
 
-export const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'kimi', 'perplexity']
+export const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'zai', 'perplexity']
 
 export const DEFAULT_ENABLED_AIS: AiName[] = ['chatgpt', 'claude', 'gemini']
 
@@ -190,7 +190,7 @@ export const AI_DISPLAY_NAMES: Record<AiName, string> = {
   grok: 'Grok',
   deepseek: 'DeepSeek',
   perplexity: 'Perplexity',
-  kimi: 'Kimi',
+  zai: 'Z.ai',
 }
 
 export const AI_COLORS: Record<AiName, { primary: string; glow: string; badge: string }> = {
@@ -200,7 +200,7 @@ export const AI_COLORS: Record<AiName, { primary: string; glow: string; badge: s
   grok: { primary: '#7c3aed', glow: 'rgba(124,58,237,0.35)', badge: '#7c3aed' },
   deepseek: { primary: '#4D6BFE', glow: 'rgba(77,107,254,0.35)', badge: '#4D6BFE' },
   perplexity: { primary: '#20b2aa', glow: 'rgba(32,178,170,0.35)', badge: '#20b2aa' },
-  kimi: { primary: '#1d6dff', glow: 'rgba(29,109,255,0.35)', badge: '#1d6dff' },
+  zai: { primary: '#3d5afe', glow: 'rgba(61,90,254,0.35)', badge: '#3d5afe' },
 }
 
 export const AI_ICONS: Record<AiName, string> = {
@@ -210,7 +210,7 @@ export const AI_ICONS: Record<AiName, string> = {
   grok: 'X',
   deepseek: 'D',
   perplexity: 'P',
-  kimi: 'K',
+  zai: 'Z',
 }
 
 export const AI_ROLE_PRESETS: Record<AiName, AiRolePreset> = {
@@ -259,10 +259,10 @@ export const AI_ROLE_PRESETS: Record<AiName, AiRolePreset> = {
 - Strongest objection or hidden risk
 - Sharper, reality-grounded alternative`,
   },
-  kimi: {
-    title: 'Long-Context Deep Analyst',
-    role: 'Long-Context Deep Research Analyst',
-    focus: 'Apply extended-context reading to analyze large documents, synthesize comprehensive research, and surface insights that require processing substantial amounts of source material. Identify what a limited-context reviewer would miss in long, dense, or multi-part content.',
+  zai: {
+    title: 'Agentic Long-Context Analyst',
+    role: 'Agentic Coding and Long-Context Analyst (GLM)',
+    focus: 'Apply GLM agentic reasoning and long-context reading to decompose complex tasks into ordered execution steps, analyze large documents, and surface insights that require processing substantial source material. Identify what a limited-context reviewer would miss in long, dense, or multi-part content.',
     outputGuide: `Respond with three short sections:
 - Deep context insights (from full document scope)
 - What limited-context reviewers missed

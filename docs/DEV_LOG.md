@@ -531,3 +531,36 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
   pinned 22.22.3 not installed; same recorded deviation). Manual drag feel NOT_RUN
   (requires owner run via build-and-run.bat).
 - Publish: AUTO_AT_CLOSE to `origin/kimi/ui-titlebar-branding-polish`.
+
+## 2026-08-17T16:30:00Z — replace-kimi-with-zai / STANDARD
+
+- Stage: owner-directed provider replacement (Kimi removed Google-login option
+  site-side 2026-07~08, breaking the embedded login flow; owner chose Z.ai).
+- Risk: Standard — provider selectors, login detection, and send path changed
+  for one panel slot. Other 6 providers untouched. Version stays 1.0.9.
+- Change: 7th provider slot `kimi` -> `zai` (Z.ai / GLM, https://chat.z.ai/ —
+  an Open WebUI instance). `AiName` union, AI_NAMES, display names, colors
+  (#3d5afe), icon (Z), role preset (Agentic Long-Context Analyst),
+  mention aliases (@zai/@z.ai/@glm), council routing profile + prompts,
+  apiKeyOrder/defaultOrder. main.ts: DEFAULT_SELECTORS rewritten for Open
+  WebUI (`textarea#chat-input`, `[class*="sendMessageButton"]`,
+  `.markdown-prose`/`[class*="response-content"]`); streaming overrides
+  renamed (6s stable / 20s guard kept); kimi-only CDP clickSend path removed
+  (~190 lines — z.ai uses a plain textarea + stable send button, generic
+  selector path suffices); kimi 4000-byte paste guard removed; login
+  detection replaced with Open WebUI signals (localStorage `token` key +
+  `textarea#chat-input` composer presence, z.ai-domain auth cookies);
+  `persist:zai` partition; Google-OAuth will-navigate interception extended
+  to zai; OAUTH_ALLOWED_DOMAINS += z.ai; Z.ai API key entry added
+  (https://api.z.ai/api/paas/v4, model glm-4.5-flash) for query-routing and
+  session-relation calls. AccountsPanel: embedded-panel login flow reused
+  ("Open panel"). Deleted `kimi-login.mjs` / `kimi-login.bat` (vestigial).
+- Not changed (follow-up candidates): scripts/verify-electron-phase2.ts,
+  verify-council-phase1/3.ts, probe-electron-login-status.mjs,
+  verify-electron-phase2-snapshots.mjs still reference kimi (dev-only
+  tooling, not part of tsc/build); README.md/README.html provider lists.
+- Validation: `npx tsc --noEmit` exit 0; `npm run build` exit 0
+  (Node v24.12.0 — pinned 22.22.3 not installed; same recorded deviation).
+  Manual login/broadcast test NOT_RUN (requires owner run via
+  build-and-run.bat; selectors may need fine-tuning via userData selectors.json).
+- Publish: AUTO_AT_CLOSE to `origin/kimi/replace-kimi-with-zai`.

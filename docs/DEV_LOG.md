@@ -564,3 +564,19 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
   Manual login/broadcast test NOT_RUN (requires owner run via
   build-and-run.bat; selectors may need fine-tuning via userData selectors.json).
 - Publish: AUTO_AT_CLOSE to `origin/kimi/replace-kimi-with-zai`.
+
+## 2026-08-17T17:10:00Z — v1.1.0 bump + z.ai follow-up / MICRO
+
+- Change: version 1.0.9 -> 1.1.0 (`package.json`; TitleBar reads it via import).
+  Owner judged the Kimi->Z.ai provider replacement a feature-level change.
+  Follow-up fix included in this release line: Z.ai moved to the end of
+  provider lists (after Perplexity) to keep chip rows alphabetical
+  (`src/types.ts`, `src/components/AccountsPanel.tsx`).
+- Owner test evidence: z.ai embedded-panel Google login succeeded (GLM-5.2
+  chat UI confirmed). Google anti-bot warning page and a raw
+  `{"detail":"invalid state"}` OAuth-callback render appeared in the popup
+  during the flow — cosmetic; session cookie lands in persist:zai regardless.
+  Popup auto-close on callback is a future polish candidate.
+- Validation: `npx tsc --noEmit` exit 0; `npm run build` exit 0.
+- Publish: AUTO_AT_CLOSE to `origin/kimi/replace-kimi-with-zai`.
+  Installer rebuilt via `npm run package:installer` (release/Siftline-Setup-1.1.0.exe).

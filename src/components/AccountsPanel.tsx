@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { AiName, AI_DISPLAY_NAMES, AI_COLORS, AI_ICONS } from '../types'
 
-const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'zai', 'perplexity']
-const DEFAULT_ORDER = ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'zai', 'perplexity']
+const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'perplexity', 'zai']
+const DEFAULT_ORDER = ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'perplexity', 'zai']
 
 type ProviderId = AiName | 'deepseek'
 type Tab = 'accounts' | 'apikeys'

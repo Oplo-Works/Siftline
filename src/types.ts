@@ -179,7 +179,7 @@ export interface CouncilSnapshotPayload {
   insight?: Partial<CouncilSnapshotInsight>
 }
 
-export const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'zai', 'perplexity']
+export const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'perplexity', 'zai']
 
 export const DEFAULT_ENABLED_AIS: AiName[] = ['chatgpt', 'claude', 'gemini']
 

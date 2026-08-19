@@ -580,3 +580,26 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
 - Validation: `npx tsc --noEmit` exit 0; `npm run build` exit 0.
 - Publish: AUTO_AT_CLOSE to `origin/kimi/replace-kimi-with-zai`.
   Installer rebuilt via `npm run package:installer` (release/Siftline-Setup-1.1.0.exe).
+
+
+## 2026-08-19T14:40:00Z — gemini-prompt-focus-guard / Standard
+
+- Change: Gemini 프롬프트 주입의 첫 시도 간헐 실패 수정. composer에 caret이
+  없는 상태에서 document-wide `execCommand('selectAll')`/Ctrl+A가 body 전체를
+  선택해 paste가 composer를 빗나갔고 readback 검증 실패
+  (`Prompt injection verification failed for gemini`); retry는 첫 시도의
+  click/focus 워밍업 덕에 성공했음. `scopeComposerSelection()` 헬퍼가
+  Selection API로 selection을 composer contents로 한정(포커스 무관)하고,
+  Gemini one-shot/per-line 클리어와 clipboard fallback(Ctrl+A 대체)에 적용.
+  다른 6개 provider 경로는 미변경. `electron/main.ts` (+83/-5).
+- SPEC/PLAN: `docs/features/gemini-prompt-focus-guard/` bundle R1 —
+  2026-08-19 "어 승인할게. 수정 시작하자"로 승인.
+- Validation: `npx tsc --noEmit` exit 0; `npm run build` exit 0;
+  owner 실앱 검증 PASS (콜드 첫 전송 1회 성공, @all broadcast 회귀 없음,
+  전체 페이지 선택 현상 소거) — `TEST_EVIDENCE.md` 참조.
+- Review: independent review skipped — owner가 실앱 검증 PASS를 근거로
+  "commit & push 해줘" 지시 (2026-08-19), council-broadcast-send-hardening
+  close와 동일한 owner 선택.
+- Publish: AUTO_AT_CLOSE to `origin/kimi/gemini-prompt-focus-guard`.
+  Installer rebuilt: `release/Siftline-Setup-1.1.0.exe` (owner 요청 로컬
+  빌드, publish/tag 없음).

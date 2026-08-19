@@ -2,10 +2,15 @@
 
 - Feature ID: `oauth-popup-autoclose`
 - Risk: Standard
-- Bundle ID: `oauth-popup-autoclose-R1`
-- SPEC Revision: 1
+- Bundle ID: `oauth-popup-autoclose-R2`
+- SPEC Revision: 2
 - Status: APPROVED
 - Last Updated: 2026-08-19
+
+> Rev 2 (2026-08-19): owner 검증 중 발견된 blocker — z.ai 로그인 감지가
+> `tokenPresent || composerPresent` OR 조건이라 signed-out 랜딩 페이지의
+> composer 때문에 "Logged in" 오탐. 판정을 `tokenPresent AND !signInVisible`로
+> 강화하는 수정을 본 작업 범위에 추가 (owner 메시지 "확인해줘").
 
 ## Context / User / Goal
 

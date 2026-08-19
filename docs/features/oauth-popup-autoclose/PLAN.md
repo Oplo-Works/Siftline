@@ -3,7 +3,7 @@
 - Feature ID: `oauth-popup-autoclose`
 - Risk: Standard
 - Bundle ID: `oauth-popup-autoclose-R1`
-- PLAN Revision: 1
+- PLAN Revision: 2
 - SPEC: `docs/features/oauth-popup-autoclose/SPEC.md` — SPEC Revision 1, APPROVED
 - Status: APPROVED
 - Base Branch/Commit: `kimi/oauth-popup-autoclose` @ `70f0d40` (main)
@@ -41,9 +41,11 @@
 ## Approval Bundle
 
 - Mode: STANDARD_BUNDLE
-- Bundle ID: `oauth-popup-autoclose-R1`
-- SPEC Revision approved: 1
-- PLAN Revision approved: 1
+- Bundle ID: `oauth-popup-autoclose-R2`
+- SPEC Revision approved: 2
+- PLAN Revision approved: 2
 - Decision: APPROVED
-- User message: 2026-08-19, "둘다 순서대로 진행해서 완료해"
-- Constraints / expiry: `zai` 분기 추가만; 다른 provider 정규식 불변
+- User message: 2026-08-19, "둘다 순서대로 진행해서 완료해" (R1);
+  R2 범위 추가(z.ai 로그인 감지 오탐 수정)는 같은 날 owner의
+  "분명히 z.ai 에서 log out 해놨는데도 말이야. 확인해줘" 요청으로 승인
+- Constraints / expiry: `zai` OAuth/로그인 감지 분기만; 다른 provider 불변

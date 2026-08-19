@@ -4137,20 +4137,30 @@ async function getZaiRendererLoginStatus(
     const url = webContents.getURL()
     if (!isZaiPageUrl(url) || url.includes('/auth')) return false
     // chat.z.ai is an Open WebUI instance: a logged-in session keeps its JWT
-    // in localStorage under the 'token' key, and the composer textarea
-    // (#chat-input) only renders on the authenticated chat page.
+    // in localStorage under the 'token' key.  The composer textarea
+    // (#chat-input) also renders on the signed-out landing page, so it is NOT
+    // a sufficient signal on its own (observed 2026-08-19: app reported
+    // "Logged in" while the page showed a Sign in button).  The authoritative
+    // pair is: JWT present AND no visible "Sign in" button.
     const rawSignal = await Promise.race<unknown>([
       webContents.executeJavaScript(`
         (() => ({
           tokenPresent: Boolean(localStorage.getItem('token')),
           composerPresent: Boolean(document.querySelector('textarea#chat-input')),
+          signInVisible: Array.from(document.querySelectorAll('button, a'))
+            .some((el) => {
+              const text = (el.textContent || '').trim()
+              if (!/^sign in$/i.test(text)) return false
+              const rect = el.getBoundingClientRect()
+              return rect.width > 0 && rect.height > 0
+            }),
         }))()
       `),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
     ])
     if (!rawSignal || typeof rawSignal !== 'object') return false
-    const signal = rawSignal as { tokenPresent?: unknown; composerPresent?: unknown }
-    return signal.tokenPresent === true || signal.composerPresent === true
+    const signal = rawSignal as { tokenPresent?: unknown; composerPresent?: unknown; signInVisible?: unknown }
+    return signal.tokenPresent === true && signal.signInVisible !== true
   } catch {
     return false
   }

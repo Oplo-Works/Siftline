@@ -338,9 +338,9 @@
         <div class="card-desc">DeepSeek (<code>chat.deepseek.com</code>) replaces Groq as the 6th AI panel. Optimized for reasoning, coding, and concise synthesis.</div>
       </div>
       <div class="card">
-        <div class="card-icon">🌙</div>
-        <div class="card-title">Kimi Support <span class="new-badge">NEW</span></div>
-        <div class="card-desc">Kimi (<code>kimi.com</code>) by Moonshot AI joins as the 7th AI panel. Specializes in long-context deep research — reads large documents and surfaces insights that limited-context models miss.</div>
+        <div class="card-icon">🇿</div>
+        <div class="card-title">Z.ai (GLM) Support <span class="new-badge">NEW</span></div>
+        <div class="card-desc">Z.ai (<code>chat.z.ai</code>) joins as the 7th AI panel, replacing Kimi. Powered by GLM models — specializes in agentic reasoning and long-context analysis, reading large documents to surface insights that limited-context models miss.</div>
       </div>
       <div class="card">
         <div class="card-icon">🤖</div>
@@ -370,7 +370,7 @@
       <div class="chip"><span class="chip-dot" style="background:#4D6BFE"></span>DeepSeek</div>
       <div class="chip"><span class="chip-dot" style="background:#20b2aa"></span>Perplexity</div>
       <div class="chip"><span class="chip-dot" style="background:#e7c76f"></span>Grok</div>
-      <div class="chip"><span class="chip-dot" style="background:#1d6dff"></span>Kimi</div>
+      <div class="chip"><span class="chip-dot" style="background:#3d5afe"></span>Z.ai</div>
     </div>
   </section>
 
@@ -381,9 +381,9 @@
     <table>
       <thead><tr><th>Platform</th><th>File</th><th>Target</th></tr></thead>
       <tbody>
-        <tr><td>🍎 macOS (Intel)</td><td><code>AI-Council-*-x64.dmg</code></td><td>Intel Mac (pre-2020)</td></tr>
-        <tr><td>🍎 macOS (Apple Silicon)</td><td><code>AI-Council-*-arm64.dmg</code></td><td>M1 / M2 / M3 / M4 Mac</td></tr>
-        <tr><td>🪟 Windows</td><td><code>AI-Council-Setup.exe</code></td><td>Windows 10 / 11 (x64)</td></tr>
+        <tr><td>🍎 macOS (Intel)</td><td><code>Siftline-*-x64.dmg</code></td><td>Intel Mac (pre-2020)</td></tr>
+        <tr><td>🍎 macOS (Apple Silicon)</td><td><code>Siftline-*-arm64.dmg</code></td><td>M1 / M2 / M3 / M4 Mac</td></tr>
+        <tr><td>🪟 Windows</td><td><code>Siftline-Setup-*.exe</code></td><td>Windows 10 / 11 (x64)</td></tr>
       </tbody>
     </table>
     <h3>🍎 macOS — Install from DMG</h3>
@@ -410,7 +410,7 @@
     </div>
     <h3>🪟 Windows — Install from EXE</h3>
     <ol>
-      <li>Download <code>AI-Council-Setup.exe</code>.</li>
+      <li>Download <code>Siftline-Setup-*.exe</code>.</li>
       <li>Double-click to run the setup wizard.</li>
       <li>Launch from the desktop shortcut or Start Menu.</li>
     </ol>
@@ -534,7 +534,7 @@
         <tr><td>ChatGPT</td><td>Practical UX and Communication Coach</td><td>Clarity, tone, actionability, and real-world usefulness</td></tr>
         <tr><td>Gemini</td><td>Broad-Context Systems Synthesizer</td><td>Big-picture gaps, framing, audience fit, and missing context</td></tr>
         <tr><td>DeepSeek</td><td>First-Principles Technical Reasoning Solver</td><td>Re-derives from fundamentals; cleanest, most efficient path</td></tr>
-        <tr><td>Kimi</td><td>Agentic Execution Architect</td><td>Ordered execution steps, tool calls, dependencies, and failure-mode recovery</td></tr>
+        <tr><td>Z.ai (GLM)</td><td>Agentic Long-Context Analyst</td><td>Ordered execution steps from agentic reasoning; long-document insights limited-context reviewers miss</td></tr>
       </tbody>
     </table>
   </section>
@@ -549,7 +549,7 @@
       <tbody>
         <tr><td><code>@Gemini your question</code></td><td>Ask only Gemini</td></tr>
         <tr><td><code>@Claude your question</code></td><td>Ask only Claude</td></tr>
-        <tr><td><code>@Kimi analyze this document</code></td><td>Ask only Kimi</td></tr>
+        <tr><td><code>@Z.ai analyze this document</code></td><td>Ask only Z.ai</td></tr>
         <tr><td><code>@all your question</code></td><td>Broadcast to all active AIs simultaneously</td></tr>
         <tr><td>Plain text (no mention)</td><td>The app routes to the most relevant AI based on context</td></tr>
       </tbody>
@@ -603,7 +603,7 @@
         <tr><td>DeepSeek</td><td><code>sk-...</code></td><td><a href="https://platform.deepseek.com/api_keys">platform.deepseek.com</a></td></tr>
         <tr><td>Perplexity</td><td><code>pplx-...</code></td><td><a href="https://www.perplexity.ai/settings/api">perplexity.ai</a></td></tr>
         <tr><td>Grok (xAI)</td><td><code>xai-...</code></td><td><a href="https://console.x.ai">console.x.ai</a></td></tr>
-        <tr><td>Kimi (Moonshot)</td><td><code>sk-...</code></td><td><a href="https://platform.moonshot.cn/console/api-keys">platform.moonshot.cn</a></td></tr>
+        <tr><td>Z.ai (GLM)</td><td><code>sk-...</code></td><td><a href="https://z.ai/model-api">z.ai/model-api</a></td></tr>
       </tbody>
     </table>
 
@@ -614,13 +614,13 @@ claude-login.bat      <span class="cm"># Claude.ai</span>
 chatgpt-login.bat     <span class="cm"># ChatGPT</span>
 deepseek-login.bat    <span class="cm"># DeepSeek</span>
 perplexity-login.bat  <span class="cm"># Perplexity</span>
-grok-login.bat        <span class="cm"># Grok (X / Twitter account)</span>
-kimi-login.bat        <span class="cm"># Kimi (Moonshot account)</span></pre>
+grok-login.bat        <span class="cm"># Grok (X / Twitter account)</span></pre>
+    <p style="font-size:13px;color:var(--text-muted);">Z.ai signs in through its embedded panel — use <strong>Accounts → Z.ai → Open panel</strong> in the app.</p>
 
     <h3>Dev &amp; build commands</h3>
     <pre><span class="kw">npm</span> start                     <span class="cm"># Dev mode with hot reload</span>
 <span class="kw">npm</span> run build                 <span class="cm"># Production Vite build</span>
-<span class="kw">npm</span> run package:installer     <span class="cm"># Windows NSIS installer → release/AI-Council-Setup.exe</span>
+<span class="kw">npm</span> run package:installer     <span class="cm"># Windows NSIS installer → release/Siftline-Setup-*.exe</span>
 <span class="kw">npm</span> run package:mac           <span class="cm"># macOS DMG (x64 + arm64) → release/*.dmg</span></pre>
 
     <div class="callout callout-teal">

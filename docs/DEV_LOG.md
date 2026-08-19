@@ -613,3 +613,17 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
   URL도 `https://github.com/Oplo-Works/Siftline.git`으로 set-url 완료.
   역사 기록 문서(handoff_history, archive, 과거 SPEC/PLAN)는 미수정.
   Publish: AUTO_AT_CLOSE to `origin/kimi/gemini-prompt-focus-guard`.
+
+
+## 2026-08-19T15:50:00Z — readme-zai-provider-drift / MICRO
+
+- README.md/README.html이 7번째 provider를 여전히 Kimi로 기술한 drift 정리
+  (v1.1.0에서 Z.ai/GLM으로 교천됨): feature 카드, provider 표, @mention 예시,
+  API 키 표(z.ai/model-api), reviewer 역할 표(Agentic Long-Context Analyst),
+  첫 실행 비활성 목록. 삭제된 kimi-login.bat 참조 제거하고 Z.ai는 임베디드
+  패널 로그인(Accounts → Z.ai → Open panel) 안내로 대체. installer 파일명도
+  현행 artifactName 기준(Siftline-Setup-*.exe, Siftline-Portable-*.exe,
+  Siftline-*-x64/arm64.dmg)으로 정정. package.json name=ai-council 기반
+  런타임 경로(%APPDATA%\ai-council, ai-council-telegram temp)는 실제와
+  일치하므로 유지. 문서 전용, 동작 변경 없음.
+  Publish: task branch push 후 main 머지는 사용자 결정.

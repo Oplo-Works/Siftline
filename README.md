@@ -50,7 +50,7 @@
 
 ## 📥 Download & Install
 
-No build required. Download the latest installer from [GitHub Releases](https://github.com/MinkyuTheBuilder/AI-Council-Chat/releases/latest).
+No build required. Download the latest installer from [GitHub Releases](https://github.com/Oplo-Works/Siftline/releases/latest).
 
 | Platform | File | Target |
 |----------|------|--------|

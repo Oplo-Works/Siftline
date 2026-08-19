@@ -14,6 +14,9 @@
 > session/auth 계열 쿠키에 매칭되어 renderer 체크까지 도달하지 못함 → zai는
 > 뷰가 살아있을 때 renderer 체크를 우선하고 쿠키는 폴백으로 격하
 > (owner 메시지 "확인해줘" / "아직도 logged in 으로 나와").
+> (3) Open panel이 뷰 enable만 하고 리로드하지 않아 로그아웃 후 dead/blank
+> 뷰가 그대로 노출됨 → `open-zai-panel` IPC가 attach+bounds+홈 리로드를 보장
+> (owner 메시지 "open panel 을 눌러도 아무것도 뜨지 않아").
 
 ## Context / User / Goal
 

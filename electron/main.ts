@@ -2421,8 +2421,15 @@ async function insertComposerTextViaCDP(
   view: BrowserView,
   jsonSelector: string,
   text: string,
+  aiName?: AiName,
 ): Promise<boolean> {
-  const prepared = await view.webContents.executeJavaScript(`
+  // Gemini: pin the selection to the composer's own contents via the
+  // Selection API instead of document-wide selectAll — an unscoped selectAll
+  // can land on the page body when the composer does not hold the caret
+  // (see scopeComposerSelection).  Other callers keep the original prepare.
+  const prepared = aiName === 'gemini'
+    ? await scopeComposerSelection(view, jsonSelector, aiName)
+    : await view.webContents.executeJavaScript(`
     (() => {
       const target = document.querySelector(${jsonSelector});
       if (!target) return false;
@@ -2507,6 +2514,16 @@ async function pasteText(view: BrowserView, text: string, selector: string, aiNa
   // whether that direct result is safe; a mismatch falls through to the
   // serialized clipboard.
   if (aiName === 'gemini') {
+    // Trusted CDP insertion goes through Chromium's real input pipeline, so
+    // Gemini's Quill composer processes it like actual typing — no mid-edit
+    // re-render line drops.  Primary path; the execCommand line pass below
+    // remains the first fallback, then per-line, then serialized clipboard.
+    const cdpInserted = await insertComposerTextViaCDP(view, jsonSelector, text, aiName)
+    if (cdpInserted) await sleep(150)
+    const cdpVerification = await verifyComposerText(view, jsonSelector, text, aiName)
+    logComposerVerification(aiName, 'cdp-insertText', text.length, cdpVerification)
+    if (cdpVerification.ok) return
+
     for (let attempt = 1; attempt <= 2; attempt++) {
       const inserted = await insertComposerTextWithLineCommands(view, jsonSelector, text)
       if (inserted) await sleep(150)

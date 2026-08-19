@@ -2177,18 +2177,75 @@ async function insertComposerTextWithExecCommand(
   `).catch(() => false) as Promise<boolean>
 }
 
+/**
+ * Gemini focus guard: selection-scoped editing commands (selectAll/delete,
+ * Ctrl+V) act on the *current* selection.  When the caret is not inside the
+ * composer, those commands land on the document body — the whole
+ * conversation page gets selected and the paste goes nowhere (observed
+ * 2026-08-19: first-send injection failed with the entire Gemini page
+ * selected; a manual retry then worked because the first attempt's
+ * click/focus had already warmed up the view).  This helper pins the
+ * selection to the composer's own contents via the Selection API, which
+ * works regardless of OS/webContents focus.  Returns false when the
+ * selection could not be scoped — callers must then fall through instead of
+ * running body-wide selectAll/Ctrl+A commands.
+ */
+async function scopeComposerSelection(
+  view: BrowserView,
+  jsonSelector: string,
+  aiName?: AiName,
+): Promise<boolean> {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const scoped = await view.webContents.executeJavaScript(`
+      (() => {
+        const target = document.querySelector(${jsonSelector});
+        if (!target || !target.isContentEditable) return false;
+        target.focus();
+        try {
+          const range = document.createRange();
+          range.selectNodeContents(target);
+          const sel = window.getSelection();
+          if (!sel) return false;
+          sel.removeAllRanges();
+          sel.addRange(range);
+          return sel.rangeCount > 0
+            && target.contains(sel.getRangeAt(0).commonAncestorContainer);
+        } catch (e) {
+          return false;
+        }
+      })()
+    `).catch(() => false) as boolean
+    if (scoped) return true
+    if (attempt === 1) {
+      sendLog('warn', `[pasteText] ${aiName ?? 'unknown'}: composer selection not scoped — re-focusing once`)
+      try { view.webContents.focus() } catch { /* view may be detached */ }
+      await sleep(120)
+    }
+  }
+  return false
+}
+
 async function insertComposerTextWithLineCommands(
   view: BrowserView,
   jsonSelector: string,
   text: string,
 ): Promise<boolean> {
+  // Gate: never run delete/insertText until the selection is confirmed inside
+  // the composer — an unscoped selection used to make selectAll wipe/select
+  // the entire conversation page.
+  if (!await scopeComposerSelection(view, jsonSelector, 'gemini')) return false
   return view.webContents.executeJavaScript(`
     (() => {
       const target = document.querySelector(${jsonSelector});
       if (!target || !target.isContentEditable) return false;
       const lines = ${JSON.stringify(normalizeComposerText(text))}.split('\\n');
       target.focus();
-      document.execCommand('selectAll', false, null);
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(target);
+        const sel = window.getSelection();
+        if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+      } catch (e) { /* selection already scoped by caller */ }
       document.execCommand('delete', false, null);
       let inserted = true;
       for (let index = 0; index < lines.length; index++) {
@@ -2233,13 +2290,21 @@ async function insertComposerTextLineByLineVerified(
   const expectedSignature = getComposerLineSignature(text)
   const startedAt = Date.now()
 
-  // Clear the composer once, up front.
+  // Clear the composer once, up front.  Selection is scoped to the composer
+  // (never document-wide selectAll) so a missing caret cannot select the
+  // whole conversation page.
+  if (!await scopeComposerSelection(view, jsonSelector, aiName)) return false
   const cleared = await view.webContents.executeJavaScript(`
     (() => {
       const target = document.querySelector(${jsonSelector});
       if (!target || !target.isContentEditable) return false;
       target.focus();
-      document.execCommand('selectAll', false, null);
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(target);
+        const sel = window.getSelection();
+        if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+      } catch (e) { /* selection already scoped by caller */ }
       document.execCommand('delete', false, null);
       return true;
     })()
@@ -2524,8 +2589,16 @@ async function pasteText(view: BrowserView, text: string, selector: string, aiNa
           }
 
           clipboard.writeText(text)
-          view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'A', modifiers: ['ctrl'] })
-          view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'A', modifiers: ['ctrl'] })
+          if (aiName === 'gemini') {
+            // Gemini's composer is contenteditable: Ctrl+A without a composer
+            // caret selects the whole conversation page, so scope the
+            // selection to the composer instead — Ctrl+V then replaces its
+            // contents in place regardless of OS focus.
+            await scopeComposerSelection(view, jsonSelector, aiName)
+          } else {
+            view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'A', modifiers: ['ctrl'] })
+            view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'A', modifiers: ['ctrl'] })
+          }
           await sleep(50)
           view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'V', modifiers: ['ctrl'] })
           view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'V', modifiers: ['ctrl'] })

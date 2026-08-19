@@ -307,6 +307,10 @@ export default function App() {
 
     const enabled = await window.electronAPI.setEnabledAis(participants)
     if (!enabled) throw new Error('Could not enable the Z.ai panel')
+    // Guarantee the panel is attached and showing a fresh z.ai page — after a
+    // logout the view can hold a dead/blank page and the enable-only flow
+    // appeared to do nothing.
+    await window.electronAPI.openZaiPanel()
 
     if (interactionMode === 'chat') {
       const room = await window.electronAPI.syncCouncilRoomContext({

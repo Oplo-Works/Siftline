@@ -326,6 +326,7 @@ declare global {
       setApiKeyOrder: (order: string[]) => Promise<boolean>
       analyzeQuery: (query: string) => Promise<AiRecommendation | null>
       setEnabledAis: (ais: AiName[]) => Promise<boolean>
+      openZaiPanel: () => Promise<boolean>
       setAttachmentBarVisible: (visible: boolean) => Promise<void>
       setFinalPanelExpanded: (expanded: boolean) => Promise<void>
       getCouncilRoom: () => Promise<CouncilRoomState>

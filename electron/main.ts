@@ -3811,6 +3811,8 @@ async function createWindow() {
           ? /^https?:\/\/(chatgpt\.com|openai\.com|auth\.openai\.com)/
           : name === 'deepseek'
           ? /^https?:\/\/(chat\.deepseek\.com|deepseek\.com)/
+          : name === 'zai'
+          ? /^https?:\/\/([^/]*\.)?z\.ai/
           : /^https?:\/\/(perplexity\.ai|[^/]*\.perplexity\.ai)/
         let oauthDone = false
         const reloadHomeView = () => {
@@ -4152,20 +4154,30 @@ async function getZaiRendererLoginStatus(
     const url = webContents.getURL()
     if (!isZaiPageUrl(url) || url.includes('/auth')) return false
     // chat.z.ai is an Open WebUI instance: a logged-in session keeps its JWT
-    // in localStorage under the 'token' key, and the composer textarea
-    // (#chat-input) only renders on the authenticated chat page.
+    // in localStorage under the 'token' key.  The composer textarea
+    // (#chat-input) also renders on the signed-out landing page, so it is NOT
+    // a sufficient signal on its own (observed 2026-08-19: app reported
+    // "Logged in" while the page showed a Sign in button).  The authoritative
+    // pair is: JWT present AND no visible "Sign in" button.
     const rawSignal = await Promise.race<unknown>([
       webContents.executeJavaScript(`
         (() => ({
           tokenPresent: Boolean(localStorage.getItem('token')),
           composerPresent: Boolean(document.querySelector('textarea#chat-input')),
+          signInVisible: Array.from(document.querySelectorAll('button, a'))
+            .some((el) => {
+              const text = (el.textContent || '').trim()
+              if (!/^sign in$/i.test(text)) return false
+              const rect = el.getBoundingClientRect()
+              return rect.width > 0 && rect.height > 0
+            }),
         }))()
       `),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
     ])
     if (!rawSignal || typeof rawSignal !== 'object') return false
-    const signal = rawSignal as { tokenPresent?: unknown; composerPresent?: unknown }
-    return signal.tokenPresent === true || signal.composerPresent === true
+    const signal = rawSignal as { tokenPresent?: unknown; composerPresent?: unknown; signInVisible?: unknown }
+    return signal.tokenPresent === true && signal.signInVisible !== true
   } catch {
     return false
   }
@@ -4395,10 +4407,21 @@ async function getLoginStatus(): Promise<Record<AiName, boolean>> {
   const entries = await Promise.all(AI_NAMES.map(async (aiName) => {
     const cookies = await session.fromPartition(`persist:${aiName}`).cookies.get({})
     const persistedStatus = await getPersistedLoginStatus(aiName, cookies)
-    const status = aiName === 'zai' && !persistedStatus
-      ? await getZaiRendererLoginStatus()
-      : persistedStatus
-    return [aiName, status] as const
+    if (aiName === 'zai') {
+      // chat.z.ai (Open WebUI) leaves auth-flavored cookies behind after
+      // logout, so the cookie predicate alone false-positives "Logged in"
+      // (observed 2026-08-19).  When the zai view is live on a z.ai page,
+      // the renderer check (JWT in localStorage + no visible Sign-in button)
+      // is authoritative; cookies are only a fallback for a closed/unloaded
+      // panel.
+      const zaiView = views.get('zai')
+      if (zaiView && !zaiView.webContents.isDestroyed()
+          && isZaiPageUrl(zaiView.webContents.getURL())) {
+        return [aiName, await getZaiRendererLoginStatus()] as const
+      }
+      return [aiName, persistedStatus] as const
+    }
+    return [aiName, persistedStatus] as const
   }))
   return Object.fromEntries(entries) as Record<AiName, boolean>
 }
@@ -4589,6 +4612,23 @@ ipcMain.handle('set-enabled-ais', (_e, ais: AiName[]) => {
   enabledAiNames = ais.filter((n) => AI_NAMES.includes(n))
   if (enabledAiNames.length === 0) enabledAiNames = [...DEFAULT_ENABLED_AIS]
   updateViewBounds()
+  return true
+})
+
+// Accounts → Z.ai "Open panel": guarantee the panel is attached and showing a
+// fresh z.ai page.  After logout the view can hold a dead/blank page, and the
+// renderer-only enable flow left the user staring at nothing (2026-08-19).
+ipcMain.handle('open-zai-panel', async () => {
+  const view = views.get('zai')
+  if (!view || view.webContents.isDestroyed() || !mainWindow) return false
+  if (!enabledAiNames.includes('zai')) {
+    enabledAiNames = [...enabledAiNames, 'zai']
+  }
+  try { mainWindow.addBrowserView(view) } catch { /* already added */ }
+  updateViewBounds()
+  const before = view.webContents.getURL()
+  await loadURLSafe(view.webContents, getSelectors('zai').url, 'open-zai-panel', { userAgent: DESKTOP_USER_AGENT })
+  sendLog('info', `[zai-panel] opened and reloaded (url before: ${before || 'empty'})`)
   return true
 })
 

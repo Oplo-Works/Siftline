@@ -603,3 +603,13 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
 - Publish: AUTO_AT_CLOSE to `origin/kimi/gemini-prompt-focus-guard`.
   Installer rebuilt: `release/Siftline-Setup-1.1.0.exe` (owner 요청 로컬
   빌드, publish/tag 없음).
+
+
+## 2026-08-19T15:25:00Z — repo-rename-url-cleanup / MICRO
+
+- GitHub 레포 rename(AI-Council-Chat → Siftline)에 따라 README.md,
+  README.html, PROJECT_SCOPE.md의 GitHub URL 참조를
+  `Oplo-Works/Siftline`으로 갱신(문서 전용, 동작 변경 없음). git `origin`
+  URL도 `https://github.com/Oplo-Works/Siftline.git`으로 set-url 완료.
+  역사 기록 문서(handoff_history, archive, 과거 SPEC/PLAN)는 미수정.
+  Publish: AUTO_AT_CLOSE to `origin/kimi/gemini-prompt-focus-guard`.

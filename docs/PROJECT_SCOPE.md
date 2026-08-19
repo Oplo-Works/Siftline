@@ -56,7 +56,7 @@
 
 ## 3. Data and Provider Policy
 
-- Repository classification: Public 추정 — GitHub(`MinkyuTheBuilder/ai-council`)에
+- Repository classification: Public 추정 — GitHub(`Oplo-Works/Siftline`)에
   릴리스 설치 파일을 공개 배포 중. **사용자 최종 확인 필요 (§7)**
 - Approved providers/runners (intended families): Anthropic/Claude Code,
   OpenAI/Codex, z.ai 공식/승인 runner. 실제 Runtime 승인은

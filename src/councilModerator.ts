@@ -96,10 +96,10 @@ function describeMissingAngle(ai: AiName): { missing: string; prompt: string } {
         missing: 'The discussion still needs first-principles reasoning or a cleaner logic, math, code, or systems route.',
         prompt: '@DeepSeek, re-derive the problem from fundamentals and find the cleanest minimal solution.',
       }
-    case 'kimi':
+    case 'zai':
       return {
-        missing: `The discussion still needs ${AI_ROLE_PRESETS.kimi.title.toLowerCase()} coverage across long or multi-document context.`,
-        prompt: `@Kimi, use your ${AI_ROLE_PRESETS.kimi.role} role to synthesize the full long-context record, cross-check multiple documents, and surface what shorter reviews missed.`,
+        missing: `The discussion still needs ${AI_ROLE_PRESETS.zai.title.toLowerCase()} coverage across long or multi-document context.`,
+        prompt: `@Z.ai, use your ${AI_ROLE_PRESETS.zai.role} role to synthesize the full long-context record, cross-check multiple documents, and surface what shorter reviews missed.`,
       }
     default:
       return {
@@ -167,7 +167,7 @@ export function buildCouncilModeratorSnapshot(
   if (enabledAis.includes('chatgpt') && actionCount === 0) speakerOrder.push('chatgpt')
   if (enabledAis.includes('claude') && nuanceCount === 0) speakerOrder.push('claude')
   if (enabledAis.includes('gemini') && synthesisCount === 0) speakerOrder.push('gemini')
-  if (enabledAis.includes('kimi') && deepResearchCount === 0) speakerOrder.push('kimi')
+  if (enabledAis.includes('zai') && deepResearchCount === 0) speakerOrder.push('zai')
   if (enabledAis.includes('deepseek') && reasoningCount === 0) speakerOrder.push('deepseek')
 
   const recentSpeaker = assistantMessages[assistantMessages.length - 1]?.ai ?? null

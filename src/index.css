@@ -131,9 +131,10 @@ body,
   gap: 8px;
 }
 
-.titlebar-icon {
-  font-size: 16px;
-  color: var(--accent);
+.titlebar-icon-img {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
   filter: drop-shadow(0 0 6px var(--accent-glow));
   animation: pulse-icon 3s ease-in-out infinite;
 }
@@ -157,25 +158,24 @@ body,
   color: var(--text-primary);
 }
 
-.titlebar-version {
+/* Shared pill chrome for titlebar badges (version, tagline) */
+.titlebar-pill {
   font-size: 10px;
   color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.03em;
-  padding: 1px 6px;
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.titlebar-tagline {
-  font-size: 10px;
-  color: var(--text-muted);
-  letter-spacing: 0.05em;
   padding: 2px 8px;
   border: 1px solid var(--border);
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.03);
+  line-height: 1.4;
+}
+
+.titlebar-version {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+}
+
+.titlebar-tagline {
+  letter-spacing: 0.05em;
 }
 
 .titlebar-actions {
@@ -2519,11 +2519,42 @@ body,
   min-height: 0;
   height: auto;
   display: grid;
-  grid-template-columns: minmax(320px, 32%) minmax(360px, 1fr);
+  /* Columns are set inline from the persisted focus split ratio (PanelGrid) */
+  grid-template-columns: minmax(300px, 32%) minmax(260px, 1fr);
   gap: 6px;
   padding: 6px;
   background: #080a10;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+}
+
+/* Draggable divider between the Focus pane and the Compare grid */
+.focus-split-divider {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  width: 10px;
+  cursor: col-resize;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+
+.focus-split-divider::before {
+  content: '';
+  width: 4px;
+  height: 44px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.14);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.focus-split-divider:hover::before,
+.focus-split-divider:active::before {
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
 }
 
 .focus-panel-shell,

@@ -25,6 +25,7 @@ npm-debug.log*
 
 # Temp icon assets (generated at build time)
 ai-council.iconset/
+siftline.iconset/
 .claude/
 
 # Runtime generated output & session dumps

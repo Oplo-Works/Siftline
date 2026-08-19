@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { AiName, AI_DISPLAY_NAMES, AI_COLORS, AI_ICONS } from '../types'
 
-const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'kimi', 'perplexity']
-const DEFAULT_ORDER = ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'kimi', 'perplexity']
+const AI_NAMES: AiName[] = ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'perplexity', 'zai']
+const DEFAULT_ORDER = ['chatgpt', 'claude', 'deepseek', 'gemini', 'grok', 'perplexity', 'zai']
 
 type ProviderId = AiName | 'deepseek'
 type Tab = 'accounts' | 'apikeys'
@@ -67,23 +67,23 @@ const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
     color: AI_COLORS.perplexity.primary,
     glow: AI_COLORS.perplexity.glow,
   },
-  kimi: {
-    label: 'Kimi (Moonshot) API Key',
-    placeholder: 'sk-...',
-    href: 'https://platform.moonshot.ai/console/api-keys',
-    icon: AI_ICONS.kimi,
-    color: AI_COLORS.kimi.primary,
-    glow: AI_COLORS.kimi.glow,
+  zai: {
+    label: 'Z.ai (GLM) API Key',
+    placeholder: '...',
+    href: 'https://z.ai/model-api',
+    icon: AI_ICONS.zai,
+    color: AI_COLORS.zai.primary,
+    glow: AI_COLORS.zai.glow,
     isInference: true,
   },
 }
 
 interface Props {
   onClose: () => void
-  onOpenKimiPanel: () => Promise<void>
+  onOpenZaiPanel: () => Promise<void>
 }
 
-export default function AccountsPanel({ onClose, onOpenKimiPanel }: Props) {
+export default function AccountsPanel({ onClose, onOpenZaiPanel }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('accounts')
   const [status, setStatus] = useState<Record<AiName, boolean>>({
     chatgpt: false,
@@ -92,7 +92,7 @@ export default function AccountsPanel({ onClose, onOpenKimiPanel }: Props) {
     grok: false,
     deepseek: false,
     perplexity: false,
-    kimi: false,
+    zai: false,
   })
   const [loading, setLoading] = useState(true)
   const [busyAi, setBusyAi] = useState<AiName | null>(null)
@@ -138,8 +138,8 @@ export default function AccountsPanel({ onClose, onOpenKimiPanel }: Props) {
   const handleLogin = async (ai: AiName) => {
     setBusyAi(ai)
     try {
-      if (ai === 'kimi') {
-        await onOpenKimiPanel()
+      if (ai === 'zai') {
+        await onOpenZaiPanel()
         return
       }
       await window.electronAPI.openLoginWindow(ai)
@@ -270,11 +270,11 @@ export default function AccountsPanel({ onClose, onOpenKimiPanel }: Props) {
                           className="account-btn login-btn"
                           onClick={() => handleLogin(ai)}
                           disabled={busy || busyAll}
-                          title={ai === 'kimi'
-                            ? 'Open the embedded Kimi panel to log in or manage this session'
+                          title={ai === 'zai'
+                            ? 'Open the embedded Z.ai panel to log in or manage this session'
                             : loggedIn ? 'Re-login' : 'Login'}
                         >
-                          {busy ? '...' : ai === 'kimi' ? 'Open panel' : loggedIn ? 'Re-login' : 'Login'}
+                          {busy ? '...' : ai === 'zai' ? 'Open panel' : loggedIn ? 'Re-login' : 'Login'}
                         </button>
                         <button
                           className={`account-btn logout-btn ${!loggedIn ? 'disabled' : ''}`}

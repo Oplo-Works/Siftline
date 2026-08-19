@@ -27,33 +27,33 @@ echo ""
 
 # ── Step 2: Convert .ico → .icns (Mac icon) ──
 echo "[2/4] Preparing macOS icon (.icns)..."
-ICNS_FILE="ai-council.icns"
+ICNS_FILE="siftline.icns"
 
 if [ ! -f "$ICNS_FILE" ]; then
-    echo "  ai-council.icns not found. Generating from ai-council.ico..."
+    echo "  siftline.icns not found. Generating from siftline.ico..."
 
     # Requires 'sips' (built into macOS) and 'iconutil' (built into macOS)
-    if [ ! -f "ai-council.ico" ]; then
-        echo "  [ERROR] ai-council.ico not found either. Please provide an icon file."
+    if [ ! -f "siftline.ico" ]; then
+        echo "  [ERROR] siftline.ico not found either. Please provide an icon file."
         exit 1
     fi
 
     # Create iconset directory
-    ICONSET="ai-council.iconset"
+    ICONSET="siftline.iconset"
     mkdir -p "$ICONSET"
 
     # Export sizes using sips
     for SIZE in 16 32 64 128 256 512; do
-        sips -z $SIZE $SIZE ai-council.ico --out "$ICONSET/icon_${SIZE}x${SIZE}.png" &>/dev/null
+        sips -z $SIZE $SIZE siftline.ico --out "$ICONSET/icon_${SIZE}x${SIZE}.png" &>/dev/null
         DOUBLE=$((SIZE * 2))
-        sips -z $DOUBLE $DOUBLE ai-council.ico --out "$ICONSET/icon_${SIZE}x${SIZE}@2x.png" &>/dev/null
+        sips -z $DOUBLE $DOUBLE siftline.ico --out "$ICONSET/icon_${SIZE}x${SIZE}@2x.png" &>/dev/null
     done
 
     iconutil -c icns "$ICONSET" -o "$ICNS_FILE"
     rm -rf "$ICONSET"
-    echo "  ai-council.icns created ✔"
+    echo "  siftline.icns created ✔"
 else
-    echo "  ai-council.icns already present ✔"
+    echo "  siftline.icns already present ✔"
 fi
 echo ""
 
@@ -71,7 +71,7 @@ echo ""
 
 echo "============================================"
 echo "  SUCCESS!"
-echo "  Installer: release/AI-Council-*.dmg"
+echo "  Installer: release/Siftline-*.dmg"
 echo "  (Both Intel x64 and Apple Silicon arm64)"
 echo "============================================"
 echo ""

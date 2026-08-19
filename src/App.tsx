@@ -299,14 +299,14 @@ export default function App() {
     }
   }, [enabledAis, interactionMode])
 
-  const handleOpenKimiPanel = useCallback(async () => {
-    const participants = AI_NAMES.filter((ai) => ai === 'kimi' || enabledAis.includes(ai))
+  const handleOpenZaiPanel = useCallback(async () => {
+    const participants = AI_NAMES.filter((ai) => ai === 'zai' || enabledAis.includes(ai))
     setShowAccounts(false)
     setEnabledAis(participants)
     window.electronAPI.setViewsVisible(true)
 
     const enabled = await window.electronAPI.setEnabledAis(participants)
-    if (!enabled) throw new Error('Could not enable the Kimi panel')
+    if (!enabled) throw new Error('Could not enable the Z.ai panel')
 
     if (interactionMode === 'chat') {
       const room = await window.electronAPI.syncCouncilRoomContext({
@@ -1115,7 +1115,7 @@ export default function App() {
 
       {showAccounts && (
         <AccountsPanel
-          onOpenKimiPanel={handleOpenKimiPanel}
+          onOpenZaiPanel={handleOpenZaiPanel}
           onClose={() => {
             setShowAccounts(false)
             window.electronAPI.setViewsVisible(true)

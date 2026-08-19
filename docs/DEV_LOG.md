@@ -491,3 +491,115 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
   in the worktree). Rebuilt installer: `release/AI-Council-Setup-1.0.9.exe`.
 - Validation: `npm run package:installer` exit 0; artifact verified in `release/`.
 - Publish: AUTO_AT_CLOSE to `origin/kimi/council-broadcast-send-hardening`.
+
+## 2026-08-14T13:20:00Z — ui-titlebar-branding-polish / MICRO
+
+- Stage: WF:MICRO -> inline CLOSE
+- Risk: Low — presentation/branding only; no behavior, schema, or data change.
+- Change: titlebar logo text "AI" -> siftline icon image (`src/assets/siftline-icon.png`,
+  `.titlebar-icon-img`); version pill tooltip now shows build date via Vite `__BUILD_DATE__`
+  define (`vite.config.ts`, `src/vite-env.d.ts`); shared `.titlebar-pill` chrome for
+  version/tagline pills (padding/height unified); LogDrawer Copy button shows
+  "? Copied" feedback for 1.5s (`src/components/LogDrawer.tsx`); branding cleanup —
+  artifact names -> `Siftline-*` (`package.json`, `build-installer.bat`,
+  `make-portable.ps1`, `build-installer.sh`), mac icon -> `siftline.icns`
+  (generated from siftline-icon.png), CI icon pipeline -> siftline names
+  (`.github/workflows/build.yml`, `scripts/ico_to_png.py`, `.gitignore`).
+  package.json `name`/`appId` intentionally unchanged (userData path + Windows app
+  identity stability).
+- Validation: `npx tsc --noEmit` exit 0; `npm run build` exit 0 (Node v24.12.0 —
+  pinned 22.22.3 not installed; same recorded deviation as previous session).
+  `git diff --check` reports CR-at-EOL on edited lines (autocrlf=true, pre-existing
+  repo condition, recorded previously).
+- Publish: AUTO_AT_CLOSE to `origin/kimi/ui-titlebar-branding-polish`.
+
+## 2026-08-14T14:25:00Z — focus-split-draggable / MICRO+
+
+- Stage: owner-directed UI improvement (proposal A only; tile-collapse rejected —
+  owner noted inactive AIs already collapse tiles automatically).
+- Risk: Low-Standard — layout bounds calculation now reads a persisted ratio;
+  no schema/auth/external side effect. Broadcast/injection paths untouched.
+- Change: Focus pane width is drag-adjustable (20%-65%) via a divider between the
+  Focus pane and Compare grid; ratio persisted in electron-store `focusSplitRatio`
+  (default 0.32 = previous fixed value). `computeHybridViewBounds` reads the store.
+  IPC: `get-focus-split-ratio` / `set-focus-split-ratio` (main.ts, preload.ts,
+  types.ts). During drag the BrowserViews are hidden via existing
+  `set-views-visible` and restored on release (views render above the renderer and
+  would swallow pointer events; `webContents.setIgnoreMouseEvents` is not available
+  for BrowserView webContents in this Electron version).
+- Validation: `npx tsc --noEmit` exit 0; `npm run build` exit 0 (Node v24.12.0 —
+  pinned 22.22.3 not installed; same recorded deviation). Manual drag feel NOT_RUN
+  (requires owner run via build-and-run.bat).
+- Publish: AUTO_AT_CLOSE to `origin/kimi/ui-titlebar-branding-polish`.
+
+## 2026-08-17T16:30:00Z — replace-kimi-with-zai / STANDARD
+
+- Stage: owner-directed provider replacement (Kimi removed Google-login option
+  site-side 2026-07~08, breaking the embedded login flow; owner chose Z.ai).
+- Risk: Standard — provider selectors, login detection, and send path changed
+  for one panel slot. Other 6 providers untouched. Version stays 1.0.9.
+- Change: 7th provider slot `kimi` -> `zai` (Z.ai / GLM, https://chat.z.ai/ —
+  an Open WebUI instance). `AiName` union, AI_NAMES, display names, colors
+  (#3d5afe), icon (Z), role preset (Agentic Long-Context Analyst),
+  mention aliases (@zai/@z.ai/@glm), council routing profile + prompts,
+  apiKeyOrder/defaultOrder. main.ts: DEFAULT_SELECTORS rewritten for Open
+  WebUI (`textarea#chat-input`, `[class*="sendMessageButton"]`,
+  `.markdown-prose`/`[class*="response-content"]`); streaming overrides
+  renamed (6s stable / 20s guard kept); kimi-only CDP clickSend path removed
+  (~190 lines — z.ai uses a plain textarea + stable send button, generic
+  selector path suffices); kimi 4000-byte paste guard removed; login
+  detection replaced with Open WebUI signals (localStorage `token` key +
+  `textarea#chat-input` composer presence, z.ai-domain auth cookies);
+  `persist:zai` partition; Google-OAuth will-navigate interception extended
+  to zai; OAUTH_ALLOWED_DOMAINS += z.ai; Z.ai API key entry added
+  (https://api.z.ai/api/paas/v4, model glm-4.5-flash) for query-routing and
+  session-relation calls. AccountsPanel: embedded-panel login flow reused
+  ("Open panel"). Deleted `kimi-login.mjs` / `kimi-login.bat` (vestigial).
+- Not changed (follow-up candidates): scripts/verify-electron-phase2.ts,
+  verify-council-phase1/3.ts, probe-electron-login-status.mjs,
+  verify-electron-phase2-snapshots.mjs still reference kimi (dev-only
+  tooling, not part of tsc/build); README.md/README.html provider lists.
+- Validation: `npx tsc --noEmit` exit 0; `npm run build` exit 0
+  (Node v24.12.0 — pinned 22.22.3 not installed; same recorded deviation).
+  Manual login/broadcast test NOT_RUN (requires owner run via
+  build-and-run.bat; selectors may need fine-tuning via userData selectors.json).
+- Publish: AUTO_AT_CLOSE to `origin/kimi/replace-kimi-with-zai`.
+
+## 2026-08-17T17:10:00Z — v1.1.0 bump + z.ai follow-up / MICRO
+
+- Change: version 1.0.9 -> 1.1.0 (`package.json`; TitleBar reads it via import).
+  Owner judged the Kimi->Z.ai provider replacement a feature-level change.
+  Follow-up fix included in this release line: Z.ai moved to the end of
+  provider lists (after Perplexity) to keep chip rows alphabetical
+  (`src/types.ts`, `src/components/AccountsPanel.tsx`).
+- Owner test evidence: z.ai embedded-panel Google login succeeded (GLM-5.2
+  chat UI confirmed). Google anti-bot warning page and a raw
+  `{"detail":"invalid state"}` OAuth-callback render appeared in the popup
+  during the flow — cosmetic; session cookie lands in persist:zai regardless.
+  Popup auto-close on callback is a future polish candidate.
+- Validation: `npx tsc --noEmit` exit 0; `npm run build` exit 0.
+- Publish: AUTO_AT_CLOSE to `origin/kimi/replace-kimi-with-zai`.
+  Installer rebuilt via `npm run package:installer` (release/Siftline-Setup-1.1.0.exe).
+
+
+## 2026-08-19T14:40:00Z — gemini-prompt-focus-guard / Standard
+
+- Change: Gemini 프롬프트 주입의 첫 시도 간헐 실패 수정. composer에 caret이
+  없는 상태에서 document-wide `execCommand('selectAll')`/Ctrl+A가 body 전체를
+  선택해 paste가 composer를 빗나갔고 readback 검증 실패
+  (`Prompt injection verification failed for gemini`); retry는 첫 시도의
+  click/focus 워밍업 덕에 성공했음. `scopeComposerSelection()` 헬퍼가
+  Selection API로 selection을 composer contents로 한정(포커스 무관)하고,
+  Gemini one-shot/per-line 클리어와 clipboard fallback(Ctrl+A 대체)에 적용.
+  다른 6개 provider 경로는 미변경. `electron/main.ts` (+83/-5).
+- SPEC/PLAN: `docs/features/gemini-prompt-focus-guard/` bundle R1 —
+  2026-08-19 "어 승인할게. 수정 시작하자"로 승인.
+- Validation: `npx tsc --noEmit` exit 0; `npm run build` exit 0;
+  owner 실앱 검증 PASS (콜드 첫 전송 1회 성공, @all broadcast 회귀 없음,
+  전체 페이지 선택 현상 소거) — `TEST_EVIDENCE.md` 참조.
+- Review: independent review skipped — owner가 실앱 검증 PASS를 근거로
+  "commit & push 해줘" 지시 (2026-08-19), council-broadcast-send-hardening
+  close와 동일한 owner 선택.
+- Publish: AUTO_AT_CLOSE to `origin/kimi/gemini-prompt-focus-guard`.
+  Installer rebuilt: `release/Siftline-Setup-1.1.0.exe` (owner 요청 로컬
+  빌드, publish/tag 없음).

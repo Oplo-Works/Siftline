@@ -1,7 +1,7 @@
 {
   "name": "ai-council",
-  "version": "1.0.9",
-  "description": "Siftline - Autonomous Cross-Verification Workflow among 6 LLMs",
+  "version": "1.1.0",
+  "description": "Siftline - Multi-LLM Cross-Verification Desktop App",
   "main": "dist-electron/main.js",
   "scripts": {
     "start": "vite",
@@ -43,12 +43,12 @@
     ],
     "extraResources": [
       {
-        "from": "ai-council.ico",
-        "to": "ai-council.ico"
+        "from": "siftline.ico",
+        "to": "siftline.ico"
       }
     ],
     "win": {
-      "icon": "ai-council.ico",
+      "icon": "siftline.ico",
       "target": [
         {
           "target": "portable",
@@ -59,20 +59,20 @@
       ]
     },
     "portable": {
-      "artifactName": "AI-Council-Portable.exe"
+      "artifactName": "Siftline-Portable-${version}.${ext}"
     },
     "nsis": {
       "oneClick": true,
       "perMachine": false,
-      "installerIcon": "ai-council.ico",
-      "uninstallerIcon": "ai-council.ico",
+      "installerIcon": "siftline.ico",
+      "uninstallerIcon": "siftline.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Siftline",
-      "artifactName": "AI-Council-Setup-${version}.${ext}"
+      "artifactName": "Siftline-Setup-${version}.${ext}"
     },
     "mac": {
-      "icon": "ai-council.icns",
+      "icon": "siftline.icns",
       "category": "public.app-category.productivity",
       "target": [
         {
@@ -92,9 +92,9 @@
       ]
     },
     "dmg": {
-      "artifactName": "AI-Council-${version}-${arch}.dmg",
+      "artifactName": "Siftline-${version}-${arch}.dmg",
       "title": "Siftline Installer",
-      "icon": "ai-council.icns",
+      "icon": "siftline.icns",
       "contents": [
         {
           "x": 130,

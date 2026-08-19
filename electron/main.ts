@@ -3794,6 +3794,8 @@ async function createWindow() {
           ? /^https?:\/\/(chatgpt\.com|openai\.com|auth\.openai\.com)/
           : name === 'deepseek'
           ? /^https?:\/\/(chat\.deepseek\.com|deepseek\.com)/
+          : name === 'zai'
+          ? /^https?:\/\/([^/]*\.)?z\.ai/
           : /^https?:\/\/(perplexity\.ai|[^/]*\.perplexity\.ai)/
         let oauthDone = false
         const reloadHomeView = () => {

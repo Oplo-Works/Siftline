@@ -627,3 +627,35 @@ v1.0.8 출시 상태. 모든 핵심 기능 정상 동작 중
   런타임 경로(%APPDATA%\ai-council, ai-council-telegram temp)는 실제와
   일치하므로 유지. 문서 전용, 동작 변경 없음.
   Publish: task branch push 후 main 머지는 사용자 결정.
+
+
+## 2026-08-19T18:00:00Z — gemini-direct-cdp-insert / Standard
+
+- Change: Gemini 프롬프트 주입 1차 경로를 trusted CDP `Input.insertText`로
+  교체 — Quill composer가 실제 타이밍처럼 처리해 execCommand 라인 유실
+  (2026-08-13부터의 residual risk)이 원천 소거. CDP 준비 selection은
+  scopeComposerSelection으로 composer 한정. 기존 execCommand→per-line→
+  clipboard 체인은 fallback으로 유지, Perplexity 경로 미변경.
+- Validation: tsc/build PASS; owner 실액 PASS — 46라인 프롬프트가
+  `method=cdp-insertText verified=true`로 1차 성공(clipboard 미사용),
+  `@all` broadcast 회귀 없음. `docs/features/gemini-direct-cdp-insert/`.
+- Review: independent review skipped — owner 실액 검증 PASS 근거
+  (2026-08-19 "긴 프롬프트 잘되. push 까지 해줘" 지시로 CLOSE 승인).
+- Publish: owner 승인으로 main 머지 + push.
+
+## 2026-08-19T18:00:00Z — oauth-popup-autoclose / Standard
+
+- Change: (1) z.ai OAuth 팝업 auto-close — `AI_RETURN_RE`에 zai 분기 추가
+  (기존엔 perplexity regex로 평가돼 콜백 미매칭 → 팝업 잔류, 8/17 관측).
+  (2) z.ai 로그인 감지 오탐 수정 — `tokenPresent AND !signInVisible`로 강화
+  (signed-out 랜딩에도 composer가 렌더됨), 쿠키 predicate는 로그아웃 잔여
+  쿠키에 오매칭되어 renderer 우선/쿠키 폴백으로 격하. (3) Accounts
+  "Open panel"이 뷰 enable만 하던 것을 `open-zai-panel` IPC로 attach+
+  bounds+홈 리로드 보장.
+- Validation: tsc/build PASS; owner 실액 — 로그인 감지 정확성 PASS
+  ("Not logged in" → 인패널 로그인 → "Logged in"), 팝업 시나리오는 이번
+  run에서 미재현(인패널 완결)으로 NOT_RUN+코드 검토.
+  `docs/features/oauth-popup-autoclose/`.
+- Residual: Open panel 버튼 경로는 owner 환경에서 미해결(ACTIVE 칩 경로는
+  정상) — `[zai-panel]` 로그 증거 필요. 후속 과제.
+- Publish: owner 승인으로 main 머지 + push.

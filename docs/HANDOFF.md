@@ -3,21 +3,20 @@
 ## Identity
 
 - Status: DONE
-- Task ID: `gemini-prompt-focus-guard`
+- Task ID: `gemini-direct-cdp-insert` + `oauth-popup-autoclose`
 - Stage: WF:CLOSE
-- Risk: Standard — Gemini prompt-injection internals; no auth, schema, dependency, or external side effect
-- Updated At: 2026-08-19T14:40:00Z
+- Risk: Standard — prompt injection / auth-popup internals; no auth schema, dependency, or external side effect
+- Updated At: 2026-08-19T18:00:00Z
 
 ## Context Summary
 
-Gemini 프롬프트 주입 첫 시도 실패("전체 대화창 선택" → `Prompt injection
-verification failed for gemini`, retry 시 성공)의 원인은 composer caret 부재
-상태에서 document-wide `selectAll`/Ctrl+A가 body에 적용되는 것이었다.
-`scopeComposerSelection()` 헬퍼(Selection API로 composer contents 한정,
-포커스 무관)를 도입해 Gemini one-shot 삽입, per-line 클리어, clipboard
-fallback에 적용했다. 다른 6개 provider 경로는 미변경. Owner 실앱 검증
-PASS (콜드 첫 전송 1회 성공, @all broadcast 회귀 없음). Windows installer
-`release/Siftline-Setup-1.1.0.exe` 로컬 빌드 완료.
+두 follow-up을 순차 완료하고 main에 머지했다. (A) Gemini 주입 1차 경로를
+trusted CDP `Input.insertText`로 교체 — Quill re-render 라인 유실의 근본
+수정이며 owner 실액에서 46라인 프롬프트가 1차 CDP로 검증 통과(clipboard
+미사용), `@all` 회귀 없음. (B) z.ai OAuth 팝업 auto-close(`AI_RETURN_RE`
+zai 분기) + 로그인 감지 오탐 2건(renderer 판정 강화, 쿠키→renderer 우선순위
+격하) + Open panel 뷰 attach/리로드 보장. owner 실액에서 로그인 감지 정확성
+PASS; 팝업 시나리오는 이번 run 미재현(인패널 로그인 완결).
 
 ## Ownership
 
@@ -28,43 +27,43 @@ PASS (콜드 첫 전송 1회 성공, @all broadcast 회귀 없음). Windows inst
 
 ## Git and Worktree
 
-- Working branch: `kimi/gemini-prompt-focus-guard`
-- Main integration base: `443d3c7` (`kimi/replace-kimi-with-zai` head)
-- Implementation range: `443d3c7..92e9c07`
+- Working branch: `main` (origin/main과 동기화)
+- Integration: `70f0d40..6f7ae26` — merges of `kimi/gemini-direct-cdp-insert`
+  (`9c43990`) and `kimi/oauth-popup-autoclose` (`f8f4b72`)
 - Close metadata head: SELF — resolve this close metadata commit
 - Expected worktree after close: USER_DIRTY_ONLY
 - Preserved unrelated user-owned changes (untouched, unstaged by this task):
-  - `package-lock.json` (modified — icon rebrand 잔여분)
+  - `package-lock.json` (modified)
   - `mockups/`, `scripts/layout_mockup.py`, `siftline-v2-preview.png`,
     `siftline.icns` (untracked)
 
 ## Publish
 
-- Human approval: explicit "commit & push 해줘" instruction on 2026-08-19;
-  the same message is the Human Decision resolving the CLOSE entry gate with
-  independent review skipped (owner elected to rely on the passing
-  actual-app evidence, same as council-broadcast-send-hardening close).
+- Human approval: explicit "push 까지 하고나서 installer 도 새로 만들어서
+  저장해놔줘" on 2026-08-19; same message is the Human Decision resolving the
+  CLOSE entry gate with independent review skipped (owner relied on passing
+  actual-app evidence, same as prior closes).
 - Push Intent: AUTO_AT_CLOSE
-- Approved Target: `origin/kimi/gemini-prompt-focus-guard` (non-protected
-  task branch; direct push to `main` remains NEVER; no tag/release/deploy)
+- Approved Target: `origin/main` (owner explicitly approved main merge+push
+  for this work; no tag/release/deploy — build.yml triggers on `v*` tags only)
 - Expected Remote Head: SELF — resolve this close metadata commit
 - Push Result: PENDING until the remote SHA is verified
 
 ## Validation
 
-- Evidence: `docs/features/gemini-prompt-focus-guard/TEST_EVIDENCE.md`
-- `npx tsc --noEmit` / `npm run build`: PASS on `92e9c07`
-- Owner actual-app run (build-and-run.bat): PASS — AC-1..AC-4 PASS
-- Diff/whitespace and secret/PII scans: PASS (autocrlf CR-at-EOL note —
-  known repo condition)
+- Evidence: `docs/features/gemini-direct-cdp-insert/TEST_EVIDENCE.md`,
+  `docs/features/oauth-popup-autoclose/TEST_EVIDENCE.md`
+- `npx tsc --noEmit` / `npm run build`: PASS at each task head
+- Owner actual-app: Task A AC-1..4 PASS; Task B login detection PASS, popup
+  auto-close NOT_RUN (시나리오 미재현) + code review PASS
 
 ## Key Decisions and Residual Risk
 
-- Selection은 이제 Selection API(`range.selectNodeContents`)로 composer에
-  한정되어 OS/webContents 포커스와 무관하게 동작; scoping 실패 시 명시적
-  fallthrough (silent 위장 없음, 기존 verification-failed 에러 유지).
-- Gemini direct path truncation 자체는 미수정 (이전 HANDOFF와 동일한
-  residual risk; live composer instrumentation 필요). 현재는 per-line
-  검증 삽입과 clipboard fallback이 이를 검출·수리한다.
-- Installer는 owner 미커밋 icon rebrand 변경이 포함된 worktree에서 빌드됨
-  (v1.0.9, v1.1.0 로컬 빌드와 동일한 관행).
+- Gemini CDP가 1차로 안정화되면서 clipboard fallback은 이론상 최후 수단.
+  fallback 체인은 그대로 유지 (안전망).
+- Residual: Accounts "Open panel" 버튼 경로가 owner 환경에서 여전히 무반응
+  (ACTIVE 칩 경로는 정상). `open-zai-panel` IPC로 attach/리로드를 보장했으나
+  미해결 시 `[zai-panel] opened and reloaded` 로그 유무로 renderer/main
+  어느 쪽인지 판별 가능. 후속 과제.
+- Windows installer는 close 후 owner 요청으로 재빌드 (release/, 로컬 보관,
+  publish/tag 없음).

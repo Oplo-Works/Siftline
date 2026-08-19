@@ -4390,10 +4390,21 @@ async function getLoginStatus(): Promise<Record<AiName, boolean>> {
   const entries = await Promise.all(AI_NAMES.map(async (aiName) => {
     const cookies = await session.fromPartition(`persist:${aiName}`).cookies.get({})
     const persistedStatus = await getPersistedLoginStatus(aiName, cookies)
-    const status = aiName === 'zai' && !persistedStatus
-      ? await getZaiRendererLoginStatus()
-      : persistedStatus
-    return [aiName, status] as const
+    if (aiName === 'zai') {
+      // chat.z.ai (Open WebUI) leaves auth-flavored cookies behind after
+      // logout, so the cookie predicate alone false-positives "Logged in"
+      // (observed 2026-08-19).  When the zai view is live on a z.ai page,
+      // the renderer check (JWT in localStorage + no visible Sign-in button)
+      // is authoritative; cookies are only a fallback for a closed/unloaded
+      // panel.
+      const zaiView = views.get('zai')
+      if (zaiView && !zaiView.webContents.isDestroyed()
+          && isZaiPageUrl(zaiView.webContents.getURL())) {
+        return [aiName, await getZaiRendererLoginStatus()] as const
+      }
+      return [aiName, persistedStatus] as const
+    }
+    return [aiName, persistedStatus] as const
   }))
   return Object.fromEntries(entries) as Record<AiName, boolean>
 }

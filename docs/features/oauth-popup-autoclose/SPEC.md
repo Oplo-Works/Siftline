@@ -7,10 +7,13 @@
 - Status: APPROVED
 - Last Updated: 2026-08-19
 
-> Rev 2 (2026-08-19): owner 검증 중 발견된 blocker — z.ai 로그인 감지가
+> Rev 2 (2026-08-19): owner 검증 중 발견된 blocker 2건 — (1) z.ai 로그인 감지가
 > `tokenPresent || composerPresent` OR 조건이라 signed-out 랜딩 페이지의
-> composer 때문에 "Logged in" 오탐. 판정을 `tokenPresent AND !signInVisible`로
-> 강화하는 수정을 본 작업 범위에 추가 (owner 메시지 "확인해줘").
+> composer 때문에 "Logged in" 오탐 → 판정을 `tokenPresent AND !signInVisible`로
+> 강화. (2) 쿠키 predicate(`isZaiAuthenticatedCookie`)이 로그아웃 후에도 남는
+> session/auth 계열 쿠키에 매칭되어 renderer 체크까지 도달하지 못함 → zai는
+> 뷰가 살아있을 때 renderer 체크를 우선하고 쿠키는 폴백으로 격하
+> (owner 메시지 "확인해줘" / "아직도 logged in 으로 나와").
 
 ## Context / User / Goal
 

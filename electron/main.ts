@@ -4598,6 +4598,23 @@ ipcMain.handle('set-enabled-ais', (_e, ais: AiName[]) => {
   return true
 })
 
+// Accounts → Z.ai "Open panel": guarantee the panel is attached and showing a
+// fresh z.ai page.  After logout the view can hold a dead/blank page, and the
+// renderer-only enable flow left the user staring at nothing (2026-08-19).
+ipcMain.handle('open-zai-panel', async () => {
+  const view = views.get('zai')
+  if (!view || view.webContents.isDestroyed() || !mainWindow) return false
+  if (!enabledAiNames.includes('zai')) {
+    enabledAiNames = [...enabledAiNames, 'zai']
+  }
+  try { mainWindow.addBrowserView(view) } catch { /* already added */ }
+  updateViewBounds()
+  const before = view.webContents.getURL()
+  await loadURLSafe(view.webContents, getSelectors('zai').url, 'open-zai-panel', { userAgent: DESKTOP_USER_AGENT })
+  sendLog('info', `[zai-panel] opened and reloaded (url before: ${before || 'empty'})`)
+  return true
+})
+
 // ── Attachment bar visibility → update BrowserView layout ────────────────────
 ipcMain.handle('set-attachment-bar-visible', (_e, visible: boolean) => {
   attachmentBarVisible = visible

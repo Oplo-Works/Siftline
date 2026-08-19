@@ -143,6 +143,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   setEnabledAis: (ais: AiName[]) =>
     ipcRenderer.invoke('set-enabled-ais', ais),
+  openZaiPanel: (): Promise<boolean> =>
+    ipcRenderer.invoke('open-zai-panel'),
   setAttachmentBarVisible: (visible: boolean) =>
     ipcRenderer.invoke('set-attachment-bar-visible', visible),
   setFinalPanelExpanded: (expanded: boolean) =>

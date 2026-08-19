@@ -12,7 +12,7 @@
 | 📎 **Telegram File Sharing** | Send photos and documents (PDF, DOCX, XLSX, TXT, MD, CSV, PNG, JPG, …) directly from Telegram. Files are downloaded to a temp folder and attached to the Council Chat session automatically — AIs analyze them just like desktop-uploaded files. Media groups (multiple photos sent at once) are bundled and processed together. |
 | 📎 **Council Chat File Attachment** | A **+Attach** button in the Council Chat input bar lets you attach files before sending any message. Attached files are physically uploaded to each AI's browser interface via CDP and included in the prompt when CDP upload is unavailable. |
 | 🔵 **DeepSeek Support** | DeepSeek (`chat.deepseek.com`) replaces Groq as the 6th AI panel. DeepSeek is a high-quality open-weight model strong on reasoning, coding, and concise synthesis. |
-| 🌙 **Kimi Support** | Kimi (`kimi.com`) by Moonshot AI joins as the 7th AI panel. Kimi excels at long-context deep research — it reads large documents and synthesizes insights that limited-context models miss. |
+| 🇿 **Z.ai (GLM) Support** | Z.ai (`chat.z.ai`) joins as the 7th AI panel, replacing Kimi. Powered by GLM models, Z.ai excels at agentic reasoning and long-context analysis — it reads large documents and synthesizes insights that limited-context models miss. |
 | 🤖 **Telegram Slash Commands** | Full session management via Telegram: `/new`, `/save`, `/save_and_new`, `/sessions`, `/load`, `/workflow`, `/status`, `/help`. |
 | 🔒 **Secure Token Storage** | Telegram bot token and chat ID are stored in an encrypted `electron-store` file — they never leave your machine and never appear in logs. |
 | ◉ **Telegram Status Indicator** | When the Telegram bot is active, a `◉ Telegram` indicator lights up in the status bar at the bottom of the app. |
@@ -44,7 +44,7 @@
 | 🔵 | DeepSeek | chat.deepseek.com |
 | ◈ | Perplexity | perplexity.ai |
 | ⚡ | Grok | grok.com |
-| 🌙 | Kimi | kimi.com |
+| 🇿 | Z.ai (GLM) | chat.z.ai |
 
 ---
 
@@ -54,9 +54,9 @@ No build required. Download the latest installer from [GitHub Releases](https://
 
 | Platform | File | Target |
 |----------|------|--------|
-| 🍎 macOS (Intel) | `AI-Council-*-x64.dmg` | Intel Mac (pre-2020 models) |
-| 🍎 macOS (Apple Silicon) | `AI-Council-*-arm64.dmg` | M1 / M2 / M3 / M4 Mac |
-| 🪟 Windows | `AI-Council-Setup.exe` | Windows 10 / 11 (x64) |
+| 🍎 macOS (Intel) | `Siftline-*-x64.dmg` | Intel Mac (pre-2020 models) |
+| 🍎 macOS (Apple Silicon) | `Siftline-*-arm64.dmg` | M1 / M2 / M3 / M4 Mac |
+| 🪟 Windows | `Siftline-Setup-*.exe` | Windows 10 / 11 (x64) |
 
 ### 🍎 macOS — Install from DMG
 
@@ -89,7 +89,7 @@ No build required. Download the latest installer from [GitHub Releases](https://
 ### 🪟 Windows — Install from EXE
 
 ```text
-1. Download AI-Council-Setup.exe.
+1. Download Siftline-Setup-*.exe.
 2. Double-click to run the setup wizard.
 3. Launch Siftline from the desktop shortcut or Start Menu.
 ```
@@ -157,7 +157,7 @@ Any plain-text message you send to the bot is routed to the active Council Chat 
 | `What are the risks of this approach?` | Sent to the current session; the Primary AI responds |
 | `@Gemini explain this in simple terms` | Only Gemini responds |
 | `@Claude review my logic` | Only Claude responds |
-| `@Kimi analyze this document` | Only Kimi responds |
+| `@Z.ai analyze this document` | Only Z.ai responds |
 | `@all summarize what we've decided` | All active AIs respond simultaneously |
 
 ### 📎 Sending files from Telegram
@@ -197,7 +197,7 @@ You can send files directly from your Telegram chat — they are automatically d
 ## Architecture
 
 ```text
-ai-council/
+siftline/
 ├── electron/
 │   ├── main.ts                  # Main process: BrowserViews, IPC, workflow engine, council engine, recommendation engine
 │   ├── preload.ts               # Context-isolated API bridge (contextBridge)
@@ -292,7 +292,7 @@ Sessions are persisted in the Electron `persist:` partition and survive app rest
 | DeepSeek | `sk-...` | [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys) |
 | Perplexity | `pplx-...` | [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api) |
 | Grok (xAI) | `xai-...` | [console.x.ai](https://console.x.ai/) |
-| Kimi (Moonshot) | `sk-...` | [platform.moonshot.cn/console/api-keys](https://platform.moonshot.cn/console/api-keys) |
+| Z.ai (GLM) | `sk-...` | [z.ai/model-api](https://z.ai/model-api) |
 
 Drag-and-drop the rows to control which provider is tried **first** when analyzing a query.  
 API keys are stored in `electron-store` and never sent anywhere except the provider's own API.
@@ -308,8 +308,9 @@ chatgpt-login.bat     # ChatGPT
 deepseek-login.bat    # DeepSeek
 perplexity-login.bat  # Perplexity
 grok-login.bat        # Grok (X / Twitter account)
-kimi-login.bat        # Kimi (Moonshot account)
 ```
+
+(Z.ai signs in through its embedded panel — use **Accounts → Z.ai → Open panel** in the app.)
 
 ---
 
@@ -325,7 +326,7 @@ The **Toolbar** has two rows of AI chip buttons:
 - Click any chip in the **Active** row to show or hide that AI's panel.
 - You can run Council Chat with **2 through 7** AIs simultaneously.
 - The **Focus AI** is always active (locked) -- it cannot be toggled off.
-- On first launch, Gemini, Claude, and ChatGPT open by default; DeepSeek, Perplexity, Grok, and Kimi start inactive until you enable them.
+- On first launch, Gemini, Claude, and ChatGPT open by default; DeepSeek, Perplexity, Grok, and Z.ai start inactive until you enable them.
 
 ---
 
@@ -366,7 +367,7 @@ npx electron .
 npm run package
 ```
 
-Creates `release/AI-Council-Portable.exe` — a single executable that runs without installation.
+Creates `release/Siftline-Portable-*.exe` — a single executable that runs without installation.
 
 ---
 
@@ -442,7 +443,7 @@ Each AI reviews from a different angle instead of using one generic checklist.
 | ChatGPT | Practical UX and Communication Coach | Clarity, tone, actionability, and real-world usefulness |
 | Gemini | Broad-Context Systems Synthesizer | Big-picture gaps, framing, audience fit, and missing context |
 | DeepSeek | First-Principles Technical Reasoning Solver | Re-derives from fundamentals; cleanest, most efficient path |
-| Kimi | Agentic Execution Architect | Breaks down complex tasks into ordered steps with tool calls, dependencies, and failure-mode recovery |
+| Z.ai (GLM) | Agentic Long-Context Analyst | Decomposes complex tasks with agentic reasoning and reads long documents to surface insights limited-context reviewers miss |
 
 When a draft is sent to reviewers, the app briefly shows these roles so it is clear why each AI is being asked to respond.
 
